@@ -1,0 +1,129 @@
+{
+  "name": "Bank Robbery",
+  "difficulty": "Easy",
+  "tracker": {
+    "stars": [
+      "green",
+      "green",
+      "yellow",
+      "yellow",
+      "yellow",
+      "yellow",
+      "red",
+      "red"
+    ],
+    "position": 0
+  },
+  "locations": [
+    {
+      "id": "loc-dgjwqvjv",
+      "name": "Bank Lobby & Offices",
+      "background": null
+    },
+    {
+      "id": "loc-4ph2y7cy",
+      "name": "Vault & Back Offices",
+      "background": null
+    }
+  ],
+  "environment": null,
+  "challenges": [
+    {
+      "id": "chal-xbtj2y89",
+      "title": "Bank Robbery",
+      "type": "Simple",
+      "paths": [
+        {
+          "label": "Rescue the Hostages",
+          "successesNeeded": 3,
+          "successesMarked": 2
+        },
+        {
+          "label": "Stop the Theft",
+          "successesNeeded": 3,
+          "successesMarked": 1
+        }
+      ],
+      "timerMode": "turns",
+      "timerTurnsRemaining": 2,
+      "timerTriggerZone": "red",
+      "consequence": "",
+      "doomsdaySpeed": "1",
+      "outcome": "",
+      "impactScale": "",
+      "solution": "",
+      "hidden": true
+    }
+  ],
+  "tokens": [
+    {
+      "id": "tok-7qtfb37h",
+      "kind": "hero",
+      "slug": "masquerade",
+      "name": "Masquerade",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 28,
+      "maxHealth": 28
+    }
+  ],
+  "gmNotes": "",
+  "__slug": "session-1-scene-1",
+  "activityLog": [
+    {
+      "timestamp": 1788221278.423,
+      "round": null,
+      "actor": null,
+      "action": "Challenge Progress",
+      "target": null,
+      "result": "Bank Robbery — Rescue the Hostages: 1",
+      "details": {
+        "challenge": "Bank Robbery",
+        "path": "Rescue the Hostages",
+        "successesMarked": 1,
+        "delta": -1
+      }
+    },
+    {
+      "timestamp": 1788221279.092,
+      "round": null,
+      "actor": null,
+      "action": "Challenge Progress",
+      "target": null,
+      "result": "Bank Robbery — Rescue the Hostages: 0",
+      "details": {
+        "challenge": "Bank Robbery",
+        "path": "Rescue the Hostages",
+        "successesMarked": 0,
+        "delta": -1
+      }
+    },
+    {
+      "timestamp": 1788221280.969,
+      "round": null,
+      "actor": null,
+      "action": "Challenge Progress",
+      "target": null,
+      "result": "Bank Robbery — Rescue the Hostages: 1",
+      "details": {
+        "challenge": "Bank Robbery",
+        "path": "Rescue the Hostages",
+        "successesMarked": 1,
+        "delta": 1
+      }
+    },
+    {
+      "timestamp": 1788221281.199,
+      "round": null,
+      "actor": null,
+      "action": "Challenge Progress",
+      "target": null,
+      "result": "Bank Robbery — Rescue the Hostages: 2",
+      "details": {
+        "challenge": "Bank Robbery",
+        "path": "Rescue the Hostages",
+        "successesMarked": 2,
+        "delta": 1
+      }
+    }
+  ]
+}

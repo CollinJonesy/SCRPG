@@ -1,0 +1,90 @@
+{
+  "name": "Migrated Scene",
+  "difficulty": "Moderate",
+  "tracker": {
+    "stars": [
+      "green",
+      "green",
+      "yellow",
+      "yellow",
+      "yellow",
+      "yellow",
+      "red",
+      "red"
+    ],
+    "position": 0
+  },
+  "locations": [
+    {
+      "id": "loc1",
+      "name": "Location 1",
+      "background": null
+    },
+    {
+      "id": "loc2",
+      "name": "Location 2",
+      "background": null
+    },
+    {
+      "id": "loc3",
+      "name": "Location 3",
+      "background": null
+    },
+    {
+      "id": "loc4",
+      "name": "Location 4",
+      "background": null
+    },
+    {
+      "id": "loc5",
+      "name": "Location 5",
+      "background": null
+    }
+  ],
+  "environment": null,
+  "challenges": [],
+  "tokens": [
+    {
+      "id": "tok-s9adq3bd",
+      "kind": "hero",
+      "slug": "absolute-zero",
+      "name": "Absolute Zero",
+      "locationId": "loc1",
+      "currentHealth": 29,
+      "maxHealth": 29,
+      "tags": []
+    },
+    {
+      "id": "tok-671raux8",
+      "kind": "villain",
+      "slug": "biomancer",
+      "name": "Biomancer",
+      "locationId": "loc2",
+      "currentHealth": 30,
+      "maxHealth": 30,
+      "tags": []
+    },
+    {
+      "id": "tok-pksy264h",
+      "kind": "minion",
+      "slug": "tech-enhanced-humanoid",
+      "name": "Tech-Enhanced Humanoid",
+      "locationId": "loc3",
+      "currentDie": 6,
+      "ko": false,
+      "tags": []
+    },
+    {
+      "id": "tok-7sksq6s5",
+      "kind": "lieutenant",
+      "slug": "battalion-commander",
+      "name": "Battalion Commander",
+      "locationId": "loc3",
+      "currentDie": 6,
+      "ko": false,
+      "tags": []
+    }
+  ],
+  "gmNotes": "",
+  "__slug": "migrated-scene"
+}

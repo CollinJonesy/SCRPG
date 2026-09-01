@@ -1,0 +1,146 @@
+HeroSlug,Zone,Name,Type,GameText,RollType,DieSource,EffectDieHint
+absolute-zero,Green,Ice Shield,A,Defend using Cold. Use your Max die. Boost using your Min die.,Defend,Cold,max
+absolute-zero,Green,Thermodynamics,R,"When you change personal zones, you may Boost by rolling your single Cold die.",Boost,Cold,
+absolute-zero,Green,Modular Realignment,A,Attack up to two targets using Cold. Also take an amount of damage equal to your Mid die.,Attack,Cold,
+absolute-zero,Green,Principle of Dependence,A,Overcome in a situation related to or using your coolant suit. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+absolute-zero,Green,Principle of Cold,A,Overcome a challenge involving Cold and use your Max die. You and each of your allies gain a hero point.,Overcome,Cold,max
+absolute-zero,Yellow,Coolant Blast,R,"When your personal zone changes, Attack all close enemy targets by rolling your single Cold die.",Attack,Cold,
+absolute-zero,Yellow,Heat Sink,A,Hinder any number of nearby targets using Absorption. Use your Max die.,Hinder,Absorption,max
+absolute-zero,Yellow,Null-Point Calibrator,I,"If you would take damage from Cold, instead reduce that damage to 0 and Recover that amount of Health instead.",Recover,,
+absolute-zero,Red,Colder Than Ice,R,"Whenever you are dealt damage, roll your single Absorption die to Defend against the Attack and Boost yourself.",Defend,Absorption,
+absolute-zero,Red,Subzero Atmosphere,I,"Whenever you Attack a target with an action, you may also Hinder that target with your Min die.",Hinder,,min
+absolute-zero,Red,Thermal Shockwave,A,"Attack up to three targets, one of which must be you, using Cold. Assign your Min, Mid, and Max dice as you choose among those targets.",Attack,Cold,max+mid+min
+absolute-zero,Out,Out Ability,A,Hinder an opponent by rolling your Cold die.,Hinder,Cold,
+aeon-girl,Green,Cosmic Nature,I,"At the start of your turn, remove any -1 penalties on you.",Other,,
+aeon-girl,Green,Inevitable Blast,A,"Attack using Cosmic. Ignore all penalties on this attack, ignore any Defend actions, and it cannot be affected by Reactions.",Defend,Cosmic,
+aeon-girl,Green,Withering Blast,A,Attack using Infernal. Hinder a target with your Min die.,Hinder,Infernal,min
+aeon-girl,Green,Principle of Levity,A,Overcome a dire situation where your jokes prevent demoralization. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+aeon-girl,Green,Principle of Cosmic Energy,A,Overcome a challenge involving cosmic energy. Use your Max die. You and each of your allies gain a hero point.,Overcome,Cosmic,max
+aeon-girl,Yellow,Cosmic Form,I,"When you would take damage from Cosmic energy, recover that amount of health instead.",Recover,,
+aeon-girl,Yellow,Energy Battery,A,"Boost yourself using Absorption. Then, remove a penalty on yourself or recover health equal to your Min die.",Recover,Absorption,min
+aeon-girl,Yellow,Fly Interference,A,"Attack using Flight. Use your Max die. If you choose another hero to go next, Boost that hero with your Mid die.",Boost,Flight,max
+aeon-girl,Yellow,Internal Cataclysm,A,Attack all nearby opponents using Infernal. Hinder any targets damaged by this ability with your Min die. Hinder yourself with your Max die.,Hinder,Infernal,
+aeon-girl,Red,Interposing Jaunt,R,"When multiple allies are Attacked, you may take all the damage instead. If you do, roll your Teleportation+Red status die and reduce the damage by that much.",Other,Teleportation,
+aeon-girl,Red,Reconstitution,I,"Once per issue, if you would go to 0 Health, roll your Absorption, Alertness, and Red status dice. Your health becomes the sum of that roll.",Other,,
+aeon-girl,Red,Unleashed Oblivion,A,"Attack using Cosmic and at least one bonus. Use your Max+Mid+Min dice. Destroy all of your bonuses, adding each of them to this attack first, even if they are exclusive.",Attack,Cosmic,max+mid+min
+aeon-girl,Out,Out Ability,A,Hinder an opponent using Cosmic.,Hinder,Cosmic,
+bunker,Green,Armored Plating,I,"Reduce physical damage you take by 1 while you are in the Green zone, 2 while in the Yellow zone, and 3 while in the Red zone.",Other,,
+bunker,Green,Satellite-Based Mode Shift,A,Boost yourself using Power Suit. Then change modes.,Boost,Power Suit,
+bunker,Green,Principle of the Defender,A,Overcome a situation that requires you to hold the line and use your Max die OR use your Mid die and Defend with your Min die. You and each of your allies gain a hero point.,Overcome,,max
+bunker,Green,Principle of the Tactician,A,Overcome when you can flashback to how you prepared for this exact situation. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+bunker,Yellow,Decoupled Barrage,A,"Attack up to three different targets using RIOT Cannon. Apply your Max die to one, your Mid die to another, and your Min die to the third. If you roll doubles, take a minor twist or take irreducible damage equal to that die.",Attack,RIOT Cannon,max+mid+min
+bunker,Yellow,MagnaRail Upgrade,A,Boost yourself using Power Suit. Use your Min+Mid dice. That bonus is persistent and exclusive.,Boost,Power Suit,mid+min
+bunker,Yellow,Satellite Recall,A,"Destroy one bonus on you. Change modes, then take an action in the new mode.",Other,,
+bunker,Red,Emergency Reconfiguration,R,"When you are hit with an Attack, you may change to any mode. If you do, take extra damage equal to the Min die or take a minor twist.",Other,,min
+bunker,Red,External Combustion,A,Attack multiple nearby targets using Power Suit. Use your Max+Mid dice against each. Take irreducible damage equal to your Min die.,Attack,Power Suit,max+mid
+bunker,Red,RIOT-Blast,A,"Attack using RIOT Cannon and at least one bonus. Use your Max+Mid+Min dice. Destroy all of your bonuses, adding each of them to this Attack first, even if they are exclusive.",Attack,RIOT Cannon,max+mid+min
+bunker,Out,Out Ability,A,Boost an ally by rolling your single Lightning Calculator die.,Boost,Lightning Calculator,
+bunker,Green,Utility Mode: Uplink Upgrade,A,Boost yourself using Power Suit. Create one bonus with your Max die and one bonus using your Mid die. These bonuses are persistent and exclusive.,Boost,Power Suit,max+mid
+bunker,Yellow,Recharge Mode: Defensive Diagnostic,A,Defend using RIOT Cannon. Use your Max die. Recover Health equal to your Min die.,Recover,RIOT Cannon,max
+bunker,Yellow,Tactical Mode: Sitrep: Resolved,A,Hinder or use one of your principles to Overcome using Lightning Calculator. Use your Max+Min dice.,Overcome,Lightning Calculator,max+min
+bunker,Red,Turret Mode: BUDDABUDDA BUDDABUDDA,I,"Whenever you take a basic Attack action, either use your Max+Min dice to Attack one target, or Attack two different targets, one using your Max die and one using your Mid die.",Attack,,max+min
+heritage,Green,Fortitude,I,"Reduce any physical or energy damage you take by 1 while you are in the Green zone, 2 while in the Yellow zone, and 3 while in the Red zone.",Other,,
+heritage,Green,Galvanize,A,Boost using Leadership. Apply that bonus to all hero Attack and Overcome actions until the start of your next turn.,Overcome,Leadership,
+heritage,Green,Motivational Charge,A,Attack using Leadership. Other nearby heroes in the Yellow or Red zone Recover equal to your Min die.,Recover,Leadership,min
+heritage,Green,Principle of Order,A,Overcome a challenge where you can organize other people. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+heritage,Green,Principle of the Mentor,A,Overcome a challenge that someone else younger already tried and failed. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+heritage,Yellow,Danger Sense,R,"When damaged by an environment target or a surprise Attack, Defend by rolling your single Awareness die.",Defend,Awareness,
+heritage,Yellow,Lead from the Front,A,"Attack using Strength. The target of that Attack must take the Attack action against you as its next turn, if possible.",Attack,Strength,
+heritage,Yellow,Steel Yourself,A,"Boost yourself using Vitality, then either remove a penalty on yourself or Recover using your Min die.",Recover,Vitality,min
+heritage,Red,Heroic Interception,R,"When an opponent Attacks, you may become the target of the Attack and Defend by rolling your single Red zone die.",Defend,,
+heritage,Red,Take Down,A,"Attack using Flight. Use your Max die. Then, Hinder that target using your Mid+Min dice.",Hinder,Flight,max
+heritage,Out,Out Ability,A,Boost an ally by rolling your single History die.,Boost,History,
+legacy,Green,Eyes in the Sky,A,Boost using Insight. Apply that bonus to all hero Attack and Overcome actions until the start of your next turn.,Overcome,Insight,
+legacy,Green,Furthering your Father’s Legacy,A,Boost yourself using Insight. That bonus is persistent and exclusive.,Boost,Insight,
+legacy,Green,Sideswipe,A,Hinder multiple targets using Flight. Apply your Min die to each of them.,Hinder,Flight,min
+legacy,Green,Principle of the Hero,A,Overcome in a situation in which innocent people are in immediate danger. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+legacy,Green,Principle of Justice,A,Overcome to stop an act of injustice in progress and use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+legacy,Yellow,Danger Sense,R,"When damaged by an environment target or a surprise Attack, Defend by rolling your single Flight die.",Defend,Flight,
+legacy,Yellow,Evasive Assault,A,"Attack using Flight, then Defend against all attacks against you until your next turn equal to your Min die.",Defend,Flight,min
+legacy,Yellow,Sweeping Gaze,A,"Attack multiple targets using Atomic Glare, using your Min die against each.",Attack,Atomic Glare,min
+legacy,Red,Focused Blast,A,Boost yourself using Atomic Glare. Use your Max die. That bonus is persistent and exclusive. Attack using your Mid die plus that bonus.,Boost,Atomic Glare,max
+legacy,Red,Head-On Collision,A,"Attack using Flight. Use your Max die. Then, Hinder that target using your Mid+Min dice.",Hinder,Flight,max
+legacy,Out,Out Ability,A,Boost an ally by rolling your single Vitality die.,Boost,Vitality,
+muerto,Green,Calavera Wisp,A,Take a basic action using Intangibility. Then switch to your Ghost form on your auxiliary sheet.,Other,Intangibility,
+muerto,Green,Haunt Electronics,A,"Overcome using Technology. On a success, enter an Electronics form on your auxiliary sheet. Then, take a basic action with your Min die.",Overcome,Technology,min
+muerto,Green,Polterheist,A,Attack using Intangibility and use your Max die. Then change to any available form.,Attack,Intangibility,max
+muerto,Green,Principle of the Gearhead,A,Overcome a technological challenge. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+muerto,Green,Principle of the mask,A,Overcome using knowledge from your civilian life. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+muerto,Yellow,Absorbed Apparatus,A,Boost yourself using Intangibility. Use your Max die. That bonus is persistent and exclusive.,Boost,Intangibility,max
+muerto,Yellow,Electro-Field,A,Boost or Hinder multiple nearby targets using Electricity.,Hinder,Electricity,
+muerto,Red,Sense the Unseen,I,"Whenever you take an action using Awareness, you may reroll your Min die before determining effects.",Other,Awareness,min
+muerto,Red,Stop and Refocus,A,Hinder yourself using Intangibility. Use your Min die. Recover health equal to your Max+Mid dice.,Recover,Intangibility,min
+muerto,Red,Quick Shift,R,"When Attacked, change to any form before resolving the attack. Take a minor twist.",Other,,
+muerto,Out,Out Ability,A,Remove a bonus of your choice.,Other,,
+muerto,Green,Tough Form: Sturdy Body,I,"Reduce any physical or energy damage you take by 1 while you are in the Green zone, 2 while in the Yellow zone, and 3 while in the Red zone.",Other,,
+muerto,Green,Minuscule Form: Self-Diagnostic,A,Defend using Power Suit. Use your Max die. Remove all penalties on you.,Defend,Power Suit,max
+muerto,Yellow,Towering Form: Tech Whirlwind,A,Attack multiple targets using Part Detachment.,Attack,Part Detachment,
+muse,Green,Mental Block,A,Attack using Suggestion. Hinder the target using your Min die.,Hinder,Suggestion,min
+muse,Green,Your Best Selves,A,Boost using Telepathy. Apply that bonus to all hero Attack and Overcome actions until your next turn.,Overcome,Telepathy,
+muse,Green,Principle of Mastery,A,Overcome in a situation that uses your powers in a new way. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+muse,Green,Principle of the Inner Demon,A,Overcome a challenge by tapping into your dark psyche. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+muse,Yellow,Conjured Nightmare,A,Hinder multiple targets using Illusions. Use your Mid die for one and your Min die for the rest.,Hinder,Illusions,mid
+muse,Yellow,Open Your Inner Eye,A,Boost yourself using Intuition. Use your Max die. That Bonus is persistent and exclusive. Attack using your Min die.,Boost,Intuition,max
+muse,Yellow,Overwhelmed Mind,A,"Attack a minion using Suggestion. If that minion would be removed, instead you control its next action and then remove it. Otherwise, Hinder it with your Min die.",Hinder,Suggestion,min
+muse,Yellow,Twist Your Mind,A,Attack using Telepathy. Use your Max die. Hinder the target with your Min die. That penalty is persistent.,Hinder,Telepathy,max
+muse,Red,Debilitate,A,"Hinder using Suggestion. Use your Max+Mid dice. Damage yourself equal to your Min die. Then if you rolled doubles, Attack the target with your Mid+Min dice.",Hinder,Suggestion,max+mid
+muse,Red,Perfect Intuition,I,"As long as you have at least one bonus created from Insight, treat Suggestion as one size higher (max d12).",Other,Insight,
+muse,Red,Shared Terror,A,Attack using Conviction. Use your Max+Mid+Min dice. Take a major twist.,Attack,Conviction,max+mid+min
+muse,Out,Out Ability,A,Boost an ally using Insight.,Boost,Insight,
+rockstar,Green,Rock Out,R,"When you change personal zones, you may Boost by rolling your single Transmutation die.",Boost,Transmutation,
+rockstar,Green,Shake It Off,I,"Reduce any physical or energy damage you take by 1 while you are in the Green zone, 2 while in the Yellow zone, and 3 while in the Red zone.",Other,,
+rockstar,Green,Wicked Solo,A,"Attack using Strength. The target of that Attack must take the Attack action against you on its next turn, if possible.",Attack,Strength,
+rockstar,Green,Principle of Ambition,A,Overcome a situation where someone else has given you a bonus from a Boost. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+rockstar,Green,Principle of Strength,A,Overcome using brute force. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+rockstar,Yellow,Drop the Hammer,A,Attack using Strength. Hinder that same target using your Min die.,Hinder,Strength,min
+rockstar,Yellow,Shard Shatter,R,"When your personal zone changes, Attack all close enemy targets by rolling your single Stone die.",Attack,Stone,
+rockstar,Yellow,Standing Ovation,R,"When you eliminate a minion with an Attack using Close Combat, Recover health equal to your Min die.",Recover,Close Combat,min
+rockstar,Red,Encore!,A,Hinder yourself using Vitality. Use your Min die. Recover health equal to your Max+Mid dice.,Recover,Vitality,min
+rockstar,Red,Power Chord,A,Attack using Stone. Use your Max+Mid dice.,Attack,Stone,max+mid
+rockstar,Out,Out Ability,A,Hinder an opponent using Stone.,Hinder,Stone,
+tachyon,Green,Hypersonic Assault,A,Attack multiple targets using Finesse. Use your Min die. Hinder each target equal to your Mid die.,Hinder,Finesse,min
+tachyon,Green,Nimble Strike,R,"When a new target enters the scene close to you, you may Attack it by rolling your single Speed die.",Attack,Speed,
+tachyon,Green,Quick Insight,A,"Boost or Hinder using Lightning Calculator. Use your Max die. If you roll doubles, you may also Attack using your Mid die.",Hinder,Lightning Calculator,max
+tachyon,Green,Principle of Speed,I,"When you successfully Overcome, you may end up anywhere in the current environment. You and each of your allies gain a hero point.",Other,,
+tachyon,Green,Principle of Science,A,Overcome while applying specific scientific principles. Use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+tachyon,Yellow,Margin of Error,R,"After rolling during your turn, you may take 1 irreducible damage to reroll your entire dice pool.",Other,,
+tachyon,Yellow,Stabilization Device,A,"Boost yourself using Inventions. Then, either remove a penalty on yourself or recover using your Min die.",Recover,Inventions,min
+tachyon,Yellow,Tech on the Fly,A,Boost multiple targets using Inventions. Use your Max die.,Boost,Inventions,max
+tachyon,Red,Rapid Response,A,Hinder yourself using Vitality. Use your Min die. Recover health equal to your Max+Mid dice.,Recover,Vitality,min
+tachyon,Red,Speed of Thought,A,Overcome using Speed. Use your Max+Min dice.,Overcome,Speed,max+min
+tachyon,Out,Out Ability,A,"Choose an ally. Until your next turn, that ally may reroll one of their dice by using a reaction.",Other,,
+headlong,Green,Frictionless Shove,A,Attack using Momentum. Either Hinder your target with your Min die or move them somewhere else in the scene.,Hinder,Momentum,min
+headlong,Green,Get Moving,A,Boost yourself using Momentum. That bonus is persistent and exclusive.,Boost,Momentum,
+headlong,Green,Slip & Slide,A,Attack using Agility. Defend against all attacks against you until your next turn with your Min die.,Defend,Agility,min
+headlong,Green,Principle of the Mask,A,Overcome using knowledge from your civilian life and use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+headlong,Green,Principle of Speed,I,"Whenever you successfully Overcome, you may end up anywhere in the current environment. Then, you and each of your allies gain a hero point.",Other,,
+headlong,Yellow,Bowl Over,A,Attack multiple targets using Momentum. Use your Min die against each.,Attack,Momentum,min
+headlong,Yellow,Friction Transfer,A,Boost yourself using Momentum. Use your Max die. Hinder a nearby opponent with your Min die.,Hinder,Momentum,max
+headlong,Yellow,Smooth Move,R,"When another hero in the Yellow or Red zone would take damage, you may Defend them by rolling your single Intuition die.",Defend,Intuition,
+headlong,Red,Slippery Surface,A,Hinder multiple nearby targets using Acrobatics. Use your Max die. End your turn elsewhere in the scene.,Hinder,Acrobatics,max
+headlong,Red,Spin Out,A,Attack using Momentum. Use your Max die. Hinder that target with your Mid+Min dice.,Hinder,Momentum,max
+headlong,Red,Wheelin' & Dealin',R,"When an enemy Attacks an ally you can see, you may become the target of that Attack and Defend against that Attack by rolling your single Red status die.",Defend,,
+headlong,Out,Out Ability,A,Hinder a minion or lieutenant using Persuasion. Increase that penalty by 1.,Hinder,Persuasion,
+wraith,Green,Grappling Hook,A,"Attack using Ranged Combat. Remove one physical bonus or penalty, Hinder a target using your Min die, or maneuver to a new location in your environment.",Hinder,Ranged Combat,min
+wraith,Green,Strike from the Shadows,A,Attack using Stealth. Defend using your Min die against all Attacks until your next turn.,Defend,Stealth,min
+wraith,Green,Principle of the Detective,A,Overcome to learn hidden information and use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+wraith,Green,Principle of Stealth,A,Overcome to infiltrate somewhere or avoid detection and use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+wraith,Yellow,Combat Stance,R,"When you are Attacked by a nearby enemy, the attacker also takes an equal amount of damage.",Other,,
+wraith,Yellow,Smoke Bombs,R,"When you would take damage, Defend against that damage by rolling your single Stealth die.",Defend,Stealth,
+wraith,Yellow,Utility Belt,A,"Boost yourself using Gadgets. That bonus is persistent and exclusive. Then, Attack using your Min die. You may use the bonus you just created on that Attack.",Boost,Gadgets,min
+wraith,Red,Favorite Knife,A,Boost yourself using Throwing Knives. Use your Max die. That bonus is persistent and exclusive. Attack using your Mid die plus that bonus.,Boost,Throwing Knives,max
+wraith,Red,Run the Numbers,A,"Boost using Investigation and use your Max die. Defend against all Attacks against you using your Mid die until your next turn. Note your Min die: as a Reaction, until your next turn, you may Hinder an attacker using that die.",Defend,Investigation,max
+wraith,Red,Street Smarts,I,"When taking any action using Deduction, you may reroll your Min die before determining effects.",Other,Deduction,min
+wraith,Out,Out Ability,A,Remove a bonus or penalty of your choice.,Other,,
+time-slinger,Green,Altered Scan,R,"After a die pool is rolled, adjust one die up or down one value on the die.",Other,,
+time-slinger,Green,Sit a Spell,A,Attack a target using Power Arm. Hinder that target with your Min die.,Hinder,Power Arm,min
+time-slinger,Green,Takin' My Time,A,"Boost using Power Arm. Use your Max die. If you roll doubles, you may also Attack using your Mid die.",Boost,Power Arm,max
+time-slinger,Green,Principle of the Time Traveler,A,Overcome a problem using knowledge from your home era and use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+time-slinger,Green,Principle of Whispers,A,Overcome against a challenge that involves information that you have no real way of knowing and use your Max die. You and each of your allies gain a hero point.,Overcome,,max
+time-slinger,Yellow,Fan the Hammer,A,"Attack multiple targets using Time Revolver, using your Min die against each.",Attack,Time Revolver,min
+time-slinger,Yellow,Localized Acceleration,A,"Boost yourself using Power Arm. Then, either remove a penalty on yourself or Recover using your Min die.",Recover,Power Arm,min
+time-slinger,Yellow,Stack the Deck,R,"When a nearby enemy would create a bonus or penalty, you may remove it immediately.",Other,,
+time-slinger,Red,Get Out of Dodge,A,"Attack using Robot Horse. Use your Max die. Hinder each nearby opponent with your Min die. After using this ability, you and up to 2 allies may end up anywhere in the scene, even outside of the action.",Hinder,Robot Horse,max
+time-slinger,Red,Showdown,A,Attack using Self-Discipline. Use your Max+Mid+Min dice. Take a major twist.,Attack,Self-Discipline,max+mid+min
+time-slinger,Red,Temporal Bootstrap,A,"Boost another hero using Postcognition. If that hero has already acted for the turn, use your Max die, and that hero loses Health equal to your Min die. That hero acts next in the action order.",Boost,Postcognition,max
+time-slinger,Out,Out Ability,A,Boost an ally by rolling your History die.,Boost,History,
