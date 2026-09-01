@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SCRPG Scene Board — campaign
+Comment=Launch the SCRPG VTT local server (campaign folder) and open the Scene Board
+Exec="__REPO_DIR__/desktop-launchers/launch-campaign.sh"
+Terminal=true
+Icon=applications-games
+Categories=Game;

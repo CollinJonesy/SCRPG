@@ -29,6 +29,44 @@ Use `--campaign` / `--port` same as before.
 sudo firewall-cmd --add-port=8420/tcp --permanent && sudo firewall-cmd --reload
 ```
 
+**Debian firewall** (uses `ufw` instead of `firewall-cmd`):
+```bash
+sudo ufw allow 8420/tcp
+```
+
+## Running fully offline
+
+The app has zero internet dependency — PapaParse and the Bangers/JetBrains Mono/Inter
+fonts are vendored locally under `vendor/` (see `server.py`'s `/vendor/` static route),
+not loaded from a CDN or Google Fonts. Nothing needs to reach the internet at any point,
+before or during a session.
+
+## Desktop launchers (no terminal needed)
+
+`desktop-launchers/` ships one `.sh` launch script and one `.desktop` template per
+campaign folder (`campaign/` and `Volume1/`). To install both as clickable app-menu
+entries (works under GNOME, KDE, XFCE, etc.):
+```bash
+bash desktop-launchers/install.sh
+```
+This fills in the actual repo path automatically (no manual editing) and installs to
+`~/.local/share/applications/`. Each launcher starts the server for its campaign on its
+own port (Volume1 → 8420, campaign → 8421) and opens a browser to it.
+
+## Moving this to another machine
+
+This is a git repo. To move it to a new machine with no shared network (e.g. via USB
+drive), bundle it up:
+```bash
+git bundle create scrpg-vtt.bundle --all
+```
+Copy the resulting `scrpg-vtt.bundle` file over, then on the new machine:
+```bash
+git clone scrpg-vtt.bundle "SCRPG VTT"
+```
+For later updates, repeat the bundle step and run `git pull scrpg-vtt-update.bundle main`
+on the target machine.
+
 **Security:** no login, no encryption — anyone on your Wi-Fi can read/write while this runs. Fine for home use; don't expose it publicly.
 
 ## Scenes
