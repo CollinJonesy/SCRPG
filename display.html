@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG — Player Display</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* Display-only overrides: bigger, chrome-free, built for a TV across the room */
+  body { overflow-x: hidden; }
+  .display-header { padding: 14px 24px; }
+  .display-header h1 { font-size: 32px; }
+  .display-tracker-wrap { padding: 0 24px 10px; }
+  .tracker-star { width: 40px; height: 40px; font-size: 26px; }
+  .location-col { min-height: 340px; }
+  .location-header { padding: 12px 14px; }
+  .location-name-display { font-size: 22px; }
+  .token-name { font-size: 20px; }
+  .empty-display { padding: 60px 24px; text-align: center; font-family: var(--font-display); font-size: 28px; color: var(--text-lo); }
+
+  /* Revealed dice roll overlay -- full-screen, dramatic, for the TV */
+  #rollOverlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(11,13,18,0.94);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 20px;
+  }
+  #rollOverlay .roll-who { font-family: var(--font-display); font-size: 40px; color: var(--accent); letter-spacing: 1px; }
+  #rollOverlay .roll-dice-row { display: flex; gap: 24px; margin: 24px 0; }
+  #rollOverlay .roll-die-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #rollOverlay .roll-die-label { font-family: var(--font-data); font-size: 14px; color: var(--text-lo); text-transform: uppercase; letter-spacing: 2px; }
+  #rollOverlay .roll-die-value { font-family: var(--font-display); font-size: 64px; color: var(--text-hi); }
+  #rollOverlay .roll-effect { font-family: var(--font-display); font-size: 32px; color: var(--yellow); margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div id="rollOverlay" class="hidden"></div>
+
+<header class="app-header display-header">
+  <div class="brand">
+    <span class="brand-mark">GYRO</span>
+    <h1 id="displaySceneName">No active scene</h1>
+  </div>
+  <span id="displayDifficulty" class="token-type-chip villain"></span>
+</header>
+
+<div class="display-tracker-wrap">
+  <div id="displayTrackerRow"></div>
+  <div id="displayEnvironment" class="board-environment"></div>
+</div>
+
+<main class="view">
+  <div id="displayEmpty" class="empty-display">Waiting for the GM to load a scene…</div>
+  <div id="locationsRow" class="locations-row"></div>
+
+  <div id="displayChallenges" style="padding: 0 4px; margin-top: 18px;"></div>
+  <aside class="challenges-sidebar" id="displayActivityLog" style="margin: 18px 4px 0;"></aside>
+</main>
+
+<script src="vendor/papaparse.min.js"></script>
+<script src="display.js"></script>
+</body>
+</html>
