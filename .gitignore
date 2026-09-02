@@ -1,0 +1,22 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Common project tooling (uncomment/extend once the VTT stack is known)
+node_modules/
+dist/
+build/
+.env
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Logs
+*.log
