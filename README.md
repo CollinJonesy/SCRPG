@@ -1,123 +1,73 @@
-# SCRPG Scene Board
+# SCRPG
 
-A local VTT for Sentinel Comics RPG: Locations instead of a grid, GYRO-based health bars, a rules-aware Minion/Lieutenant attack resolver, a Scene Tracker, and Challenges (including Timed and Doomsday Devices) — with a GM Console (full info) and a separate Player Display (redacted) for casting to a TV.
+Home for everything related to my Sentinel Comics RPG campaign(s): the custom VTT, campaign lore/notes, and shared assets.
 
-## Running it
+## Structure
 
-Storage lives entirely on a small local server (Python 3 stdlib only, nothing to install) — this also means any device on your Wi-Fi, including your phone, can open it in a browser. No APK, no File System Access API (which doesn't exist on mobile browsers anyway).
+```
+SCRPG/
+├── vtt/                    Custom VTT project (code) — see vtt/README.md for how to run it
+├── campaign/
+│   └── occidia/             Current campaign: Occidia
+│       ├── lore/            World/setting notes, factions, timeline
+│       ├── npcs/             NPC write-ups and stat blocks
+│       ├── player-characters/ PC sheets and backstories
+│       ├── sessions/         Session recaps/logs, one file per session
+│       ├── handouts/         Player-facing documents (letters, clues, etc.)
+│       └── maps/             Battle maps, world maps
+├── assets/                 Shared media not tied to one campaign
+│   ├── images/               Art, tokens source images, reference art
+│   ├── audio/                Music, ambience, SFX
+│   └── tokens/                VTT-ready token images
+└── docs/                   House rules, SCRPG rules reference, misc guides
+```
+
+When a second campaign starts, add a sibling folder under `campaign/` (e.g. `campaign/<new-name>/`) rather than restructuring this one.
+
+Note: the VTT app also keeps its own mechanical campaign data (`vtt/campaign/`, `vtt/Volume1/` — CSV/JSON heroes, villains, scenes) separate from the narrative notes under `campaign/occidia/` here. The app data is what `server.py` reads to run a live session; `campaign/occidia/` is where the story/world content lives (authored in Obsidian). See `vtt/README.md` and `vtt/CLAUDE.md` for that split in detail.
+
+## Adding campaign notes/assets
+
+Drop files into the matching folder (`campaign/occidia/lore/`, `assets/images/`, etc.), then:
 
 ```bash
-cd scrpg-vtt
-python3 server.py
-```
-It prints:
-```
-SCRPG Scene Board running.
-  Campaign folder: /home/collin/scrpg-vtt/campaign
-  GM Console (this machine):  http://localhost:8420
-  GM Console (your phone, same Wi-Fi): http://192.168.1.42:8420
-  Player Display (cast this tab):      http://localhost:8420/display.html
+git add .
+git commit -m "Add <what you added>"
+git push
 ```
 
-- **GM Console** (`/`) — everything: Library, Scenes editor, Board with full control, Challenge solutions, GM Notes. This is what you run the game from.
-- **Player Display** (`/display.html`) — a separate, read-only, auto-refreshing page. **This is the tab you cast to your TV.** It shows Locations with backgrounds, tokens, health, and Challenge progress — but never Challenge solutions (unless you've explicitly marked one "revealed") and never GM Notes. Open it from the "Open Player Display ↗" link in the Console header, or just navigate to it directly.
+## Git/GitHub basics (since this is your first repo)
 
-Use `--campaign` / `--port` same as before.
+- **Repo** = the project folder, tracked by git, mirrored on GitHub.
+- **Commit** = a saved snapshot with a message describing what changed. Commit often, in small logical chunks ("Add Occidia session 3 recap" beats "updates").
+- **Branch** = a parallel line of work. `main` is the default/stable branch. Create a new branch for anything you don't want to touch `main` directly with (e.g. `git checkout -b add-session-4`), then merge it back via a pull request.
+- **Pull request (PR)** = a request to merge one branch into another, with a diff you (or reviewers) can look over before it lands. Good habit even solo — gives you a review step and a changelog.
+- **Push/pull** = upload/download commits to/from GitHub. `git push` sends your local commits up; `git pull` brings down anything new.
+- **`.gitignore`** = tells git which files to never track (build output, secrets, OS junk files). Already set up in this repo — extend it if you need more entries.
 
-**openSUSE firewall**, if your phone can't reach the printed IP:
-```bash
-sudo firewall-cmd --add-port=8420/tcp --permanent && sudo firewall-cmd --reload
-```
+### Recommended workflow
 
-**Debian firewall** (uses `ufw` instead of `firewall-cmd`):
-```bash
-sudo ufw allow 8420/tcp
-```
+1. Make changes locally (edit notes, add files, code on the VTT).
+2. `git status` to see what changed.
+3. `git add <files>` (or `git add .` for everything) to stage them.
+4. `git commit -m "clear description of what changed"`.
+5. `git push` to sync to GitHub.
+6. For bigger VTT features, branch first (`git checkout -b feature-name`), then PR into `main` when done — keeps `main` always in a working state.
 
-## Running fully offline
+### Tips for staying organized
 
-The app has zero internet dependency — PapaParse and the Bangers/JetBrains Mono/Inter
-fonts are vendored locally under `vendor/` (see `server.py`'s `/vendor/` static route),
-not loaded from a CDN or Google Fonts. Nothing needs to reach the internet at any point,
-before or during a session.
+- **One file per session** in `campaign/occidia/sessions/`, named `YYYY-MM-DD-session-N.md` — sortable by date, easy to scan.
+- **Keep large binary assets (maps, audio) reasonably sized** — GitHub isn't great for huge files. If maps/audio get large (100MB+), ask about Git LFS before it becomes a problem.
+- **Link, don't duplicate**: if an NPC appears in a session recap, link to their file in `npcs/` instead of re-writing their stats.
+- **Commit messages as a changelog**: six months from now, `git log --oneline` in a folder tells you the history of a campaign thread — write messages with that future read in mind.
+- **Use a `.md` file per NPC/PC/location** rather than one giant doc — much easier to find, edit, and link between in GitHub's markdown rendering.
 
-## Desktop launchers (no terminal needed)
+## This repo doubles as an Obsidian vault
 
-`desktop-launchers/` ships one `.sh` launch script and one `.desktop` template per
-campaign folder (`campaign/` and `Volume1/`). To install both as clickable app-menu
-entries (works under GNOME, KDE, XFCE, etc.):
-```bash
-bash desktop-launchers/install.sh
-```
-This fills in the actual repo path automatically (no manual editing) and installs to
-`~/.local/share/applications/`. Each launcher starts the server for its campaign on its
-own port (Volume1 → 8420, campaign → 8421) and opens a browser to it.
-
-## Moving this to another machine
-
-This is a git repo. To move it to a new machine with no shared network (e.g. via USB
-drive), bundle it up:
-```bash
-git bundle create scrpg-vtt.bundle --all
-```
-Copy the resulting `scrpg-vtt.bundle` file over, then on the new machine:
-```bash
-git clone scrpg-vtt.bundle "SCRPG VTT"
-```
-For later updates, repeat the bundle step and run `git pull scrpg-vtt-update.bundle main`
-on the target machine.
-
-**Security:** no login, no encryption — anyone on your Wi-Fi can read/write while this runs. Fine for home use; don't expose it publicly.
-
-## Scenes
-
-The Board no longer plays one fixed scene — it plays whichever **Scene** you've loaded. Go to the **Scenes** tab:
-
-- **+ New Scene** → opens the Scene Editor.
-- Each scene has: name, **Difficulty** (Easy/Moderate/Difficult, with the real page 185-188 reference table shown inline as guidance — Challenges/Minions/Lieutenants/Villains/Environment by tier, not enforced, just there to look at while you build), a **Scene Tracker**, any number of **Locations** (each with an optional background image), any number of **Challenges**, and a GM Notes field.
-- **Load to Board** sets that scene as the active one — the Board and Player Display both switch to it immediately.
-- You can have as many scenes prepped as you want; only one is "active" (on the Board/Display) at a time.
-
-## Scene Tracker
-
-Built from the actual book page — Standard (2 green / 3 yellow / 3 red), Prolonged (3/4/4), Epic (1/4/4), counted directly off the printed chart, or fully custom (add/remove stars of any color). Click any star to jump the marker there; Advance/Retreat buttons on the Board move it one space at a time. A Doomsday Device's "Advance Device Turn" button also moves it, per its configured speed.
-
-## Locations
-
-No fixed count anymore — add or remove freely per scene. Each gets a name and an optional background image (upload from the Scene Editor); the Board and Player Display render it as a cover image behind that Location's column.
-
-## Challenges
-
-All six book types are selectable (Simple, Linear, Multiple Solutions, Branching Outcomes, Timed, Doomsday Device). Structurally, every challenge is one or more **paths**, each needing N successes — this matches the pattern already in your own Notion (a Linear challenge's sequential checkboxes, a Multiple Solutions challenge's parallel paths). Timed and Doomsday Device get their book-accurate extra mechanics:
-
-- **Timed**: a timer that's either a turn countdown, or set to trigger when the Scene Tracker reaches Yellow or Red (per the page 191 chart). You track the countdown manually — there's no automated turn order in this app, so you decrement it yourself each round.
-- **Doomsday Device**: takes its own "turn" — click **Advance Device Turn** and the Scene Tracker moves by however much you configured (1 space, 2 spaces, to the start of the next zone, or to the end of it), matching the book's "it moves the tracker forward at least twice in the turn" rule. Also has Impact Scale and a Catastrophic Outcome field for your own notes on what happens if it goes off.
-
-Every challenge has a **Solution** field and a **Hidden from Player Display** checkbox (checked by default). Progress (the success counters) always shows on both Console and Display — only the Solution text is withheld until you uncheck the box.
-
-## Hidden information
-
-This only ever applies to two things: a Challenge's **Solution** field, and the scene's **GM Notes** field. Everything else — tokens, health, dice, Location names/backgrounds, Challenge titles and progress — is visible on both the Console and the Player Display by default, since that's the shared "board" your players are looking at. If you find you want more granular hiding (e.g. a Villain's Status Dice being secret), tell me and I'll add a similar per-field toggle.
-
-## Importing from Notion
-
-Unchanged from before — `notion_import.py` still reshapes Notion CSV exports (Hero Roster, Villain Database, Minions & Lieutenants) into the Library.
-
-## Rules encoded so far
-
-- **Hero/Villain Health**: GYRO band coloring, Heroes off the printed 17-40 chart, Villains off per-entry Green/Yellow/Red floors you set.
-- **Minions**: roll their own die as a save. Fail → defeated outright (your house rule). Succeed → no change.
-- **Lieutenants**: roll their own die as a save. Fail → degrade one step. Succeed → no change. Damage ≥ 2× die size → instant KO, no save.
-- **Scene Tracker**: real preset star counts, custom builder, click-to-set or Advance/Retreat marker.
-- **Scene Difficulty**: real page 185-188 table shown as reference.
-- **Challenges**: all 6 types, path/success-counter model, Timed and Doomsday Device mechanics from pages 191 and 197-198.
-- **Hidden info**: Challenge solutions + GM Notes withheld from Player Display until revealed.
-
-## Explicitly NOT built yet
-
-- No automated 3-die pool / Min-Mid-Max / Effect Die resolution — still GM-adjudicated.
-- No turn-order/initiative tracker — Timed countdowns and Doomsday Device turns are manually triggered by you, in whatever order you're already running the scene.
-- No auth on the server — anyone on your Wi-Fi with the link has full read/write.
-- No undo history — everything is plain text/JSON on disk, so version control or periodic copies are your safety net if wanted.
-- Player Display polls every 2 seconds rather than pushing updates instantly — there's a small lag, not truly live.
-- Drag-and-drop is still the only way to move tokens between Locations on the Console; untested on a touchscreen.
+This repo is the git backing for the "Occidia" Obsidian vault — the vault root is this
+folder. `campaign/occidia/*` is written and edited directly in Obsidian (Templater
+templates for consistent NPC/PC/session structure); the Obsidian Git plugin handles
+commit/push for you here. Player-facing lore gets published separately via the Digital
+Garden plugin (tag a note `dg-publish: true`) — that never touches this private repo, so
+GM-only content (this repo's `vtt/campaign/`, `vtt/Volume1/`, and anything under
+`campaign/occidia/` you haven't tagged) never leaks to players by accident.

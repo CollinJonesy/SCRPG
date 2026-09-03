@@ -1,3 +1,25 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+**/.directory
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Common project tooling
+node_modules/
+dist/
+build/
+.env
+venv/
+.venv/
+
+# Python
 __pycache__/
 *.pyc
-**/.directory
+
+# Logs
+*.log
