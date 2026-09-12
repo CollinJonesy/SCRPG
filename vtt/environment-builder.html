@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Environment Builder</title>
+<style>
+  :root{--ink:#1a1a2e;--card:#fff;--bg:#eef1f6;--line:#d4d9e3;--accent:#0f766e;}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0}
+  header{background:linear-gradient(120deg,#115e59,#0f766e);color:#fff;padding:16px 22px}
+  header h1{margin:0;font-size:1.35rem}
+  header p{margin:4px 0 0;opacity:.9;font-size:.85rem}
+  .wrap{max-width:960px;margin:0 auto;padding:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
+  input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  textarea{min-height:80px}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer}
+  .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
+  .ghost.sel{background:var(--accent);color:#fff}
+  .tiny{padding:6px 8px;font-size:.8rem}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .hidden{display:none}
+  table.land{width:100%;border-collapse:collapse;font-size:.86rem}
+  table.land th,table.land td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+  table.land tr{cursor:pointer}
+  table.land tr:hover{background:#e6fffa}
+  .muted{color:#888;font-size:.8rem}
+  .ok{color:#2e7d32}
+  .demo{display:grid;grid-template-columns:1fr 90px;gap:8px}
+</style>
+</head>
+<body>
+<header>
+  <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#ccfbf1;font-size:.8rem;text-decoration:none">← All builders</a></p>
+  <h1>Environment Builder</h1>
+  <p>Three traits + dice. Landing table matches Villains: All / Custom / Premade.</p>
+</header>
+<div class="wrap">
+  <div id="landing" class="panel">
+    <div class="actions" style="margin-top:0">
+      <button class="btn" type="button" onclick="startNew()">+ New Environment</button>
+      <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+    </div>
+    <p class="muted" id="landEmpty">Loading…</p>
+    <table class="land hidden" id="landTable">
+      <thead><tr><th>Name</th><th>Trait 1</th><th>Trait 2</th><th>Trait 3</th><th>Origin</th></tr></thead>
+      <tbody id="landBody"></tbody>
+    </table>
+  </div>
+  <div id="form" class="panel hidden">
+    <div class="actions" style="margin-top:0"><button class="ghost tiny" type="button" onclick="showLanding()">← List</button></div>
+    <label>Name</label><input id="name">
+    <label>Slug</label><input id="slug" placeholder="auto from name">
+    <label>Trait 1</label>
+    <div class="demo"><input id="t1" placeholder="Trait"><select id="d1"><option>d6</option><option selected>d8</option><option>d10</option><option>d12</option></select></div>
+    <label>Trait 2</label>
+    <div class="demo"><input id="t2"><select id="d2"><option>d6</option><option selected>d8</option><option>d10</option><option>d12</option></select></div>
+    <label>Trait 3</label>
+    <div class="demo"><input id="t3"><select id="d3"><option>d6</option><option selected>d8</option><option>d10</option><option>d12</option></select></div>
+    <label>Twists / notes</label><textarea id="notes" placeholder="GYRO twists live in Library notes for now."></textarea>
+    <div class="actions">
+      <button class="btn" type="button" onclick="saveRow()">Save to Library</button>
+      <button class="ghost" type="button" onclick="showLanding()">Cancel</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+</div>
+<script>
+let landMeta=[], originFilter='all', editing=null;
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function slugify(n){return (n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'environment';}
+function parseRow(line){
+  const cells=[], cur={v:'',q:false};
+  for (const ch of line+'\0'){
+    if (ch==='"'){cur.q=!cur.q;continue;}
+    if ((ch===','||ch==='\0')&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+    cur.v+=ch;
+  }
+  return cells;
+}
+function setOrigin(o){
+  originFilter=o;
+  document.querySelectorAll('.origin-btn').forEach(b=>b.classList.toggle('sel', b.dataset.origin===o));
+  renderLanding();
+}
+function showLanding(){ document.getElementById('landing').classList.remove('hidden'); document.getElementById('form').classList.add('hidden'); loadLanding(); }
+function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }
+async function loadLanding(){
+  const csvText=await fetch('/api/csv/environments').then(r=>r.text());
+  const lines=csvText.trim().split(/\r?\n/);
+  const headers=parseRow(lines[0]||'');
+  const rows=lines.slice(1).map(l=>{const c=parseRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).filter(r=>r.Slug);
+  landMeta=await Promise.all(rows.map(async r=>{
+    const md=await fetch('/api/md/environments/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
+    return {...r, origin: (md||'').includes('## Builder') ? 'custom' : 'premade'};
+  }));
+  renderLanding();
+}
+function traitCell(r,n){
+  const name=r['Trait'+n]||''; const die=r['TraitDie'+n]||'';
+  return name ? `${name} ${die}` : '—';
+}
+function renderLanding(){
+  const empty=document.getElementById('landEmpty'), table=document.getElementById('landTable'), body=document.getElementById('landBody');
+  let rows=landMeta;
+  if (originFilter!=='all') rows=rows.filter(r=>r.origin===originFilter);
+  if (!landMeta.length){ empty.classList.remove('hidden'); empty.textContent='No environments in this campaign yet.'; table.classList.add('hidden'); return; }
+  if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No rows match this filter.'; table.classList.add('hidden'); return; }
+  empty.classList.add('hidden'); table.classList.remove('hidden');
+  body.innerHTML=rows.map(r=>`<tr onclick="editRow('${esc(r.Slug)}')"><td>${esc(r.Name)}</td><td>${esc(traitCell(r,1))}</td><td>${esc(traitCell(r,2))}</td><td>${esc(traitCell(r,3))}</td><td>${esc(r.origin)}</td></tr>`).join('');
+}
+function startNew(){
+  editing=null;
+  ['name','slug','t1','t2','t3','notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('d1').value=document.getElementById('d2').value=document.getElementById('d3').value='d8';
+  document.getElementById('msg').textContent='';
+  showForm();
+}
+async function editRow(slug){
+  const r=landMeta.find(x=>x.Slug===slug); if(!r) return;
+  editing=slug;
+  document.getElementById('name').value=r.Name||'';
+  document.getElementById('slug').value=slug;
+  document.getElementById('t1').value=r.Trait1||'';
+  document.getElementById('t2').value=r.Trait2||'';
+  document.getElementById('t3').value=r.Trait3||'';
+  document.getElementById('d1').value=r.TraitDie1||'d8';
+  document.getElementById('d2').value=r.TraitDie2||'d8';
+  document.getElementById('d3').value=r.TraitDie3||'d8';
+  const md=await fetch('/api/md/environments/'+encodeURIComponent(slug)).then(x=>x.ok?x.text():'');
+  document.getElementById('notes').value=md.replace(/^#.*\n+/,'').replace(/## Builder[\s\S]*$/,'').trim();
+  document.getElementById('msg').textContent='';
+  showForm();
+}
+async function saveRow(){
+  const name=document.getElementById('name').value.trim();
+  if(!name){ document.getElementById('msg').textContent='Name required.'; return; }
+  const slug=editing || document.getElementById('slug').value.trim() || slugify(name);
+  const payload={
+    name, slug, notes: document.getElementById('notes').value.trim(),
+    traits: [1,2,3].map(i=>({name:document.getElementById('t'+i).value.trim(), die:document.getElementById('d'+i).value}))
+  };
+  const res=await fetch('/api/builder/environment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j=await res.json().catch(()=>({}));
+  if(!res.ok){ document.getElementById('msg').textContent=j.error||'Save failed'; return; }
+  document.getElementById('msg').innerHTML='<span class="ok">Saved '+esc(j.slug||slug)+'</span>';
+  showLanding();
+}
+loadLanding();
+</script>
+</body>
+</html>

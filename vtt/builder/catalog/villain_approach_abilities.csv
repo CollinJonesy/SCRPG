@@ -1,0 +1,100 @@
+parent,slug,name,type,icons,bind,engine,game_text
+adaptive,adaptive-adapt-and-thrive,Adapt and Thrive,R,Defend/Boost,power,,"When Attacked, Defend by rolling your single [Power] die. Also Boost yourself with the result of that die."
+adaptive,adaptive-diversity-through-adversity,Diversity through Adversity,I,Attack/Boost,none,,"On your turn, whenever you Attack a target you haven’t dealt damage to yet this scene, also Boost yourself using your Max die."
+adaptive,adaptive-efficient-reconfiguration,Efficient Reconfiguration,A,,none,,Lower two of your powers by one die size each. Increase one of your other powers to . Then take a basic action using that power.
+adaptive,adaptive-initiate-upgrade-procedure,Initiate Upgrade Procedure,A,Attack/Defend/Boost,power,,Boost using [power] and use your Max die. Attack with your Mid die. Defend with your Min die.
+adaptive,adaptive-powerful-imitation,Powerful Imitation,A,,none,,Use an action ability of one of your allies.
+adaptive,adaptive-the-pain-of-perfection,The Pain of Perfection,A,,none,,Take irreducible damage. Increase all your powers by one die size each until the end of the scene. Adaptive
+ancient,ancient-behold-my-immortal-glory,Behold My Immortal Glory,A,Attack/Hinder,power,,Hinder using [power] against multiple targets and use your Max die. Attack each using your Mid+Min dice.
+ancient,ancient-from-before-space-and-time,From Before Space and Time,R,,none,,Take 1 irreducible damage to reroll a dice pool of someone Attacking or Hindering you.
+ancient,ancient-immortal-vitality,Immortal Vitality,I,,power,,"If you would be reduced to 0 Health and you don’t have a penalty, roll your single [power] die and become that Health."
+ancient,ancient-ideal-action,Ideal Action,A,,quality,,Take a basic action using [quality] and use your Max die.
+ancient,ancient-out-of-time,Out of Time,A,Boost,power,,"Boost yourself using [power]. If there are any heroes with their Health in the Yellow zone, use your Mid+Min dice. If there are any heroes with their Health in the Red zone, use your Max+Mid+Min dice."
+ancient,ancient-unknowable-pain,Unknowable Pain,A,Attack/Hinder,power,,Attack using [power] and use your Max die. Hinder a target dealt damage this way using your Max+Min dice. Ancient
+bully,bully-bust-their-heads,Bust Their Heads,A,Attack/Defend,power,,"Attack two nearby targets using [power], using your Max die against one and your Mid+Min against the other. If either target Defends against the Attack, the Defend works against both attacks."
+bully,bully-cruel-and-unusual,Cruel and Unusual,I,Hinder,none,,"Whenever you or your nearby allies Hinder, increase the penalty created by 1."
+bully,bully-crush-the-small,Crush the Small,A,Attack/Defend,power,,Attack using [power] and use your Max die. Defend against all Attacks from that target using your Mid die until the start of your next turn.
+bully,bully-injured-tantrum,Injured Tantrum,A,Attack/Hinder,power,,"Attack using [power] and use your Max die. Also Hinder that target: if the target has a or less status die, use your Max+Min dice; if the target has a status die, use your Max die; and if the target has larger than a , use your Mid die."
+bully,bully-punish-weakness,Punish Weakness,A,Boost,power,,"Boost yourself using [power]. If there are any heroes with their Health in the Yellow zone, use your Mid+Min dice. If there are any heroes with their Health in the Red zone, use your Max+Mid+Min dice."
+bully,bully-thick,Thick,I,,none,,Reduce all damage dealt to you by 2. Bully
+creator,creator-harvest-their-power,Harvest their Power,R,,none,,"When one of your minions is destroyed, roll its die and you recover that much Health."
+creator,creator-retributive-lash,Retributive Lash,R,,none,,"When one of your minions is destroyed, roll its die and deal damage equal to that roll to another target."
+creator,creator-powerful-ally,Powerful Ally,A,,power/quality,,Use [power/quality] to create a lieutenant of the same die size as your Max die.
+creator,creator-shared-power,Shared Power,A,Boost,power,,"Boost one of your minions using [power] and use your Max die. If it is your only minion, also Boost yourself using your Mid die. If not, Boost each of your other minions using your Min die."
+creator,creator-summon-mob,Summon Mob,A,,power/quality,,Use [power/quality] to create a number of minions equal to the value of your Max die. The starting die size for those minions is the same as the size of your Min die.
+creator,creator-swarm-attack,Swarm Attack,A,Attack,power,,"Attack using [power] and use your Max die, with a bonus equal to the number of minions you control. Creator 5 Dampening"
+dampening,dampening-capitalize-on-their-failure,Capitalize on their Failure,R,Hinder,power,,"When a nearby hero that you can see invokes a twist, roll your [power] die as a Hinder against them."
+dampening,dampening-curse-of-weakness,Curse of Weakness,A,Attack/Hinder,power,,"Hinder using [power] and use your Max die; that penalty is persistent and exclusive. As long as that penalty is on the target, reduce their highest power die of your choice by one die size. Attack using your Mid die."
+dampening,dampening-field-of-woe,Field of Woe,A,Hinder,power,,"Hinder multiple targets using [power]. While a hero has this penalty, reduce all their power dice by one size."
+dampening,dampening-nullifying-backlash,Nullifying Backlash,R,,none,,"When Attacked by a hero with a penalty, ignore their damage and remove a penalty on that hero."
+dampening,dampening-scrambling-strike,Scrambling Strike,A,Attack,power,,Attack using [power]. Reduce all the target’s quality dice by one size until your next turn.
+dampening,dampening-terror-of-inadequacy,Terror of Inadequacy,A,Attack/Hinder,quality,,Attack using [quality] and use your Max die. Hinder each opponent that can see or hear the target of your Attack using your Min die.
+disruptive,disruptive-beneficial-chaos,Beneficial Chaos,A,Hinder/Recover,power,,Hinder using [power]. Use your Max die. Recover using your Min+Mid dice.
+disruptive,disruptive-covering-fire,Covering Fire,A,Defend/Hinder,quality,,Hinder multiple targets using [quality]. You and any nearby allies Defend using your Max die.
+disruptive,disruptive-enraging-touch,Enraging Touch,A,Attack,power,,Attack using [power]. Use your Max die. A target dealt damage this way Attacks an ally by rolling their single largest power die.
+disruptive,disruptive-heedless-explosion,Heedless Explosion,A,Attack/Hinder,quality,,"Attack multiple targets using [quality]. Use your Min die. Hinder each target with your Max die. If one of those targets rolls doubles on their next turn, they take damage equal to the penalty."
+disruptive,disruptive-painful-disruption,Painful Disruption,R,,none,,"When Attacked by a hero with a penalty, that hero takes damage equal to the size of that penalty."
+disruptive,disruptive-taste-the-madness,Taste the Madness,R,Hinder,power,,"Whenever a target takes a Hinder action against you, you may first roll your [power] die as a Hinder on them. Disruptive 7 Focused"
+focused,focused-elemental-absorption,Elemental Absorption,R,Boost,none,,"When Attacked with [energy/element], recover that amount of Health instead of taking damage. When Hindered with [energy/ element], Boost yourself instead."
+focused,focused-defensive-charging,Defensive Charging,A,Attack/Defend,power,,"Defend yourself using [power]. This Defend lasts until your next turn. If an Attack deals more damage than the Defend’s value, end the Defend and Attack the attacker equal to the Defend."
+focused,focused-perfect-alignment,Perfect Alignment,I,,none,,Ignore all damage from [energy/element].
+focused,focused-pour-it-on,Pour it On,A,Attack/Defend,power,,Attack one target using [power]. Use your Max die. That target cannot Defend or use reactions against this Attack. Attack multiple other nearby targets using your Min die.
+focused,focused-sympathetic-shield,Sympathetic Shield,R,Attack/Defend/Boost,power,,Defend against an Attack against only you by rolling your single [power] die. Boost yourself by the damage reduced.
+focused,focused-vicious-entanglement,Vicious Entanglement,A,Attack/Hinder,power,,Hinder one target using [power]. Use your Max die. Attack that target using your Mid die.
+generalist,generalist-bodyguard,Bodyguard,R,Defend/Boost,power,,"When an ally is Attacked, Defend them by rolling your single [power] die. Boost yourself by that amount."
+generalist,generalist-dependable,Dependable,I,,none,,"Whenever you roll a 1 on a die, reroll that die once."
+generalist,generalist-heavy-hitter,Heavy Hitter,A,Attack/Recover,quality,,Attack using [quality]. Use your Max die. Recover Health equal to your Min die.
+generalist,generalist-stalwart-combatant,Stalwart Combatant,A,Defend/Boost,power,,Boost using [power]. Use your Max die. Defend with your Mid die.
+generalist,generalist-tough-customer,Tough Customer,I,,none,,"Reduce physical and energy damage dealt to you by 1 if the scene is in the Green zone, 2 in the Yellow zone, or 3 in the Red zone."
+generalist,generalist-wracking-aura,Wracking Aura,A,Boost/Hinder,power,,Hinder multiple nearby targets using [power]. Boost yourself using your Max die. 9 Leech
+leech,leech-hypnotic-gaze,Hypnotic Gaze,R,Attack/Defend/Boost/Hinder,power,,"When Attacked, Defend yourself by rolling your single [power] die. If this negates the Attack entirely, Hinder that target and Boost yourself with that same die roll."
+leech,leech-life-drain,Life Drain,A,Attack/Hinder/Recover,power/quality,,Attack using [power/quality]. Use your Max die. Hinder that target with your Mid die. Recover Health equal to your Min die.
+leech,leech-power-consumption,Power Consumption,R,Attack/Hinder/Recover,power,,"When a bonus is used against you in an Attack or Hinder, you may first destroy that bonus. If you do, roll your single [power] die and Recover Health equal to the roll plus the destroyed bonus."
+leech,leech-siphoning-wither,Siphoning Wither,A,Boost/Hinder,power,,Hinder using [power]. Use your Max+Min dice. Boost with your Mid die.
+leech,leech-unnerving-whispers,Unnerving Whispers,A,Attack/Hinder/Recover,power,,"Hinder multiple targets using [power]. Recover Health equal to your Min die. If you roll doubles, also Attack one of those targets using your Max die."
+leech,leech-violent-vitality,Violent Vitality,A,Attack/Boost,power,,Attack using [power]. Use your Max die. Boost with your Min die. This bonus is persistent and exclusive.
+mastermind,mastermind-exploit-weakness,Exploit Weakness,A,Attack/Hinder,quality,,Attack one hero using [quality]. Hinder all heroes using your Max die.
+mastermind,mastermind-reversal-of-fortune,Reversal of Fortune,R,Boost,none,,"When Attacked, Boost yourself using the attacker’s Max die."
+mastermind,mastermind-prepared-for-anything,Prepared for Anything,R,Boost,quality,,"At the start of your turn, if you have no bonuses in play, roll your single [quality] die as a Boost for yourself."
+mastermind,mastermind-villainous-monologue,Villainous Monologue,A,Boost/Hinder,quality,,Hinder all opponents that can see or hear you using [quality]. Boost yourself using your Max die.
+ninja,ninja-deadly-blink,Deadly Blink,A,Attack,quality,,"Attack multiple nearby targets using [quality]. Then, end up wherever you want in the scene."
+ninja,ninja-defensive-dash,Defensive Dash,R,Defend/Boost,quality,,"When Attacked, Defend yourself by rolling for your single [quality] die. Boost yourself with the amount of damage reduced."
+ninja,ninja-fade-from-sight,Fade From Sight,I,Attack/Defend/Hinder,none,,"If you take an action on your turn that does not involve an Attack or Hinder, also use your Min die to Defend against all Attacks against you until your next turn."
+ninja,ninja-sever-the-tendons,Sever the Tendons,A,Attack/Hinder,quality,,Attack using [quality]. Hinder that target using your Max+Min dice.
+overpowered,overpowered-do-not-dare-to-touch-me,Do Not Dare to Touch Me,R,Defend,power,,"When Attacked, Defend yourself by rolling your single [power] die. Deal that much damage to a different nearby target."
+overpowered,overpowered-face-my-full-might,Face My Full Might,A,Attack/Hinder,power,,Attack using [power]. Use your Max+Mid+Min dice. Hinder yourself using your Max die. Take damage equal to your Mid+Min dice.
+overpowered,overpowered-fear-my-overwhelming-power,Fear My Overwhelming Power,A,Attack/Hinder,power,,Hinder using [power] and use your Max die. Attack that target using your Mid+Min dice.
+overpowered,overpowered-raw-power,Raw Power,I,,none,,"Whenever you roll a 1, reroll that die."
+overpowered,overpowered-my-power,My Power,A,Attack/Hinder,power,,Attack multiple targets using [power] and use your Max die. Hinder each target using your Mid die.
+prideful,prideful-later,Later,A,Attack/Defend,power/quality,,Attack one target using [power/quality]. Use your Max+Min dice. Defend against all Attacks against you by all other targets until the start of your next turn with your Mid die. My Greatness Cannot
+prideful,prideful-be-denied,Be Denied,A,Attack/Boost,power/quality,,"Attack one target using [power/quality] and use your Max+Min dice. If that Attack causes the target to change zones, Boost using your Mid die. That bonus is persistent and exclusive."
+prideful,prideful-sustained-mockery,Sustained Mockery,A,Hinder,power/quality,,Hinder using [power/quality]. Use your Max die. That penalty is persistent and exclusive.
+prideful,prideful-unquestionable-might,Unquestionable Might,I,,none,,Reduce all damage dealt to you by 2.
+prideful,prideful-you-cannot-survive,You Cannot Survive,R,Hinder,power,,"If an opponent ends their turn near you, you may roll your single [power] die as a Hinder against them. Prideful Relentless"
+relentless,relentless-dogged-pursuit,Dogged Pursuit,R,Hinder,none,,"When an opponent moves away from you, you may follow them and roll your single status die as a Hinder against them."
+relentless,relentless-prey-on-the-weak,Prey on the Weak,A,Attack/Hinder,quality,,"Attack and Hinder using [quality]. If the target has: a or less status die, use your Max+Min dice; a status die, use your Max die; larger than a , use your Mid die."
+relentless,relentless-repeated-punishment,Repeated Punishment,R,Attack,none,,"After making an Attack action on your turn, use your Mid die to make another Attack against one target of the initial Attack."
+relentless,relentless-too-close-for-comfort,Too Close for Comfort,I,Attack,none,,"Whenever a nearby opponent would Attack you, you may destroy a bonus on yourself or a penalty on that opponent to reduce the Attack by the value of the destroyed mod."
+relentless,relentless-twist-the-knife,Twist the Knife,R,Attack,quality,,"When one of your allies Attacks an opponent, roll your single [quality] die and add that amount of damage to the Attack."
+relentless,relentless-up-in-your-face,Up in Your Face,A,Attack/Hinder,quality,,"Attack using [quality]. Use your Max die. If the target does not Attack you on their next turn, Hinder them using your Mid die."
+skilled,skilled-best-in-the-biz,Best in the Biz,A,Boost/Hinder,power,,Hinder using [power]. Use your Min die. Boost yourself using your Max die.
+skilled,skilled-dodge-and-weave,Dodge and Weave,R,Defend,quality,,"When Attacked, Defend yourself by rolling your single [quality] die. Deal that much damage to another target."
+skilled,skilled-consistently-capable,Consistently Capable,I,,none,,"Whenever you gain a penalty, reduce the size of that penalty by 1."
+skilled,skilled-flexible-expertise,Flexible Expertise,A,Recover,none,,Take any basic action using your Max die. Recover Health equal to your Mid die.
+skilled,skilled-incomparable-inequity,Incomparable Inequity,A,Hinder,quality,,Hinder using [quality] and use your Max+Min dice. This penalty is persistent and exclusive.
+skilled,skilled-misdirection,Misdirection,A,Attack/Hinder,quality,,"Hinder multiple targets using [quality] and use your Max die. If you roll doubles, also Attack each target with your Mid die. Specialized"
+specialized,specialized-active-cover,Active Cover,R,Attack/Defend,quality,,Defend against an Attack where you’re the only target by rolling your single [quality] die. One other nearby target takes an amount of damage equal to the damage reduced.
+specialized,specialized-cleaving-slash,Cleaving Slash,A,Attack,quality,,"Attack using [quality] against one target with your Max die, another with your Mid die, and a third with your Min die."
+specialized,specialized-focused-attack,Focused Attack,A,Attack/Defend,quality,,Attack using [quality] and use your Max+Min dice. Defend yourself using your Mid die.
+specialized,specialized-known-target,Known Target,I,Attack,none,,"Whenever you Attack a target that you have dealt damage to at least once already in this scene, gain a +1 persistent and exclusive bonus against that target."
+specialized,specialized-neutralizing-strike,Neutralizing Strike,A,Attack/Defend,quality,,Attack one target using [quality] and use your Max+Min dice. That target cannot Defend or use reactions against this attack.
+specialized,specialized-tangled-torment,Tangled Torment,A,Attack/Hinder,quality,,Hinder one target using [quality] and use your Max die. Attack that target using your Mid die.
+tactician,tactician-group-up,Group Up,A,Attack,quality,,"Attack using [quality] and use your Max die. Add 1 to the Attack for each other ally that Attacked that target since your last turn. I’ll Back You Up R When a nearby ally makes an Attack, you may also Attack the same target by rolling your single [quality] die."
+tactician,tactician-joint-action,Joint Action,A,,quality,,Make a basic action using [quality] and use your Max die. One nearby ally also makes that same basic action as their reaction.
+tactician,tactician-organized-march,Organized March,A,Boost,quality,,Boost using [quality] and use your Max die. That bonus applies to every ally’s action until the beginning of your next turn.
+tactician,tactician-try-again,Try Again,R,,none,,Take 1 irreducible damage to reroll an ally’s dice pool.
+tactician,tactician-working-together,Working Together,I,,none,,"As long as you have at least 1 nearby ally, you may reroll all 1s on your dice. Tactician Underpowered"
+underpowered,underpowered-avoid-the-inevitable,Avoid the Inevitable,I,,none,,"Whenever you would be reduced to 0 or fewer Health, prevent that damage and reduce all your power dice by one size. If this reduces any dice to below a , you are knocked out."
+underpowered,underpowered-do-not-underestimate-me,Do Not Underestimate Me,A,Attack/Boost/Hinder,power/quality,,"Attack using [power]. Use your Max+Mid dice. Take irreducible damage equal to your Min die. If you roll doubles, you cannot use this ability again for the rest of the scene. I Can Do Anything A Boost using [quality]. Use your Max die. Hinder using your Mid die. Attack using your Min die."
+underpowered,underpowered-last-ditch-effort,Last Ditch Effort,R,Attack/Defend/Boost/Hinder/Recover,power,,"When Attacked, Defend yourself by rolling your single [power] die. If your roll reduces the damage to exactly 0, Recover Health equal to the damage reduced, Boost using that amount, and Hinder the source of the Attack using that amount."
+underpowered,underpowered-still-a-threat,Still a Threat,A,Attack/Defend,quality,,Attack multiple targets using [quality]. Defend against all Attacks against you until your next turn using your Min die.

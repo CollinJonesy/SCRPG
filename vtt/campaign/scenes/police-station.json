@@ -1,0 +1,36 @@
+{
+  "name": "Police Station",
+  "difficulty": "Moderate",
+  "sceneType": "Action",
+  "tracker": {
+    "stars": [
+      "green",
+      "green",
+      "yellow",
+      "yellow",
+      "yellow",
+      "yellow",
+      "red",
+      "red"
+    ],
+    "position": 0
+  },
+  "locations": [
+    {
+      "id": "loc-6drh0787",
+      "name": "Location 1",
+      "background": null
+    },
+    {
+      "id": "loc-2mq0hz43",
+      "name": "Location 2",
+      "background": null
+    }
+  ],
+  "environment": null,
+  "challenges": [],
+  "tokens": [],
+  "mods": [],
+  "gmNotes": "",
+  "activityLog": []
+}

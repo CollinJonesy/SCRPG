@@ -1,0 +1,5 @@
+term,value_or_rule,notes
+base,8,
+red_status_max,maximum of Red status die,d8→8 etc
+athletic_or_mental_max,maximum of any one Athletic power or Mental quality,"if none, book says if you have none — confirm page 113"
+health_die_or_4,roll a die OR take 4 (choose before rolling),die SIZE is a glyph; do not assume d6

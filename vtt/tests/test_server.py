@@ -64,6 +64,7 @@ class TestEnsureCampaign(ServerTestCase):
     def test_scenes_issues_backgrounds_dirs_created(self):
         self.assertTrue((self.campaign / 'scenes').is_dir())
         self.assertTrue((self.campaign / 'issues').is_dir())
+        self.assertTrue((self.campaign / 'collections').is_dir())
         self.assertTrue((self.campaign / 'backgrounds').is_dir())
         self.assertTrue((self.campaign / 'backgrounds' / '_meta.json').exists())
 
@@ -173,15 +174,36 @@ class TestScenesApi(ServerTestCase):
 
 class TestIssuesApi(ServerTestCase):
     def test_full_crud(self):
-        issue = {'name': 'Test Issue'}
+        issue = {'name': 'Test Issue', 'heroSlugs': ['lumen'], 'minionSlugs': ['thug']}
         status, _ = self.request('PUT', '/api/issues/test-issue', body=json.dumps(issue).encode('utf-8'))
         self.assertEqual(status, 200)
         status, data = self.request('GET', '/api/issues/test-issue')
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(data), issue)
+        saved = json.loads(data)
+        self.assertEqual(saved['heroSlugs'], ['lumen'])
+        self.assertEqual(saved['minionSlugs'], ['thug'])
         status, _ = self.request('DELETE', '/api/issues/test-issue')
         self.assertEqual(status, 200)
         status, _ = self.request('GET', '/api/issues/test-issue')
+        self.assertEqual(status, 404)
+
+
+class TestCollectionsApi(ServerTestCase):
+    def test_full_crud(self):
+        coll = {'name': 'Occidia', 'issueSlugs': ['session-1']}
+        status, _ = self.request('PUT', '/api/collections/occidia', body=json.dumps(coll).encode('utf-8'))
+        self.assertEqual(status, 200)
+        status, data = self.request('GET', '/api/collections/occidia')
+        self.assertEqual(status, 200)
+        saved = json.loads(data)
+        self.assertEqual(saved['name'], 'Occidia')
+        self.assertEqual(saved['issueSlugs'], ['session-1'])
+        status, listing = self.request('GET', '/api/collections')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(listing)[0]['slug'], 'occidia')
+        status, _ = self.request('DELETE', '/api/collections/occidia')
+        self.assertEqual(status, 200)
+        status, _ = self.request('GET', '/api/collections/occidia')
         self.assertEqual(status, 404)
 
 
@@ -226,6 +248,17 @@ class TestBackgroundsApi(ServerTestCase):
         status, _ = self.request('GET', '/api/backgrounds/never-existed')
         self.assertEqual(status, 404)
 
+    def test_list_background_keys(self):
+        status, data = self.request('GET', '/api/backgrounds')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(data), [])
+        png_bytes = b'\x89PNG\r\n\x1a\nfake'
+        self.request('PUT', '/api/backgrounds/portrait-villain-demo', body=png_bytes,
+                     headers={'Content-Type': 'image/png'})
+        status, data = self.request('GET', '/api/backgrounds')
+        self.assertEqual(status, 200)
+        self.assertIn('portrait-villain-demo', json.loads(data))
+
 
 class TestRulesApi(ServerTestCase):
     """Reads the real rules/ folder shipped with the app -- not a scratch copy."""
@@ -244,6 +277,198 @@ class TestRulesApi(ServerTestCase):
         villain_entry = next(i for i in items if i['slug'] == '05-2-minions-lieutenants-villains')
         self.assertTrue(len(villain_entry['title']) > 0)
         self.assertNotEqual(villain_entry['title'], villain_entry['slug'])
+
+
+class TestHeroBuilder(ServerTestCase):
+    def test_builder_html_served(self):
+        status, data = self.request('GET', '/builder.html')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Save to VTT + Occidia', data)
+        self.assertIn(b'/builder-hub.html', data)
+
+    def test_save_hero_upserts_csv_md_and_obsidian(self):
+        vault = Path(self.tmpdir) / 'pcs'
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.thread.join(timeout=5)
+        self.httpd = srv.ThreadingHTTPServer(
+            ('127.0.0.1', 0), srv.make_handler(self.campaign, vault))
+        self.port = self.httpd.server_address[1]
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+
+        payload = json.dumps({
+            'name': 'Lumen',
+            'player': 'Cherise',
+            'alias': 'Test',
+            'personality': 'Sarcastic',
+            'greenStatusDie': 'd8',
+            'yellowStatusDie': 'd8',
+            'redStatusDie': 'd8',
+            'maxHealth': 28,
+            'out': 'Out: Hinder an opponent by rolling your single [quality] die.',
+            'powers': [{'name': 'Radiant', 'die': 'd10'}],
+            'qualities': [{'name': 'Creativity', 'die': 'd8'}],
+            'abilities': [{'zone': 'Red', 'name': 'Powerful Strike', 'type': 'A',
+                           'text': 'Attack using [power]. Use your Max+Mid dice.'}],
+        })
+        status, data = self.request(
+            'POST', '/api/builder/hero', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        result = json.loads(data)
+        self.assertEqual(result['slug'], 'lumen')
+        csv_text = (self.campaign / 'heroes.csv').read_text(encoding='utf-8')
+        self.assertIn('Lumen', csv_text)
+        self.assertIn('Radiant', csv_text)
+        md = (self.campaign / 'md' / 'heroes' / 'lumen.md').read_text(encoding='utf-8')
+        self.assertIn('Powerful Strike', md)
+        self.assertIn('Sarcastic', md)
+        self.assertIn('## Builder', md)
+        note = vault / 'Lumen.md'
+        self.assertTrue(note.exists())
+        self.assertIn('player: Cherise', note.read_text(encoding='utf-8'))
+
+    def test_save_hero_requires_name(self):
+        status, data = self.request(
+            'POST', '/api/builder/hero', body='{}',
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 400)
+
+
+class TestVillainBuilder(ServerTestCase):
+    def test_builder_hub_served(self):
+        status, data = self.request('GET', '/builder-hub.html')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Hero Builder', data)
+        self.assertIn(b'Villain Builder', data)
+        self.assertIn(b'Issue Builder', data)
+        self.assertIn(b'/issue-builder.html', data)
+        self.assertIn(b'/builder.html', data)
+        self.assertIn(b'/villain-builder.html', data)
+        self.assertIn(b'/minion-builder.html', data)
+        self.assertIn(b'/environment-builder.html', data)
+
+    def test_villain_builder_html_served(self):
+        status, data = self.request('GET', '/villain-builder.html')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Save to Library', data)
+        self.assertIn(b'/builder-hub.html', data)
+        self.assertIn(b'Finishing Touches', data)
+        self.assertIn(b'Look &amp; references', data)
+        self.assertIn(b'Collapse all', data)
+
+    def test_issue_builder_html_served(self):
+        status, data = self.request('GET', '/issue-builder.html')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Issue Builder', data)
+
+    def test_minion_builder_html_served(self):
+        status, data = self.request('GET', '/minion-builder.html')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Minion / Lieutenant Builder', data)
+        self.assertIn(b'Save to Library', data)
+
+    def test_environment_builder_html_served(self):
+        status, data = self.request('GET', '/environment-builder.html')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Environment Builder', data)
+
+    def test_save_minion_upserts_csv_and_md(self):
+        payload = json.dumps({'name': 'Street Thug', 'type': 'Minion', 'die': 'd6', 'faction': 'Citizens'})
+        status, data = self.request(
+            'POST', '/api/builder/minion', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        self.assertEqual(json.loads(data)['slug'], 'street-thug')
+        csv_text = (self.campaign / 'minions.csv').read_text(encoding='utf-8')
+        self.assertIn('Street Thug', csv_text)
+        md = (self.campaign / 'md' / 'minions' / 'street-thug.md').read_text(encoding='utf-8')
+        self.assertIn('## Builder', md)
+
+    def test_save_environment_requires_name(self):
+        status, data = self.request(
+            'POST', '/api/builder/environment', body='{}',
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 400)
+
+    def test_catalog_csv_served(self):
+        status, data = self.request('GET', '/builder/catalog/villain_approaches.csv')
+        self.assertEqual(status, 200)
+        self.assertIn(b'generalist', data)
+        status, data = self.request('GET', '/builder/catalog/villain_approach_abilities.csv')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Best in the Biz', data)
+        status, data = self.request('GET', '/builder/catalog/villain_archetypes.csv')
+        self.assertIn(b'd10', data)
+        status, data = self.request('GET', '/builder/catalog/villain_masteries.csv')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Master of Superiority', data)
+
+    def test_save_villain_requires_name(self):
+        status, data = self.request(
+            'POST', '/api/builder/villain', body='{}',
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 400)
+
+    def test_save_villain_rejects_sixth_ability(self):
+        payload = json.dumps({
+            'name': 'Too Many',
+            'abilities': [{'name': f'A{i}', 'type': 'A', 'icon': 'Attack', 'text': 'x'}
+                          for i in range(6)],
+        })
+        status, data = self.request(
+            'POST', '/api/builder/villain', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 400)
+        self.assertIn(b'max 5', data)
+
+    def test_save_villain_upserts_csv_and_md(self):
+        payload = json.dumps({
+            'name': 'Firearm',
+            'concept': 'Shockers lieutenant in a lab coat. Name TBD.',
+            'approach': 'Focused',
+            'archetype': 'Fragile',
+            'maxHealth': 30,
+            'greenFloor': 23,
+            'yellowFloor': 12,
+            'redFloor': 1,
+            'greenStatusDie': 'd8',
+            'yellowStatusDie': 'd6',
+            'redStatusDie': 'd4',
+            'powers': [{'name': 'Fire', 'die': 'd10'}],
+            'qualities': [{'name': 'Science', 'die': 'd8'}],
+            'abilities': [
+                {'name': 'Unstable Ignition', 'type': 'A', 'icon': 'Attack',
+                 'text': 'Attack using Fire. Use your Max die.'},
+            ],
+            'upgrade': {'name': 'Firewall', 'type': 'I', 'icon': 'Defend',
+                        'text': '+10 Health. Defend nearby allies using Fire.',
+                        'health': 10},
+            'mastery': {'name': 'Master of Combustion', 'type': 'I', 'icon': 'Overcome',
+                        'text': 'Automatically succeed Overcomes involving fire or chemistry.'},
+            'builderState': {'ap': 'focused', 'ar': 'fragile', 'pickedAp': [], 'pickedAr': [],
+                             'binds': {}, 'displayNames': {}, 'up': None, 'ma': None, 'heroCount': 5},
+        })
+        status, data = self.request(
+            'POST', '/api/builder/villain', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        result = json.loads(data)
+        self.assertEqual(result['slug'], 'firearm')
+        csv_text = (self.campaign / 'villains.csv').read_text(encoding='utf-8')
+        self.assertIn('Firearm', csv_text)
+        self.assertIn('Focused', csv_text)
+        md = (self.campaign / 'md' / 'villains' / 'firearm.md').read_text(encoding='utf-8')
+        self.assertIn('### [A] [Attack] "Unstable Ignition"', md)
+        self.assertIn('## Upgrades', md)
+        self.assertIn('## Mastery', md)
+        self.assertIn('## Biography', md)
+        self.assertIn('## Capabilities and Motivations', md)
+        self.assertIn('## Physical Attributes', md)
+        self.assertIn('## Upgrade Summary', md)
+        self.assertIn('## References', md)
+        self.assertIn('## Builder', md)
 
 
 if __name__ == '__main__':

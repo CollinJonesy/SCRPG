@@ -1,0 +1,55 @@
+slug,category,name,description,health_eligible,requires_custom_name
+agility,Athletic,Agility,Your reflexes are honed.,yes,no
+speed,Athletic,Speed,You're quick on your feet.,yes,no
+strength,Athletic,Strength,You're strong and have no problem lifting.,yes,no
+vitality,Athletic,Vitality,"You're in good shape and good health. At higher levels of Vitality, you may even have a regenerative ability.",yes,no
+cold,Elemental/Energy,Cold,Brr. You can lower the temperature dramatically and shape ice to your whim.,no,no
+cosmic,Elemental/Energy,Cosmic,The primal energies of the universe itself are yours to command.,no,no
+electricity,Elemental/Energy,Electricity,You command the lightning (or just a nearby powerline).,no,no
+fire,Elemental/Energy,Fire,You can make everything burn.,no,no
+infernal,Elemental/Energy,Infernal,You can command the demonic energies of the underworld.,no,no
+nuclear,Elemental/Energy,Nuclear,The splitting of the atom allows you to channel raw power and radiation.,no,no
+radiant,Elemental/Energy,Radiant,"The light of the Heavenly Host is at your fingertips, ready to purge the world of evil.",no,no
+sonic,Elemental/Energy,Sonic,"Focused waves of sound can be wielded to great effect, both for destructive vibration and for sound mimicry.",no,no
+weather,Elemental/Energy,Weather,"You can control the weather, including terrible storms and winds. If you want a more direct application of the weather's power, you can also take Electricity or Cold to supplement it.",no,no
+signature-vehicle,Hallmark,Signature Vehicle,"You have a custom vehicle that is nearly always on hand for you — it could be an awesome motorcycle, a tricked out van, or even something like a magical surfboard. (Rename this power on your hero sheet to whatever your vehicle is.)",no,yes
+signature-weaponry,Hallmark,Signature Weaponry,"You have a weapon that is almost like a part of you, from Fanatic's blade Absolution to Wraith's arsenal of knives. (Rename this power on your hero sheet to whatever your weapon is.)",no,yes
+invented-power-with-gm-s-permission,Hallmark,Invented Power (with GM's Permission),"There might be a specific power not otherwise covered by the powers listed here. With the GM's permission, you can add another power.",no,yes
+awareness,Intellectual,Awareness,"You have enhanced senses that give you a broader range of awareness, covering everything from innate danger sense to superior sight and hearing.",no,no
+deduction,Intellectual,Deduction,Your mind can make leaps of logic by analyzing details.,no,no
+intuition,Intellectual,Intuition,You have strong gut feelings about what's going to happen and these feelings frequently lead to correct conclusions.,no,no
+lightning-calculator,Intellectual,Lightning Calculator,You can perform intense feats of mathematics in your head in the blink of an eye.,no,no
+presence,Intellectual,Presence,You project your personality strongly over those you meet.,no,no
+metal,Materials,Metal,"You can command and control metals, fashioning them into all kinds of shapes.",no,no
+plants,Materials,Plants,"The plants of this world (and maybe beyond) respond to your thoughts, growing as you see fit.",no,no
+stone,Materials,Stone,You can shape stone and use it to build as well as destroy.,no,no
+toxic,Materials,Toxic,"You can manipulate toxic substances, including radioactive wastes and various poison gases.",no,no
+transmutation,Materials,Transmutation,"You can transform non-living materials from one type to another. (To *control* them, also take other entries from this category in addition to Transmutation.)",no,no
+flight,Mobility,Flight,"Look, up in the sky! It's you!",no,no
+leaping,Mobility,Leaping,"Whether it's from immense strength or the proportionate ability of a bullfrog, you can leap through the air with ease.",no,no
+momentum,Mobility,Momentum,You build up momentum as you move and can channel it effectively.,no,no
+swimming,Mobility,Swimming,"You are at home in the water and can propel yourself seamlessly through it. (At d8 or above, you also have no problems breathing underwater.)",no,no
+swinging,Mobility,Swinging,"Via ropes or other devices, you can swing yourself across town, as long as you have something to grab onto.",no,no
+teleportation,Mobility,Teleportation,"Poof! You can disappear in one place and reappear in another. The greater the die value, the bigger distance you can go and the more control you have over the process.",no,no
+wall-crawling,Mobility,Wall-Crawling,You can stick to walls and travel across them quickly.,no,no
+animal-control,Psychic,Animal Control,Your mental abilities let you talk to and command non-sentient animals.,no,no
+illusions,Psychic,Illusions,You can weave convincing mental images to others.,no,no
+postcognition,Psychic,Postcognition,"You can experience visions of what has happened in the past to a person, place, or object.",no,no
+precognition,Psychic,Precognition,"You have a limited ability to see into the future — or at least, a potential future.",no,no
+remote-viewing,Psychic,Remote Viewing,You can project your senses to view another place at the same time.,no,no
+suggestion,Psychic,Suggestion,You can influence minds to act based on your will.,no,no
+telekinesis,Psychic,Telekinesis,"You can move things with your mind. The higher the die, the heavier the things and the more precision you have.",no,no
+telepathy,Psychic,Telepathy,You can send thoughts as well as read minds.,no,no
+absorption,Self Control,Absorption,"You can absorb energy sent to you, and channel it into other forms.",no,no
+density-control,Self Control,Density Control,You can make yourself more or less dense to make yourself more resistant to harm or have a lighter step.,no,no
+duplication,Self Control,Duplication,"You can make copies of yourself. Generally these copies won't be functional enough to act as full heroes, unless your abilities let you back this up.",no,no
+elasticity,Self Control,Elasticity,You can stretch your entire body.,no,no
+intangibility,Self Control,Intangibility,You can pass through solid objects.,no,no
+invisibility,Self Control,Invisibility,You can make yourself unseen when needed.,no,no
+part-detachment,Self Control,Part Detachment,"You can give someone a hand. Or any other limb, really.",no,no
+shapeshifting,Self Control,Shapeshifting,"You can change your form into something roughly the same size. Some shapeshifters have a limited number of forms they can take, while others are more mutable.",no,no
+size-changing,Self Control,Size-Changing,"You can increase or decrease your size, from a tall building to ant-sized.",no,no
+gadgets,Technological,Gadgets,You have access to a wide variety of useful technological tools for any given situation — generally built by somebody else.,no,no
+inventions,Technological,Inventions,"You can invent your own technological tools, and have some of your own inventions on you at all times.",no,no
+power-suit,Technological,Power Suit,You have a technological suit with a variety of built-in functions.,no,no
+robotics,Technological,Robotics,You are able to create your own robot servitors.,no,no

@@ -1,0 +1,19 @@
+slug,name,health,pairings,notes,ability_picks
+adaptive,Adaptive,15,"Legion, Tactician",How they accomplish goals — change tactics mid-fight.,3
+ancient,Ancient,30,"Formidable, Overpowered",Old power; long game.,2
+bully,Bully,25,"Bruiser, Prideful",Pushes until someone pushes back.,2
+creator,Creator,15,Legion,Makes things (minions, inventions, constructs).,2
+dampening,Dampening,25,"Domain, Inhibitor",Turns hero strengths off.,2
+disruptive,Disruptive,20,"Bruiser, Formidable",Breaks plans and teamwork.,2
+focused,Focused,15,"Fragile, Inhibitor",One job, done well.,2
+generalist,Generalist,25,"Bruiser, Indomitable",Broad kit; no single trick.,2
+leech,Leech,15,Loner,Feeds on heroes / scene resources.,2
+mastermind,Mastermind,20,Inventor,"Plans, inventions, other people do the hitting.",2
+ninja,Ninja,20,Guerrilla,"Mobility, stealth, precision.",2
+overpowered,Overpowered,35,"Domain, Formidable",Raw power. High health.,2
+prideful,Prideful,25,"Bruiser, Guerrilla",Ego is the lever.,2
+relentless,Relentless,20,"Indomitable, Loner",Does not stop.,2
+skilled,Skilled,15,,Particular set of skills; broad options.,2
+specialized,Specialized,20,,World class in one skill. Choose 3 abilities (two same quality, one different).,3
+tactician,Tactician,20,Legion,Positions others.,2
+underpowered,Underpowered,10,"Fragile, Inventor",Low health; tricks instead of hits.,2

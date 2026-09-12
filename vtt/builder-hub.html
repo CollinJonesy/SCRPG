@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Builders</title>
+<style>
+  :root{--bg:#12121c;--card:#1c1c2a;--line:#2e2e44;--text:#e8e6f0;--lo:#9a96ad;--accent:#7c5cbf;--villain:#c0392b;--hero:#5b3fa6;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100%}
+  header{padding:22px 24px 8px}
+  header h1{margin:0;font-size:1.35rem;letter-spacing:.04em}
+  header p{margin:6px 0 0;color:var(--lo);font-size:.88rem;max-width:640px}
+  .wrap{max-width:980px;margin:0 auto;padding:12px 20px 40px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;text-decoration:none;color:inherit;min-height:140px}
+  a.card:hover{border-color:var(--accent)}
+  a.card.soon{opacity:.55;cursor:default;pointer-events:none}
+  .kicker{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+  .kicker.hero{color:#b9a6ff}
+  .kicker.villain{color:#f08a7c}
+  .kicker.soon{color:var(--lo)}
+  a.card h2{margin:0 0 6px;font-size:1.12rem}
+  a.card p{margin:0;color:var(--lo);font-size:.82rem;line-height:1.4}
+  .status{display:inline-block;margin-top:10px;font-size:.72rem;padding:2px 8px;border-radius:10px;background:#2a2a3c;color:var(--lo)}
+  .status.live{background:#1e3a2a;color:#8ee0a8}
+</style>
+</head>
+<body>
+<header>
+  <h1>Builders</h1>
+  <p>One desk for every constructed sheet. Saves land in this campaign’s Library. Board / Scenes / Issues stay in the other tabs.</p>
+</header>
+<div class="wrap">
+  <div class="grid">
+    <a class="card" href="/builder.html">
+      <div class="kicker hero">Heroes</div>
+      <h2>Hero Builder</h2>
+      <p>Constructed method: Background → Power Source → Archetype → Personality → Red → Retcon → Health.</p>
+      <span class="status live">Live</span>
+    </a>
+    <a class="card" href="/villain-builder.html">
+      <div class="kicker villain">Villains</div>
+      <h2>Villain Builder</h2>
+      <p>Approach, Archetype, abilities, upgrade, mastery. Writes villains.csv + Read-modal MD.</p>
+      <span class="status live">Live</span>
+    </a>
+    <a class="card" href="/issue-builder.html">
+      <div class="kicker hero">Issues</div>
+      <h2>Issue Builder</h2>
+      <p>Session container: scenes in order, villains who appear. Feeds Villain landing filters.</p>
+      <span class="status live">Live</span>
+    </a>
+    <a class="card" href="/minion-builder.html">
+      <div class="kicker hero">Minions &amp; Lieutenants</div>
+      <h2>Minion / Lieutenant</h2>
+      <p>Die size, type, faction. Landing table: All / Custom / Premade.</p>
+      <span class="status live">Live</span>
+    </a>
+    <a class="card" href="/environment-builder.html">
+      <div class="kicker hero">Environments</div>
+      <h2>Environment Builder</h2>
+      <p>Three traits + dice. Landing table matches the other builders.</p>
+      <span class="status live">Live</span>
+    </a>
+  </div>
+</div>
+</body>
+</html>

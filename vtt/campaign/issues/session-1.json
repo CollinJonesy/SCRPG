@@ -1,5 +1,31 @@
 {
   "name": "Session 1",
-  "sceneSlugs": [],
-  "notes": ""
+  "notes": "",
+  "sceneSlugs": [
+    "session-1-scene-1",
+    "the-cozy-thimble",
+    "police-station"
+  ],
+  "villainSlugs": [
+    "stunt-double",
+    "nightwalker"
+  ],
+  "heroSlugs": [
+    "masquerade",
+    "handyman",
+    "lumen",
+    "titus-andromeda",
+    "pink-panther"
+  ],
+  "minionSlugs": [
+    "bunsen-burner",
+    "minus",
+    "plus",
+    "shocker-initiate"
+  ],
+  "locationSlugs": [
+    "bank-lobby-offices",
+    "vault-back-offices",
+    "the-cozy-thimble-main"
+  ]
 }

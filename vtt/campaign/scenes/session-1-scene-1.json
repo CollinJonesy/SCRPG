@@ -36,12 +36,14 @@
         {
           "label": "Rescue the Hostages",
           "successesNeeded": 3,
-          "successesMarked": 2
+          "successesMarked": 0,
+          "hidden": false
         },
         {
           "label": "Stop the Theft",
           "successesNeeded": 3,
-          "successesMarked": 1
+          "successesMarked": 0,
+          "hidden": true
         }
       ],
       "timerMode": "turns",
@@ -52,78 +54,218 @@
       "outcome": "",
       "impactScale": "",
       "solution": "",
-      "hidden": true
+      "hidden": false,
+      "failed": false
     }
   ],
   "tokens": [
     {
-      "id": "tok-7qtfb37h",
+      "id": "tok-4fqsa5mi",
+      "kind": "hero",
+      "slug": "pink-panther",
+      "name": "Pink Panther",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 30,
+      "maxHealth": 20
+    },
+    {
+      "id": "tok-7zo1a1uw",
+      "kind": "hero",
+      "slug": "titus-andromeda",
+      "name": "Titus Andromeda",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-empth790",
       "kind": "hero",
       "slug": "masquerade",
       "name": "Masquerade",
       "locationId": "loc-dgjwqvjv",
-      "currentHealth": 28,
-      "maxHealth": 28
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-ouunmm11",
+      "kind": "hero",
+      "slug": "handyman",
+      "name": "Handyman",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-sk72mla9",
+      "kind": "hero",
+      "slug": "lumen",
+      "name": "Lumen",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 32,
+      "maxHealth": 32
+    },
+    {
+      "id": "tok-vi7bgwon",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 6,
+      "ko": false
+    },
+    {
+      "id": "tok-s81wucho",
+      "kind": "lieutenant",
+      "slug": "minus",
+      "name": "Minus",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 8,
+      "ko": false,
+      "bhdDelta": {
+        "hinder": -4
+      }
+    },
+    {
+      "id": "tok-sh21wh3c",
+      "kind": "lieutenant",
+      "slug": "plus",
+      "name": "Plus",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 6,
+      "ko": false
+    },
+    {
+      "id": "tok-r9pfj6v9",
+      "kind": "lieutenant",
+      "slug": "bunsen-burner",
+      "name": "Bunsen Burner",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 10,
+      "ko": false
+    },
+    {
+      "id": "tok-a4uxpx70",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 6,
+      "ko": false
+    },
+    {
+      "id": "tok-yhsvbge1",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 6,
+      "ko": false
+    },
+    {
+      "id": "tok-po7veh6f",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 6,
+      "ko": false
+    },
+    {
+      "id": "tok-gk12upkr",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 6,
+      "ko": false
     }
   ],
   "gmNotes": "",
   "__slug": "session-1-scene-1",
   "activityLog": [
     {
-      "timestamp": 1788221278.423,
-      "round": null,
-      "actor": null,
-      "action": "Challenge Progress",
-      "target": null,
-      "result": "Bank Robbery — Rescue the Hostages: 1",
+      "id": "log-wr47ds74",
+      "timestamp": 1789164362.521,
+      "round": 1,
+      "actor": {
+        "id": "tok-empth790",
+        "name": "Masquerade",
+        "kind": "hero"
+      },
+      "action": "Attack",
+      "target": {
+        "id": "tok-sh21wh3c",
+        "name": "Plus",
+        "kind": "lieutenant"
+      },
+      "result": "Basic Attack: save 4 vs 6 — d6",
       "details": {
-        "challenge": "Bank Robbery",
-        "path": "Rescue the Hostages",
-        "successesMarked": 1,
-        "delta": -1
+        "effect": 6,
+        "dmg": 6,
+        "roll": 4,
+        "ability": "Basic Attack",
+        "turnNumber": 1
       }
     },
     {
-      "timestamp": 1788221279.092,
-      "round": null,
-      "actor": null,
-      "action": "Challenge Progress",
-      "target": null,
-      "result": "Bank Robbery — Rescue the Hostages: 0",
+      "id": "log-0220hh0x",
+      "timestamp": 1789164384.257,
+      "round": 1,
+      "actor": {
+        "id": "tok-sk72mla9",
+        "name": "Lumen",
+        "kind": "hero"
+      },
+      "action": "Attack",
+      "target": {
+        "id": "tok-sh21wh3c",
+        "name": "Plus",
+        "kind": "lieutenant"
+      },
+      "result": "Basic Attack: save 2 vs 1 — held",
       "details": {
-        "challenge": "Bank Robbery",
-        "path": "Rescue the Hostages",
-        "successesMarked": 0,
-        "delta": -1
-      }
-    },
-    {
-      "timestamp": 1788221280.969,
-      "round": null,
-      "actor": null,
-      "action": "Challenge Progress",
-      "target": null,
-      "result": "Bank Robbery — Rescue the Hostages: 1",
-      "details": {
-        "challenge": "Bank Robbery",
-        "path": "Rescue the Hostages",
-        "successesMarked": 1,
-        "delta": 1
-      }
-    },
-    {
-      "timestamp": 1788221281.199,
-      "round": null,
-      "actor": null,
-      "action": "Challenge Progress",
-      "target": null,
-      "result": "Bank Robbery — Rescue the Hostages: 2",
-      "details": {
-        "challenge": "Bank Robbery",
-        "path": "Rescue the Hostages",
-        "successesMarked": 2,
-        "delta": 1
+        "effect": 1,
+        "dmg": 1,
+        "roll": 2,
+        "ability": "Basic Attack",
+        "turnNumber": 2
       }
     }
-  ]
+  ],
+  "mods": [
+    {
+      "id": "mod-0h7bc3ez",
+      "kind": "defend",
+      "value": 3,
+      "creatorId": "tok-sk72mla9",
+      "targetId": "tok-sk72mla9",
+      "exclusivePersistent": false
+    },
+    {
+      "id": "mod-9msbzzyx",
+      "kind": "hinder",
+      "value": 1,
+      "creatorId": "tok-s81wucho",
+      "targetId": "tok-empth790",
+      "exclusivePersistent": false
+    },
+    {
+      "id": "mod-z2v5hj8z",
+      "kind": "hinder",
+      "value": 1,
+      "creatorId": "tok-s81wucho",
+      "targetId": "tok-s81wucho",
+      "exclusivePersistent": false
+    },
+    {
+      "id": "mod-m9y5awy2",
+      "kind": "hinder",
+      "value": 2,
+      "creatorId": "tok-s81wucho",
+      "targetId": "tok-ouunmm11",
+      "exclusivePersistent": false
+    }
+  ],
+  "sceneType": "Action",
+  "round": 1
 }

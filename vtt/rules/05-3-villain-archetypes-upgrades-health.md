@@ -15,7 +15,7 @@ updated: 2026-08-24
 **Abilities (choose 2):** Bring It On! (boost on damage), Feel No Pain (reduce damage by 1/2/3 by zone), Grin and Bear It, Lash Out, Living Wall (interpose for allies), Toss Hero.
 
 ## Domain Archetype
-**Status:** 3+ environment threats = d8; 1–2 = d6; 0 = d4 | **Health:** +30
+**Status:** 3+ environment threats = d10; 1–2 = d8; 0 = d6 | **Health:** +30
 **Suggested pairings:** Dampening, Overpowered
 **Role:** In touch with surroundings; warp environment to advantage.
 **Abilities (choose 3):** Ascend From My Realm (ignore env damage), Earth Trembles (roll env minion dice for AoE attack), Power Heeds My Call (convert env bonuses to attacks), This Place is Mine (activate env twist), To Me My Minions (recover health), World Moves to Defend (redirect attack to env minion).
@@ -33,7 +33,7 @@ updated: 2026-08-24
 **Abilities (choose 2):** Careless Smash, Cheese It! (escape if defense negates), Dismantling Jab, Escape Plan, Shrouded Attack, Versatile Strike.
 
 ## Guerrilla Archetype
-**Status:** 4+ opponents = d8; 2–3 = d6; 0–1 = d4 | **Health:** +20
+**Status:** 4+ opponents = d10; 2–3 = d8; 0–1 = d6 | **Health:** +20
 **Suggested pairings:** Ninja, Prideful
 **Role:** Effective vs groups; disrupt team cohesion.
 **Abilities (choose 2):** Close Quarters Combat, Even Odds, Fighting Rhythm, Human Shield, Malicious Deflection, Tangled Fray.
@@ -45,7 +45,7 @@ updated: 2026-08-24
 **Abilities (choose 2):** Absorb Energy, Grab and Drag, Heavy Duty, Prepare for Worst, Suppressive Fire, Unflagging.
 
 ## Inhibitor Archetype
-**Status:** 3+ heroes w/ penalties = d8; 1–2 = d6; 0 = d4 | **Health:** +10
+**Status:** 3+ heroes w/ penalties = d10; 1–2 = d8; 0 = d6 | **Health:** +10
 **Suggested pairings:** Dampening, Focused
 **Role:** Exploit hero weaknesses; create where none exist.
 **Abilities (choose 2):** Area Suppression, Overwhelming Syphon, Targeted Drain, Tethered Life, Twisted Fate, Upper Handed Strike.
@@ -63,7 +63,7 @@ updated: 2026-08-24
 **Abilities (gain 2 + mandatory Uncoordinated Actions):** Divide & Conquer, Instability of Form, Parts of the Whole, Returned Vitality, Split Up, Combine.
 
 ## Loner Archetype
-**Status:** 0 other villains = d8; 1–2 = d6; 3+ = d4 | **Health:** +10
+**Status:** 0 other villains = d10; 1–2 = d8; 3+ = d6 | **Health:** +10
 **Suggested pairings:** Leech, Relentless, Skilled
 **Role:** Works w/ others but best alone.
 

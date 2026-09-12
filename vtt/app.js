@@ -58,15 +58,15 @@ const VILLAIN_APPROACHES = [
 ];
 const VILLAIN_ARCHETYPES = [
   { name: 'Bruiser', health: 20, status: 'Health zones (like heroes): Green d4 → Yellow d8 → Red d12' },
-  { name: 'Domain', health: 30, status: '3+ environment threats = d8; 1-2 = d6; 0 = d4' },
+  { name: 'Domain', health: 30, status: '3+ environment threats = d10; 1-2 = d8; 0 = d6' },
   { name: 'Formidable', health: 25, status: 'All weakness penalties, no bonuses = weak; mixed = d8; no weakness penalties = d12' },
   { name: 'Fragile', health: -5, status: 'Health zones (inverse): Green d8 → Yellow d6 → Red d4' },
-  { name: 'Guerrilla', health: 20, status: '4+ opponents = d8; 2-3 = d6; 0-1 = d4' },
+  { name: 'Guerrilla', health: 20, status: '4+ opponents = d10; 2-3 = d8; 0-1 = d6' },
   { name: 'Indomitable', health: 20, status: 'Always d8' },
-  { name: 'Inhibitor', health: 10, status: '3+ heroes w/ penalties = d8; 1-2 = d6; 0 = d4' },
+  { name: 'Inhibitor', health: 10, status: '3+ heroes w/ penalties = d10; 1-2 = d8; 0 = d6' },
   { name: 'Inventor', health: 10, status: '4+ inventions = d12; 2-3 = d8; 1 = d6; 0 = d4' },
   { name: 'Legion', health: -5, status: '9+ minions = weak; 5-8 = d6; 3-4 = d8; 1-2 = d10; 0 = d12' },
-  { name: 'Loner', health: 10, status: '0 other villains = d8; 1-2 = d6; 3+ = d4' },
+  { name: 'Loner', health: 10, status: '0 other villains = d10; 1-2 = d8; 3+ = d6' },
   { name: 'Overlord', health: 15, status: 'More minions = stronger' },
   { name: 'Predator', health: 15, status: 'Fewer opponents = better' },
   { name: 'Squad', health: 5, status: 'Based on # allies present' },
@@ -75,7 +75,7 @@ const VILLAIN_ARCHETYPES = [
 function findApproach(name) { return VILLAIN_APPROACHES.find(a => a.name.toLowerCase() === (name || '').trim().toLowerCase()); }
 function findArchetype(name) { return VILLAIN_ARCHETYPES.find(a => a.name.toLowerCase() === (name || '').trim().toLowerCase()); }
 
-const HEROES_HEADERS = ['Slug','Name',
+const HEROES_HEADERS = ['Slug','Name','Alias','Player',
   'Power1','PowerDie1','Power2','PowerDie2','Power3','PowerDie3','Power4','PowerDie4','Power5','PowerDie5','Power6','PowerDie6',
   'Quality1','QualityDie1','Quality2','QualityDie2','Quality3','QualityDie3','Quality4','QualityDie4','Quality5','QualityDie5','Quality6','QualityDie6',
   'MaxHealth','GreenStatusDie','YellowStatusDie','RedStatusDie','GMControlled',
@@ -86,8 +86,9 @@ const VILLAINS_HEADERS = ['Slug','Name','Approach','Archetype',
   'Quality1','QualityDie1','Quality2','QualityDie2','Quality3','QualityDie3','Quality4','QualityDie4','Quality5','QualityDie5','Quality6','QualityDie6',
   'MaxHealth','GreenFloor','YellowFloor','RedFloor','GreenStatusDie','YellowStatusDie','RedStatusDie',
   'Status1Label','Status1Die','Status2Label','Status2Die','Status3Label','Status3Die','Status4Label','Status4Die','Status5Label','Status5Die'];
-const MINIONS_HEADERS = ['Slug','Name','Type','Die','Faction'];
+const MINIONS_HEADERS = ['Slug','Name','Type','Die','Faction','PerHero'];
 const ENVIRONMENTS_HEADERS = ['Slug','Name','Trait1','TraitDie1','Trait2','TraitDie2','Trait3','TraitDie3'];
+const LOCATIONS_HEADERS = ['Slug','Name','EnvironmentSlug'];
 const TWISTS_HEADERS = ['Slug','Name','EffectType','Severity','Formula','Description'];
 const ABILITIES_HEADERS = ['HeroSlug','Zone','Name','Type','GameText','RollType','DieSource','EffectDieHint'];
 const TWIST_EFFECT_TYPES = [
@@ -96,7 +97,7 @@ const TWIST_EFFECT_TYPES = [
   'Advance Scene Tracker', 'Combination',
 ];
 
-const LIB_HEADERS = { heroes: HEROES_HEADERS, villains: VILLAINS_HEADERS, minions: MINIONS_HEADERS, environments: ENVIRONMENTS_HEADERS, twists: TWISTS_HEADERS, abilities: ABILITIES_HEADERS };
+const LIB_HEADERS = { heroes: HEROES_HEADERS, villains: VILLAINS_HEADERS, minions: MINIONS_HEADERS, environments: ENVIRONMENTS_HEADERS, locations: LOCATIONS_HEADERS, twists: TWISTS_HEADERS, abilities: ABILITIES_HEADERS };
 function libHeaders(kind) { return LIB_HEADERS[kind]; }
 
 /* ---------------- Server API ---------------- */
@@ -131,7 +132,9 @@ async function apiGetScene(slug) {
   return res.ok ? await res.json() : null;
 }
 async function apiSaveScene(slug, scene) {
-  await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(scene, null, 2) });
+  const payload = JSON.parse(JSON.stringify(scene));
+  (payload.tokens || []).forEach(t => { delete t.turnNumber; });
+  await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(payload, null, 2) });
 }
 async function apiDeleteScene(slug) {
   await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'DELETE' });
@@ -156,7 +159,7 @@ async function apiDeleteBackground(key) {
   await fetch(`/api/backgrounds/${encodeURIComponent(key)}`, { method: 'DELETE' });
 }
 function backgroundUrl(key) {
-  return `/api/backgrounds/${encodeURIComponent(key)}?t=${Date.now()}`;
+  return `/api/backgrounds/${encodeURIComponent(key)}`;
 }
 function portraitKey(kind, slug) {
   const pk = kind === 'hero' ? 'hero' : kind === 'villain' ? 'villain' : 'minion';
@@ -165,20 +168,40 @@ function portraitKey(kind, slug) {
 async function uploadPortraitFile(kind, slug, file) {
   if (!file || !slug) return;
   await apiUploadBackground(portraitKey(kind, slug), file);
+  portraitBust[portraitKey(kind, slug)] = Date.now();
   toast('Portrait uploaded.');
+  renderLibraryTable(kind === 'minion' ? 'minions' : kind === 'hero' ? 'heroes' : kind === 'villain' ? 'villains' : currentLibTab);
+}
+let portraitBust = {};
+function portraitSrc(kind, slug) {
+  const key = portraitKey(kind, slug);
+  const b = portraitBust[key];
+  return backgroundUrl(key) + (b ? ('?t=' + b) : '');
+}
+function portraitCellHtml(kind, slug) {
+  if (!slug) return '<td class="portrait-cell"><span class="empty-hint">Name first</span></td>';
+  const pk = kind === 'heroes' ? 'hero' : kind === 'villains' ? 'villain' : 'minion';
+  return `<td class="portrait-cell">
+    <img class="lib-portrait-thumb" src="${portraitSrc(pk, slug)}" alt="" onerror="this.style.visibility='hidden'">
+    <label class="lib-portrait-btn">Upload<input type="file" accept="image/*" onchange="uploadPortraitFile('${pk}','${escAttr(slug)}',this.files[0])"></label>
+  </td>`;
 }
 
 /* ---------------- App state ---------------- */
 
 const state = {
-  heroes: [], villains: [], minions: [], environments: [], twists: [], abilities: [],
+  heroes: [], villains: [], minions: [], environments: [], locations: [], twists: [], abilities: [],
   scenesList: [],       // [{slug, name}]
+  issuesList: [],
+  collectionsList: [],
   activeSlug: null,     // slug of scene currently loaded on the Board
   scene: null,          // the loaded scene object (definition + live state combined)
   editingSlug: null,    // slug currently open in the Scene Editor (may differ from activeSlug)
+  turnMarks: {},        // tokenId -> round order; memory only, not saved
 };
 
 let currentLibTab = 'heroes';
+let currentCollTab = 'collections';
 let currentNotesTarget = null;
 
 /* ---------------- Utilities ---------------- */
@@ -187,6 +210,67 @@ function slugify(name) {
   return (name || 'entry').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('entry-' + Date.now());
 }
 function uid(prefix) { return (prefix || 'id') + '-' + Math.random().toString(36).slice(2, 10); }
+
+function ensureMods(scene) {
+  if (!scene) return [];
+  if (!Array.isArray(scene.mods)) scene.mods = [];
+  return scene.mods;
+}
+function liveMods(scene) { return ensureMods(scene).filter(m => !m.consumed); }
+function modsCreatedBy(scene, tokenId, kind) {
+  return liveMods(scene).filter(m => m.creatorId === tokenId && (!kind || m.kind === kind));
+}
+function modsOnTarget(scene, tokenId, kind) {
+  return liveMods(scene).filter(m => m.targetId === tokenId && (!kind || m.kind === kind));
+}
+function bhdTotals(scene, token) {
+  const boost = modsCreatedBy(scene, token.id, 'boost').reduce((s, m) => s + (Number(m.value) || 0), 0);
+  const hinder = modsCreatedBy(scene, token.id, 'hinder').reduce((s, m) => s + (Number(m.value) || 0), 0);
+  const defend = modsOnTarget(scene, token.id, 'defend').reduce((s, m) => s + (Number(m.value) || 0), 0);
+  return { boost, hinder, defend };
+}
+function creatorHasExclusivePersistent(scene, creatorId) {
+  return liveMods(scene).some(m => m.creatorId === creatorId && m.exclusivePersistent);
+}
+function locName(scene, locId) {
+  const loc = (scene.locations || []).find(l => l.id === locId);
+  return loc ? loc.name : '';
+}
+function bhdDisplay(scene, token) {
+  const auto = bhdTotals(scene, token);
+  const d = token.bhdDelta || {};
+  return {
+    boost: Math.max(0, auto.boost + (Number(d.boost) || 0)),
+    hinder: Math.max(0, auto.hinder + (Number(d.hinder) || 0)),
+    defend: Math.max(0, auto.defend + (Number(d.defend) || 0)),
+  };
+}
+function setBhdDelta(tokenId, kind, typed) {
+  const t = findTok(tokenId);
+  if (!t) return;
+  const auto = bhdTotals(state.scene, t)[kind] || 0;
+  const want = Math.max(0, Number(typed) || 0);
+  t.bhdDelta = t.bhdDelta || {};
+  t.bhdDelta[kind] = want - auto;
+  saveSceneDebounced();
+  renderTokens();
+}
+function bhdRowHtml(t, scene, interactive) {
+  const n = bhdDisplay(scene, t);
+  const cell = (kind, label, val) => interactive
+    ? `<div class="bhd-stat ${kind}"><span onclick="openModCreate('${t.id}','${kind}')">${label}</span><input type="number" min="0" value="${val}" onclick="event.stopPropagation()" onchange="setBhdDelta('${t.id}','${kind}',this.value)"></div>`
+    : `<div class="bhd-stat ${kind}"><span>${label}</span><b>${val}</b></div>`;
+  const hasHealth = t.kind === 'hero' || t.kind === 'villain';
+  let html = `${cell('boost','BOOST', n.boost)}${cell('hinder','HINDER', n.hinder)}${cell('defend','DEFEND', n.defend)}`;
+  if (hasHealth) {
+    const hp = Number(t.currentHealth) || 0;
+    html += interactive
+      ? `<div class="bhd-stat health"><span>HEALTH</span><input type="number" min="0" value="${hp}" onclick="event.stopPropagation()" onchange="setHealth('${t.id}',this.value)"></div>`
+      : `<div class="bhd-stat health"><span>HEALTH</span><b>${hp}</b></div>`;
+  }
+  return `<div class="bhd-row${hasHealth ? ' bhd-row-4' : ''}">${html}</div>`;
+}
+
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -282,7 +366,10 @@ function countBoardStateFor(type, token, scene) {
   if (type === 'minions') return scene.tokens.filter(t => (t.kind === 'minion' || t.kind === 'lieutenant') && !t.ko).length;
   if (type === 'villains') return scene.tokens.filter(t => t.kind === 'villain' && t.id !== token.id).length;
   if (type === 'opponents') return scene.tokens.filter(t => t.kind === 'hero' && t.locationId === token.locationId).length;
-  if (type === 'heroPenalties') return scene.tokens.filter(t => t.kind === 'hero' && (t.tags || []).length > 0).length;
+  if (type === 'heroPenalties') {
+    const hit = new Set(liveMods(scene).filter(m => m.kind === 'hinder').map(m => m.targetId));
+    return scene.tokens.filter(t => t.kind === 'hero' && hit.has(t.id)).length;
+  }
   return null;
 }
 function computeVillainStatus(villainRow, token) {
@@ -323,19 +410,24 @@ function setVillainStatusOverride(tokenId) {
    ============================================================ */
 
 async function loadLibrary() {
-  state.heroes = await apiReadCsv('heroes');
-  state.villains = await apiReadCsv('villains');
-  state.minions = await apiReadCsv('minions');
-  state.environments = await apiReadCsv('environments');
-  state.twists = await apiReadCsv('twists');
-  state.abilities = await apiReadCsv('abilities');
+  const kinds = ['heroes','villains','minions','environments','locations','twists','abilities'];
+  for (const k of kinds) {
+    try { state[k] = await apiReadCsv(k); }
+    catch (e) { if (!Array.isArray(state[k])) state[k] = []; }
+  }
 }
 
 const saveLibraryDebounced = debounce(async (kind) => {
-  const statusEl = document.getElementById('saveStatus');
-  statusEl.textContent = 'Saving…';
+  ['saveStatus','collSaveStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = 'Saving…';
+  });
   await apiWriteCsv(kind, libHeaders(kind), state[kind]);
-  statusEl.textContent = 'Saved to ' + kind + '.csv ✓';
+  const statusMsg = 'Saved to ' + kind + '.csv ✓';
+  ['saveStatus','collSaveStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = statusMsg;
+  });
   refreshSpawnOptions();
 }, 500);
 
@@ -343,21 +435,76 @@ function dieOptions(selected) {
   return DICE_LADDER.map(d => `<option value="d${d}" ${selected === 'd' + d ? 'selected' : ''}>d${d}</option>`).join('');
 }
 
+function issueFieldFor(kind) {
+  return { heroes: 'heroSlugs', villains: 'villainSlugs', minions: 'minionSlugs', environments: 'environmentSlugs', locations: 'locationSlugs', twists: 'twistSlugs' }[kind] || '';
+}
+function rowIssueCell(kind, slug) {
+  const field = issueFieldFor(kind);
+  if (!field) return '<td></td>';
+  const boxes = (state.issuesList || []).map(iss => {
+    const on = (iss[field] || []).includes(slug);
+    return `<label style="display:block;font-weight:400"><input type="checkbox" ${on?'checked':''} onchange="toggleEntityIssue('${iss.slug}','${field}','${slug}',this.checked)"> ${escHtml(iss.name)}</label>`;
+  }).join('');
+  return `<td>${boxes || '—'}</td>`;
+}
+async function toggleEntityIssue(issueSlug, field, entitySlug, on) {
+  const iss = await apiGetIssue(issueSlug);
+  if (!iss) return;
+  const set = new Set(iss[field] || []);
+  if (on) set.add(entitySlug); else set.delete(entitySlug);
+  iss[field] = [...set];
+  await apiSaveIssue(issueSlug, iss);
+  await refreshIssuesList();
+  fillLibIssueFilter();
+  if (currentCollTab === 'locations') renderLibraryTable('locations');
+  else renderLibraryTable(currentLibTab);
+}
+function fillLibIssueFilter() {
+  ['libIssueFilter','collIssueFilter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value || 'all';
+    el.innerHTML = '<option value="all">All issues</option>' +
+      (state.issuesList || []).map(i => `<option value="${i.slug}">${escHtml(i.name)}</option>`).join('');
+    el.value = [...el.options].some(o => o.value === cur) ? cur : 'all';
+  });
+}
 function renderLibraryTable(kind) {
   const panel = document.getElementById(kind + 'Panel');
-  const rows = state[kind];
+  if (!panel) return;
+  if (!Array.isArray(state[kind])) state[kind] = [];
+  const allRows = state[kind];
+  const filterId = kind === 'locations' ? 'collIssueFilter' : 'libIssueFilter';
+  const filt = (document.getElementById(filterId) || {}).value || 'all';
+  const iss = filt === 'all' ? null : (state.issuesList || []).find(i => i.slug === filt);
+  function rowVisible(row) {
+    if (kind === 'twists') {
+      const sev = (document.getElementById('twistSeverityFilter') || {}).value || 'all';
+      const eff = (document.getElementById('twistEffectFilter') || {}).value || 'all';
+      if (sev !== 'all' && row.Severity !== sev) return false;
+      if (eff !== 'all' && row.EffectType !== eff) return false;
+      return true;
+    }
+    if (filt === 'all') return true;
+    if (kind === 'abilities') return ((iss && iss.heroSlugs) || []).includes(row.HeroSlug);
+    const field = issueFieldFor(kind);
+    if (!field) return true;
+    return ((iss && iss[field]) || []).includes(row.Slug);
+  }
   let theadCols;
   if (kind === 'heroes') {
-    theadCols = ['Name','P1','Die','P2','Die','P3','Die','P4','Die','P5','Die','P6','Die','Q1','Die','Q2','Die','Q3','Die','Q4','Die','Q5','Die','Q6','Die','MaxHP','GreenDie','YellowDie','RedDie','GM Roll','Principles','Notes','Portrait',''];
+    theadCols = ['Name','P1','Die','P2','Die','P3','Die','P4','Die','P5','Die','P6','Die','Q1','Die','Q2','Die','Q3','Die','Q4','Die','Q5','Die','Q6','Die','MaxHP','GreenDie','YellowDie','RedDie','GM Roll','Principles','Notes','Portrait','Issues',''];
   } else if (kind === 'villains') {
     theadCols = ['Name','Approach','Archetype','P1','Die','P2','Die','P3','Die','P4','Die','P5','Die',
       'Q1','Die','Q2','Die','Q3','Die','Q4','Die','Q5','Die','Q6','Die','MaxHP','Calc','GreenFloor','YellowFloor','RedFloor',
       'GreenDie','YellowDie','RedDie',
-      'Status 1','Status 1 Die','Status 2','Status 2 Die','Status 3','Status 3 Die','Status 4','Status 4 Die','Status 5','Status 5 Die','Notes','Portrait',''];
+      'Status 1','Status 1 Die','Status 2','Status 2 Die','Status 3','Status 3 Die','Status 4','Status 4 Die','Status 5','Status 5 Die','Notes','Portrait','Issues',''];
   } else if (kind === 'minions') {
-    theadCols = ['Name','Type','Die','Faction','Notes','Portrait',''];
+    theadCols = ['Name','Type','Die','Faction','Notes','Portrait','Issues',''];
   } else if (kind === 'environments') {
-    theadCols = ['Name','Trait1','Die','Trait2','Die','Trait3','Die','Notes',''];
+    theadCols = ['Name','Trait1','Die','Trait2','Die','Trait3','Die','Notes','Issues',''];
+  } else if (kind === 'locations') {
+    theadCols = ['Name','Environment','Issues',''];
   } else if (kind === 'twists') {
     theadCols = ['Name','Effect Type','Severity','Formula','Description',''];
   } else {
@@ -365,8 +512,12 @@ function renderLibraryTable(kind) {
     const dl = document.getElementById('heroSlugsList');
     if (dl) dl.innerHTML = state.heroes.map(h => `<option value="${escAttr(h.Slug)}">`).join('');
   }
-  let html = '<table class="lib-table"><thead><tr>' + theadCols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
-  rows.forEach((row, idx) => {
+  let html = '<table class="lib-table"><thead><tr>' + theadCols.map(c => {
+    const wrap = (c === 'Game Text' || c === 'Description') ? ' class="wrap-col"' : '';
+    return `<th${wrap}>${c}</th>`;
+  }).join('') + (kind === 'twists' || kind === 'abilities' ? '' : '<th class="table-fill"></th>') + '</tr></thead><tbody>';
+  allRows.forEach((row, idx) => {
+    if (!rowVisible(row)) return;
     html += '<tr>';
     if (kind === 'heroes') {
       html += tdText(kind, idx, 'Name', row.Name, 'name-field');
@@ -379,11 +530,11 @@ function renderLibraryTable(kind) {
       html += tdCheckbox(kind, idx, 'GMControlled', row.GMControlled);
       html += `<td><button class="btn btn-small btn-ghost" onclick="openPrinciplesEditor(${idx})">Principles</button></td>`;
       html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('heroes','${row.Slug}','${escAttr(row.Name)}')">Notes</button></td>`;
-      html += `<td><input type="file" accept="image/*" style="width:80px;" onchange="uploadPortraitFile('hero','${row.Slug}',this.files[0])"></td>`;
+      html += portraitCellHtml('heroes', row.Slug);
     } else if (kind === 'villains') {
       html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      html += `<td><input list="approachesList" value="${escAttr(row.Approach)}" onchange="onCellChange('${kind}',${idx},'Approach',this.value)"></td>`;
-      html += `<td><input list="archetypesList" value="${escAttr(row.Archetype)}" onchange="onCellChange('${kind}',${idx},'Archetype',this.value)"></td>`;
+      html += tdFitInput(kind, idx, 'Approach', row.Approach, 'list="approachesList"');
+      html += tdFitInput(kind, idx, 'Archetype', row.Archetype, 'list="archetypesList"');
       for (let i = 1; i <= 5; i++) { html += tdText(kind, idx, 'Power' + i, row['Power' + i]); html += tdDie(kind, idx, 'PowerDie' + i, row['PowerDie' + i]); }
       for (let i = 1; i <= 6; i++) { html += tdText(kind, idx, 'Quality' + i, row['Quality' + i]); html += tdDie(kind, idx, 'QualityDie' + i, row['QualityDie' + i]); }
       html += tdText(kind, idx, 'MaxHealth', row.MaxHealth);
@@ -396,7 +547,7 @@ function renderLibraryTable(kind) {
       html += tdDie(kind, idx, 'RedStatusDie', row.RedStatusDie);
       for (let i = 1; i <= 5; i++) { html += tdText(kind, idx, 'Status' + i + 'Label', row['Status' + i + 'Label']); html += tdDie(kind, idx, 'Status' + i + 'Die', row['Status' + i + 'Die']); }
       html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('villains','${row.Slug}','${escAttr(row.Name)}')">Notes</button></td>`;
-      html += `<td><input type="file" accept="image/*" style="width:80px;" onchange="uploadPortraitFile('villain','${row.Slug}',this.files[0])"></td>`;
+      html += portraitCellHtml('villains', row.Slug);
     } else if (kind === 'minions') {
       html += tdText(kind, idx, 'Name', row.Name, 'name-field');
       html += `<td><select onchange="onCellChange('${kind}',${idx},'Type',this.value)">
@@ -406,11 +557,17 @@ function renderLibraryTable(kind) {
       html += tdDie(kind, idx, 'Die', row.Die);
       html += tdText(kind, idx, 'Faction', row.Faction);
       html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('minions','${row.Slug}','${escAttr(row.Name)}')">Notes</button></td>`;
-      html += `<td><input type="file" accept="image/*" style="width:80px;" onchange="uploadPortraitFile('minion','${row.Slug}',this.files[0])"></td>`;
+      html += portraitCellHtml('minions', row.Slug);
     } else if (kind === 'environments') {
       html += tdText(kind, idx, 'Name', row.Name, 'name-field');
       for (let i = 1; i <= 3; i++) { html += tdText(kind, idx, 'Trait' + i, row['Trait' + i]); html += tdDie(kind, idx, 'TraitDie' + i, row['TraitDie' + i]); }
       html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('environments','${row.Slug}','${escAttr(row.Name)}')">Notes (Twists)</button></td>`;
+    } else if (kind === 'locations') {
+      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
+      html += `<td><select onchange="onCellChange('${kind}',${idx},'EnvironmentSlug',this.value)">
+        <option value="">— none —</option>
+        ${ (state.environments || []).map(e => `<option value="${escAttr(e.Slug)}" ${row.EnvironmentSlug===e.Slug?'selected':''}>${escHtml(e.Name)}</option>`).join('') }
+      </select></td>`;
     } else if (kind === 'twists') {
       html += tdText(kind, idx, 'Name', row.Name, 'name-field');
       html += `<td><select onchange="onCellChange('${kind}',${idx},'EffectType',this.value)">
@@ -422,9 +579,9 @@ function renderLibraryTable(kind) {
         <option value="Any" ${row.Severity === 'Any' ? 'selected' : ''}>Any</option>
       </select></td>`;
       html += tdText(kind, idx, 'Formula', row.Formula);
-      html += tdText(kind, idx, 'Description', row.Description);
+      html += `<td class="wrap-cell"><textarea onchange="onCellChange('${kind}',${idx},'Description',this.value)">${escHtml(row.Description || '')}</textarea></td>`;
     } else {
-      html += `<td><input list="heroSlugsList" value="${escAttr(row.HeroSlug)}" onchange="onCellChange('${kind}',${idx},'HeroSlug',this.value)"></td>`;
+      html += tdFitInput(kind, idx, 'HeroSlug', row.HeroSlug, 'list="heroSlugsList"');
       html += `<td><select onchange="onCellChange('${kind}',${idx},'Zone',this.value)">
         ${['Green','Yellow','Red','Out'].map(z => `<option value="${z}" ${row.Zone === z ? 'selected' : ''}>${z}</option>`).join('')}
       </select></td>`;
@@ -435,26 +592,41 @@ function renderLibraryTable(kind) {
         <option value="R" ${row.Type === 'R' ? 'selected' : ''}>Reaction</option>
         <option value="I" ${row.Type === 'I' ? 'selected' : ''}>Inherent</option>
       </select></td>`;
-      html += tdText(kind, idx, 'GameText', row.GameText);
-      html += `<td><select onchange="onCellChange('${kind}',${idx},'RollType',this.value)">
-        <option value="">-</option>
-        ${ABILITY_ICON_TYPES.map(t => `<option value="${t}" ${row.RollType === t ? 'selected' : ''}>${t}</option>`).join('')}
-      </select></td>`;
+      html += `<td class="game-text-cell"><textarea onchange="onCellChange('${kind}',${idx},'GameText',this.value)">${escHtml(row.GameText || '')}</textarea></td>`;
+      const selectedTypes = parseRollTypes(row.RollType);
+      html += `<td class="roll-type-cell">${ABILITY_ICON_ROWS.map(group =>
+        `<div class="roll-type-row">${group.map(t =>
+          `<label><input type="checkbox" ${selectedTypes.includes(t)?'checked':''} onchange="toggleAbilityRollType(${idx},'${t}',this.checked)"> ${t}</label>`
+        ).join('')}</div>`
+      ).join('')}</td>`;
       html += tdText(kind, idx, 'DieSource', row.DieSource);
       html += `<td><select onchange="onCellChange('${kind}',${idx},'EffectDieHint',this.value)">
         <option value="">-</option>
         ${EFFECT_DIE_OPTIONS.map(o => `<option value="${o.key}" ${row.EffectDieHint === o.key ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select></td>`;
     }
-    html += `<td><button class="btn btn-small btn-danger" onclick="deleteRow('${kind}',${idx})">Delete</button></td></tr>`;
+    if (kind !== 'abilities' && kind !== 'twists') html += rowIssueCell(kind, row.Slug);
+    html += `<td><button class="btn btn-small btn-danger" onclick="deleteRow('${kind}',${idx})">Delete</button></td>`;
+    if (kind !== 'twists' && kind !== 'abilities') html += '<td class="table-fill"></td>';
+    html += '</tr>';
   });
   html += '</tbody></table>';
-  if (rows.length === 0) html = '<p style="padding:14px;color:#555;font-family:var(--font-data);font-size:12px;">No entries yet. Click "+ Add Row" to create one.</p>';
+  const visible = allRows.filter(rowVisible);
+  if (visible.length === 0) html = '<p class="empty-hint" style="padding:14px;">No entries yet. Click "+ Add Row" to create one.</p>';
   panel.innerHTML = html;
 }
 
+function fitInputSize(value, min) {
+  return Math.max(min || 2, Math.min(48, String(value ?? '').length + 1));
+}
 function tdText(kind, idx, field, value, extraClass) {
-  return `<td><input class="${extraClass || ''}" type="text" value="${escAttr(value)}" onchange="onCellChange('${kind}',${idx},'${field}',this.value)"></td>`;
+  const min = extraClass === 'name-field' ? 6 : 2;
+  const size = fitInputSize(value, min);
+  return `<td><input class="${extraClass || ''}" type="text" size="${size}" value="${escAttr(value)}" oninput="this.size=Math.max(${min},this.value.length+1)" onchange="onCellChange('${kind}',${idx},'${field}',this.value)"></td>`;
+}
+function tdFitInput(kind, idx, field, value, extraAttrs) {
+  const size = fitInputSize(value, 4);
+  return `<td><input type="text" size="${size}" value="${escAttr(value)}" ${extraAttrs || ''} oninput="this.size=Math.max(4,this.value.length+1)" onchange="onCellChange('${kind}',${idx},'${field}',this.value)"></td>`;
 }
 function tdCheckbox(kind, idx, field, value) {
   return `<td><input type="checkbox" ${String(value).toLowerCase() === 'true' ? 'checked' : ''} onchange="onCellChange('${kind}',${idx},'${field}',String(this.checked))"></td>`;
@@ -469,13 +641,20 @@ function onCellChange(kind, idx, field, value) {
   saveLibraryDebounced(kind);
 }
 function uniqueLibSlug(kind, base, currentSlug) {
+  if (!Array.isArray(state[kind])) state[kind] = [];
   let candidate = base, n = 1;
   const taken = new Set(state[kind].map(r => r.Slug).filter(s => s !== currentSlug));
   while (taken.has(candidate)) candidate = base + '-' + (++n);
   return candidate;
 }
 function addRow(kind) {
+  if (!Array.isArray(state[kind])) state[kind] = [];
+  ['libIssueFilter','collIssueFilter','twistSeverityFilter','twistEffectFilter'].forEach(id => {
+    const filt = document.getElementById(id);
+    if (filt) filt.value = 'all';
+  });
   const headers = libHeaders(kind);
+  if (!headers) { toast('Unknown library table.'); return; }
   const row = {}; headers.forEach(h => row[h] = '');
   row.Name = 'New Entry';
   row.Slug = uniqueLibSlug(kind, 'new-entry', null);
@@ -508,7 +687,22 @@ async function saveNotes() {
 
 /* ---- Abilities Read modal (Villain/Minion/Lieutenant/Hero) ---- */
 
-const ABILITY_ICON_TYPES = ['Attack', 'Defend', 'Boost', 'Hinder', 'Overcome', 'Recover', 'Other'];
+const ABILITY_ICON_TYPES = ['Attack', 'Defend', 'Boost', 'Hinder', 'Overcome', 'Recover'];
+const ABILITY_ICON_ROWS = [
+  ['Attack', 'Defend', 'Boost'],
+  ['Hinder', 'Overcome', 'Recover'],
+];
+function parseRollTypes(val) {
+  return (val || '').split(/[,|;/]+/).map(s => s.trim()).filter(s => ABILITY_ICON_TYPES.includes(s));
+}
+function toggleAbilityRollType(idx, type, on) {
+  const row = state.abilities[idx];
+  if (!row) return;
+  const set = new Set(parseRollTypes(row.RollType));
+  if (on) set.add(type); else set.delete(type);
+  row.RollType = ABILITY_ICON_TYPES.filter(t => set.has(t)).join(', ');
+  saveLibraryDebounced('abilities');
+}
 
 function parseAbilitiesMd(md) {
   const sections = { Abilities: [], Upgrades: [], Mastery: [], Tactics: [] };
@@ -530,10 +724,13 @@ function parseAbilitiesMd(md) {
       currentKey = Object.keys(sections).find(k => k.toLowerCase() === h2[1].toLowerCase());
       continue;
     }
-    const h3 = line.match(/^###\s*\[([ARI?])\]\s*\[([^\]]+)\]\s*"([^"]+)"/);
+    const h3 = line.match(/^###\s*\[([ARI?])\]\s*\[([^\]]+)\]\s*"([^"]+)"/)
+      || line.match(/^###\s*\[([ARI?])\]\s*"([^"]+)"/);
     if (h3) {
       flush();
-      currentCard = { type: h3[1], icon: h3[2], name: h3[3], body: [] };
+      currentCard = h3[3] != null
+        ? { type: h3[1], icon: h3[2], name: h3[3], body: [] }
+        : { type: h3[1], icon: '', name: h3[2], body: [] };
       continue;
     }
     if (currentCard) currentCard.body.push(line);
@@ -579,20 +776,24 @@ async function openAbilities(tokenId) {
     return;
   }
 
+  abilityUseCards = [];
   const multiVillain = state.scene.tokens.filter(tk => tk.kind === 'villain').length > 1;
+  const hideExtras = t.kind === 'villain' && (multiVillain || (state.scene.difficulty || '') === 'Moderate');
   const renderSection = (label, cards) => {
     if (!cards.length) return '';
     let h = `<label class="field-label" style="margin-top:12px;">${label}</label>`;
     cards.forEach(c => {
-      h += `<div class="ability-card">
-        <div class="ability-card-name">[${escHtml(c.type)}] [${escHtml(c.icon)}] "${escHtml(c.name)}"</div>
+      const i = abilityUseCards.push(c) - 1;
+      h += `<div class="ability-card ability-card-use" onclick="useAbilityCard('${t.id}',${i})">
+        <div class="ability-card-name">[${escHtml(c.type)}]${c.icon ? ` [${escHtml(c.icon)}]` : ''} "${escHtml(c.name)}"</div>
         <p class="ability-card-body">${escHtml(c.body)}</p>
+        <button type="button" class="btn btn-small btn-accent">Use</button>
       </div>`;
     });
     return h;
   };
   let html = renderSection('Abilities', sections.Abilities);
-  if (t.kind === 'villain' && !multiVillain) {
+  if (t.kind === 'villain' && !hideExtras) {
     html += renderSection('Upgrades', sections.Upgrades);
     html += renderSection('Mastery', sections.Mastery);
   }
@@ -600,13 +801,361 @@ async function openAbilities(tokenId) {
   el.innerHTML = html || '<p class="empty-hint">No abilities recorded.</p>';
   document.getElementById('abilitiesModal').classList.remove('hidden');
 }
-function closeAbilities() { document.getElementById('abilitiesModal').classList.add('hidden'); }
+function gyroAbilityZones(band) {
+  if (band === 'out') return ['Out'];
+  if (band === 'red') return ['Green', 'Yellow', 'Red'];
+  if (band === 'yellow') return ['Green', 'Yellow'];
+  return ['Green'];
+}
+function heroAbilitiesForToken(t) {
+  const row = state.heroes.find(h => h.Slug === t.slug) || {};
+  const band = computeHeroStatus(Number(row.MaxHealth) || t.maxHealth || 20, t.currentHealth, state.scene).band;
+  const zones = gyroAbilityZones(band);
+  return (state.abilities || []).filter(a => a.HeroSlug === t.slug && zones.includes(a.Zone));
+}
+function villainAbilitiesForToken(t) {
+  const key = (t.kind || '') + ':' + (t.slug || '');
+  const cache = (state._mdCache = state._mdCache || {});
+  const md = cache[key];
+  if (typeof md !== 'string') {
+    const kind = t.kind === 'villain' ? 'villains' : (t.kind === 'hero' ? 'heroes' : 'minions');
+    apiReadMd(kind, t.slug).then(text => { cache[key] = text || ''; renderTokens(); });
+    return [];
+  }
+  const sections = parseAbilitiesMd(md);
+  let cards = sections.Abilities.slice();
+  if (t.kind === 'villain') {
+    const multi = state.scene.tokens.filter(tk => tk.kind === 'villain').length > 1;
+    const hideExtras = multi || (state.scene.difficulty || '') === 'Moderate';
+    if (!hideExtras) cards = cards.concat(sections.Upgrades, sections.Mastery);
+  }
+  return cards;
+}
+function abilityRollTypes(a) {
+  if (!a) return [];
+  const fromField = parseRollTypes(a.RollType || a.icon || '');
+  if (fromField.length) return fromField;
+  const blob = (a.GameText || a.body || '');
+  return ABILITY_ICON_TYPES.filter(k => new RegExp('\\b' + k + '\\b', 'i').test(blob));
+}
+function boardAbilityListHtml(t) {
+  if (t.kind === 'hero') {
+    const abs = heroAbilitiesForToken(t);
+    if (!abs.length) return '<div class="board-ability-list"><div class="mvc-empty" style="padding:8px;">No abilities in this zone.</div></div>';
+    return '<div class="board-ability-list">' + abs.map((a, i) => {
+      const z = (a.Zone || '').toLowerCase();
+      return `<div class="board-ability" onclick="openHeroAbility('${t.id}',${i})"><span class="board-ability-zone ${escAttr(z)}">${escHtml(a.Zone || '')}</span><span class="board-ability-name">${escHtml(a.Name)}</span></div>`;
+    }).join('') + '</div>';
+  }
+  if (t.kind === 'minion' || t.kind === 'lieutenant') {
+    const abs = villainAbilitiesForToken(t);
+    if (!abs.length) return '';
+    return '<div class="board-ability-list">' + abs.map((a, i) =>
+      `<div class="board-ability minion-ab" onclick="openVillainAbility('${t.id}',${i})"><b>${escHtml(a.name)}:</b> ${escHtml(a.body || '')}</div>`
+    ).join('') + '</div>';
+  }
+  if (t.kind === 'villain') {
+    const abs = villainAbilitiesForToken(t);
+    if (!abs.length) return '';
+    return '<div class="board-ability-list">' + abs.map((a, i) =>
+      `<div class="board-ability" onclick="openVillainAbility('${t.id}',${i})"><span class="board-ability-zone">${escHtml(a.icon || a.type || '')}</span><span class="board-ability-name">${escHtml(a.name)}</span></div>`
+    ).join('') + '</div>';
+  }
+  return '';
+}
+function tokenShowsTwists(t) {
+  if (t.kind !== 'hero') return false;
+  const row = state.heroes.find(h => h.Slug === t.slug) || {};
+  const g = row.GMControlled;
+  return !(g === true || g === 1 || String(g).toLowerCase() === 'true' || g === '1');
+}
+function boardBasicActionsHtml(t) {
+  const row1 = ['Attack', 'Recover', 'Defend'];
+  const row2 = ['Boost', 'Hinder'];
+  const btn = (a) => `<button type="button" class="btn btn-small btn-ghost" onclick="openBoardAction('${t.id}','${a}',null)">${a}</button>`;
+  const twists = tokenShowsTwists(t)
+    ? `<button type="button" class="btn btn-small btn-ghost" onclick="openTwistPicker('${t.id}')">Twists</button>`
+    : '<span></span>';
+  return `<div class="board-actions">
+    <div class="board-actions-row">${row1.map(btn).join('')}</div>
+    <div class="board-actions-row">${row2.map(btn).join('')}${twists}</div>
+  </div>`;
+}
+
+let boardActionState = null;
+function openHeroAbility(tokenId, idx) {
+  const t = findTok(tokenId);
+  const a = heroAbilitiesForToken(t)[idx];
+  if (!a) return;
+  const types = abilityRollTypes(a);
+  openBoardAction(tokenId, types[0] || 'Attack', {
+    name: a.Name, text: a.GameText || '', rollTypes: types, effectHint: a.EffectDieHint || ''
+  });
+}
+function openVillainAbility(tokenId, idx) {
+  const t = findTok(tokenId);
+  const a = villainAbilitiesForToken(t)[idx];
+  if (!a) return;
+  const types = abilityRollTypes(a);
+  openBoardAction(tokenId, types[0] || 'Attack', {
+    name: a.name, text: a.body || '', rollTypes: types, effectHint: ''
+  });
+}
+function healthOrDieTargets() {
+  return (state.scene.tokens || []).filter(x => !x.ko && (x.kind === 'hero' || x.kind === 'villain' || x.kind === 'minion' || x.kind === 'lieutenant'));
+}
+function openBoardAction(tokenId, action, ability) {
+  const t = findTok(tokenId);
+  if (!t) return;
+  const types = (ability && ability.rollTypes && ability.rollTypes.length) ? ability.rollTypes : [action];
+  boardActionState = { tokenId, action: action || types[0], ability };
+  const title = (ability ? ability.name : 'Basic ' + action) + ' — ' + t.name;
+  document.getElementById('abilitiesModalTitle').textContent = title;
+  const combat = healthOrDieTargets();
+  const combatOpts = combat.map(x =>
+    `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(x.name)} (${x.kind})</option>`
+  ).join('');
+  const typeSel = types.length > 1
+    ? `<label>Action <select id="boardActType">${types.map(k => `<option value="${k}" ${k === boardActionState.action ? 'selected' : ''}>${k}</option>`).join('')}</select></label>`
+    : `<input type="hidden" id="boardActType" value="${escAttr(boardActionState.action)}">`;
+  const el = document.getElementById('abilitiesModalBody');
+  el.innerHTML = `
+    ${ability && ability.text ? `<p class="ability-card-body">${escHtml(ability.text)}</p>` : '<p class="empty-hint">Basic action (no ability text).</p>'}
+    ${ability && ability.effectHint ? `<p class="empty-hint">Effect die hint: ${escHtml(ability.effectHint)}</p>` : ''}
+    ${typeSel}
+    <label>Effect Die <input type="number" id="boardActEffect" min="0" value="0"></label>
+    <div id="boardActTargetWrap"></div>
+    <button type="button" class="btn btn-accent" onclick="commitBoardAction()">Apply</button>`;
+  const typeEl = document.getElementById('boardActType');
+  const paintTargets = () => {
+    const act = typeEl.tagName === 'SELECT' ? typeEl.value : typeEl.value;
+    boardActionState.action = act;
+    const wrap = document.getElementById('boardActTargetWrap');
+    if (act === 'Overcome') {
+      wrap.innerHTML = `<label>Target (no Health / no Minion die)<input type="text" id="boardActTargetText" placeholder="Door, alarm, scene object…"></label>`;
+    } else {
+      wrap.innerHTML = `<label>Target<select id="boardActTarget">${combatOpts}</select></label>`;
+    }
+  };
+  if (typeEl.tagName === 'SELECT') typeEl.addEventListener('change', paintTargets);
+  paintTargets();
+  document.getElementById('abilitiesModal').classList.remove('hidden');
+}
+function commitBoardAction() {
+  const st = boardActionState;
+  if (!st) return;
+  const actor = findTok(st.tokenId);
+  if (!actor) return;
+  const typeEl = document.getElementById('boardActType');
+  const action = (typeEl && typeEl.value) || st.action;
+  const effect = Math.max(0, Number(document.getElementById('boardActEffect').value) || 0);
+  const abilityName = (st.ability && st.ability.name) || ('Basic ' + action);
+  if (action === 'Overcome') {
+    const obj = (document.getElementById('boardActTargetText') || {}).value || 'scene object';
+    logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, action,
+      { name: obj }, `${abilityName}: Overcome ${effect} vs ${obj} — ${overcomeResult(effect)}`, { effect, ability: abilityName });
+    toast(`${abilityName}: Overcome ${effect} vs ${obj}`);
+    closeAbilities();
+    return;
+  }
+  const targetId = (document.getElementById('boardActTarget') || {}).value;
+  const target = findTok(targetId);
+  if (!target) { toast('Pick a target with Health or a Minion die.'); return; }
+  if (action === 'Attack') applyBoardAttack(actor, target, effect, abilityName);
+  else if (action === 'Defend') applyBoardMod(actor, target, 'defend', effect, abilityName, false);
+  else if (action === 'Boost') applyBoardMod(actor, target, 'boost', bhModValue(effect), abilityName, true);
+  else if (action === 'Hinder') applyBoardMod(actor, target, 'hinder', bhModValue(effect), abilityName, true);
+  else if (action === 'Recover') applyBoardRecover(actor, target, effect, abilityName);
+  closeAbilities();
+  renderTokens();
+}
+function applyBoardMod(actor, target, kind, value, abilityName, creatorShows) {
+  if (value <= 0) { toast('No mod created.'); return; }
+  const creatorId = actor.id;
+  const targetId = kind === 'defend' ? target.id : (creatorShows && kind === 'boost' ? actor.id : target.id);
+  if (kind === 'boost') {
+    ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false });
+  } else if (kind === 'hinder') {
+    ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false });
+  } else {
+    ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false });
+  }
+  saveSceneDebounced();
+  logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, actionTitle(kind),
+    { id: target.id, name: target.name, kind: target.kind },
+    `${abilityName}: ${kind} ${value} → ${target.name}`, { value, ability: abilityName });
+  toast(`${abilityName}: ${kind} ${value} on ${kind === 'boost' ? actor.name + ' (creator)' : target.name}`);
+}
+function actionTitle(kind) { return kind.charAt(0).toUpperCase() + kind.slice(1); }
+function applyBoardRecover(actor, target, effect, abilityName) {
+  if (target.kind === 'hero' || target.kind === 'villain') {
+    const max = Number(target.maxHealth) || target.currentHealth || 0;
+    target.currentHealth = Math.min(max, (Number(target.currentHealth) || 0) + effect);
+  }
+  saveSceneDebounced();
+  logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Recover',
+    { id: target.id, name: target.name, kind: target.kind },
+    `${abilityName}: Recover ${effect} → ${target.name} (Health ${target.currentHealth})`, { effect, ability: abilityName });
+  toast(`${abilityName}: Recover ${effect} on ${target.name}`);
+}
+function applyBoardAttack(actor, target, effect, abilityName) {
+  const stacked = applyStackedAttack(target, effect);
+  const dmg = stacked.dmg;
+  if (target.kind === 'hero' || target.kind === 'villain') {
+    target.currentHealth = Math.max(0, (Number(target.currentHealth) || 0) - dmg);
+    saveSceneDebounced();
+    logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Attack',
+      { id: target.id, name: target.name, kind: target.kind },
+      `${abilityName}: ${dmg} damage to ${target.name} (Health ${target.currentHealth})`, { effect, dmg, ability: abilityName });
+    toast(`${abilityName}: ${dmg} to ${target.name}`);
+    return;
+  }
+  if (target.kind === 'minion') {
+    const roll = rollDie(target.currentDie);
+    const failed = roll < dmg;
+    if (failed) target.ko = true;
+    saveSceneDebounced();
+    logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Attack',
+      { id: target.id, name: target.name, kind: target.kind },
+      `${abilityName}: ${dmg} vs minion save ${roll} — ${failed ? 'defeated' : 'held'}`, { effect, dmg, roll, ability: abilityName });
+    toast(`${abilityName}: minion rolled ${roll} vs ${dmg} — ${failed ? 'defeated' : 'held'}`);
+    return;
+  }
+  if (target.kind === 'lieutenant') {
+    if (dmg >= target.currentDie * 2) {
+      target.ko = true;
+      saveSceneDebounced();
+      logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Attack',
+        { id: target.id, name: target.name, kind: target.kind },
+        `${abilityName}: ${dmg} ≥ double d${target.currentDie} — instant KO`, { effect, dmg, ability: abilityName });
+      toast(`${abilityName}: lieutenant instant KO`);
+      return;
+    }
+    const roll = rollDie(target.currentDie);
+    if (roll < dmg) {
+      const next = degradeDie(target.currentDie);
+      if (next == null) target.ko = true;
+      else target.currentDie = next;
+      saveSceneDebounced();
+      logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Attack',
+        { id: target.id, name: target.name, kind: target.kind },
+        `${abilityName}: save ${roll} vs ${dmg} — ${target.ko ? 'defeated' : 'd' + target.currentDie}`, { effect, dmg, roll, ability: abilityName });
+      toast(`${abilityName}: lieutenant ${target.ko ? 'defeated' : 'now d' + target.currentDie}`);
+    } else {
+      saveSceneDebounced();
+      logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Attack',
+        { id: target.id, name: target.name, kind: target.kind },
+        `${abilityName}: save ${roll} vs ${dmg} — held`, { effect, dmg, roll, ability: abilityName });
+      toast(`${abilityName}: lieutenant held`);
+    }
+  }
+}
+function closeAbilities() {
+  const el = document.getElementById('abilitiesModal');
+  if (el) el.classList.add('hidden');
+  boardActionState = null;
+}
+let abilityUseCards = [];
+function effectKeyFromText(text) {
+  const t = (text || '').toLowerCase();
+  if (/max\s*\+\s*mid\s*\+\s*min/.test(t)) return 'max+mid+min';
+  if (/max\s*\+\s*mid/.test(t)) return 'max+mid';
+  if (/max\s*\+\s*min/.test(t)) return 'max+min';
+  if (/mid\s*\+\s*min/.test(t)) return 'mid+min';
+  if (/\bmax die\b|\byour max\b|use your max/.test(t)) return 'max';
+  if (/\bmin die\b|\byour min\b|use your min/.test(t)) return 'min';
+  return 'mid';
+}
+function useAbilityCard(tokenId, idx) {
+  const card = abilityUseCards[idx];
+  if (!card) return;
+  closeAbilities();
+  openDiceRoller(tokenId);
+  const rs = rollerState;
+  if (!rs) return;
+  const body = card.body || '';
+  const names = [...body.matchAll(/\[([^\]]+)\]/g)].map(m => m[1]).filter(n => !/^(power|quality|element|energy|physical|A|I|R)$/i.test(n));
+  for (const n of names) {
+    const pi = rs.powers.findIndex(p => p.name.toLowerCase() === n.toLowerCase());
+    if (pi >= 0) rs.pIdx = pi;
+    const qi = rs.qualities.findIndex(q => q.name.toLowerCase() === n.toLowerCase());
+    if (qi >= 0) rs.qIdx = qi;
+  }
+  rs.pendingEffectKey = effectKeyFromText(body);
+  rs.abilityCard = card;
+  renderDiceRollerBody();
+  if (rs.powers.length && rs.qualities.length) {
+    rollDicePool();
+    completeAbilityAction(tokenId, card);
+  }
+}
+function bhModValue(v) {
+  const s = boostHinderMod(v);
+  const m = String(s).match(/(\d+)/);
+  return m ? Number(m[1]) : 0;
+}
+function completeAbilityAction(tokenId, card) {
+  const rs = rollerState;
+  if (!rs || !rs.lastRoll) return;
+  const t = findTok(tokenId);
+  const { min, mid, max } = rs.lastRoll;
+  const eff = effectDieValue(min, mid, max, rs.lastRoll.effectKey);
+  const icon = (card.icon || '').toLowerCase();
+  const text = (card.body || '').toLowerCase();
+  logActivity({ id: t.id, name: t.name, kind: t.kind }, card.name, null,
+    `${card.name}: Min ${min.value} / Mid ${mid.value} / Max ${max.value} → effect ${eff}`,
+    { min: min.value, mid: mid.value, max: max.value, effect: eff, ability: card.name });
+  if (icon.includes('boost') || /\bboost\b/.test(text)) {
+    const val = bhModValue(eff);
+    if (val > 0) {
+      ensureMods(state.scene).push({ id: uid('mod'), kind: 'boost', value: val, creatorId: t.id, targetId: t.id, exclusivePersistent: false });
+      saveSceneDebounced(); renderTokens();
+      toast(`${card.name}: Boost ${val} on ${t.name}`);
+    }
+  } else if (icon.includes('hinder') || icon.includes('defend') || icon.includes('attack')) {
+    toast(`${card.name}: effect ${eff}. Pick a target if needed.`);
+  } else {
+    toast(`${card.name}: Min ${min.value} Mid ${mid.value} Max ${max.value}`);
+  }
+}
+
+async function loadSceneRoster() {
+  const empty = { hero: new Set(), villain: new Set(), minion: new Set() };
+  const slug = state.activeSlug;
+  if (!slug) { state.sceneRoster = empty; state.sceneHasIssue = false; return; }
+  const list = await apiListIssues();
+  const roster = { hero: new Set(), villain: new Set(), minion: new Set() };
+  let hit = false;
+  for (const i of list) {
+    const f = await apiGetIssue(i.slug);
+    if (!f || !(f.sceneSlugs || []).includes(slug)) continue;
+    hit = true;
+    (f.heroSlugs || []).forEach(s => roster.hero.add(s));
+    (f.villainSlugs || []).forEach(s => roster.villain.add(s));
+    (f.minionSlugs || []).forEach(s => roster.minion.add(s));
+  }
+  state.sceneRoster = roster;
+  state.sceneHasIssue = hit;
+}
+
 function refreshSpawnOptions() {
   const type = document.getElementById('spawnType').value;
   const listSel = document.getElementById('spawnSelect');
+  const hint = document.getElementById('spawnHint');
   const list = type === 'hero' ? state.heroes : type === 'villain' ? state.villains : state.minions;
-  listSel.innerHTML = '<option value="">Select from Library…</option>' +
-    list.filter(r => r.Name).map(r => `<option value="${r.Slug}">${escHtml(r.Name)}${r.Type ? ' (' + r.Type + ')' : ''}</option>`).join('');
+  const field = type === 'hero' ? 'hero' : type === 'villain' ? 'villain' : 'minion';
+  const allowed = (state.sceneRoster && state.sceneRoster[field]) || new Set();
+  let filtered = list.filter(r => r.Name && allowed.has(r.Slug));
+  if (type === 'villain' && state.scene && (state.scene.difficulty || '') === 'Easy') filtered = [];
+  listSel.innerHTML = '<option value="">Select from Issue roster…</option>' +
+    filtered.map(r => `<option value="${r.Slug}">${escHtml(r.Name)}${r.Type ? ' (' + r.Type + ')' : ''}</option>`).join('');
+  if (hint) {
+    if (!state.scene) hint.textContent = '';
+    else if (!state.sceneHasIssue) hint.textContent = 'This scene is not on an Issue — assign it in Issue Builder.';
+    else if (type === 'villain' && state.scene && (state.scene.difficulty || '') === 'Easy') hint.textContent = 'Easy scenes have no villains.';
+    else if (!filtered.length) hint.textContent = 'No ' + type + 's assigned to this Issue.';
+    else hint.textContent = '';
+  }
 }
 
 /* ============================================================
@@ -617,6 +1166,7 @@ function blankScene(name) {
   return {
     name: name || 'New Scene',
     difficulty: 'Moderate',
+    sceneType: 'Action',
     tracker: { stars: [...TRACKER_PRESETS.standard.stars], position: 0 },
     locations: [
       { id: uid('loc'), name: 'Location 1', background: null },
@@ -625,8 +1175,10 @@ function blankScene(name) {
     environment: null, // slug of an entry in the Environments library, or null
     challenges: [],
     tokens: [],
+    mods: [],
     gmNotes: '',
     activityLog: [],
+    round: 1,
   };
 }
 
@@ -634,31 +1186,144 @@ async function refreshScenesList() {
   state.scenesList = await apiListScenes();
 }
 
-function renderScenesList() {
-  const el = document.getElementById('scenesListCards');
-  if (state.scenesList.length === 0) {
-    el.innerHTML = '<p style="color:var(--text-lo);font-family:var(--font-data);font-size:12px;">No scenes yet. Click "+ New Scene" to build one.</p>';
-    return;
-  }
-  el.innerHTML = state.scenesList.map(s => `
-    <div class="scene-card">
-      <div class="scene-card-name">${escHtml(s.name)}</div>
-      <div class="scene-card-actions">
+function switchCollTab(tab) {
+  currentCollTab = tab;
+  document.querySelectorAll('.coll-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.coll === tab));
+  const filt = document.getElementById('collIssueFilter');
+  if (filt) filt.classList.toggle('hidden', tab !== 'locations' && tab !== 'scenes');
+  document.getElementById('collCollectionsPanel').classList.toggle('hidden', tab !== 'collections');
+  document.getElementById('collIssuesPanel').classList.toggle('hidden', tab !== 'issues');
+  document.getElementById('collScenesPanel').classList.toggle('hidden', tab !== 'scenes');
+  document.getElementById('locationsPanel').classList.toggle('hidden', tab !== 'locations');
+  renderCurrentCollPanel();
+}
+function renderCurrentCollPanel() {
+  if (currentCollTab === 'collections') renderCollectionsTable();
+  else if (currentCollTab === 'issues') renderIssuesTable();
+  else if (currentCollTab === 'scenes') renderScenesTable();
+  else if (currentCollTab === 'locations') renderLibraryTable('locations');
+}
+function renderCollectionsList() { renderCurrentCollPanel(); }
+function renderScenesList() { renderCurrentCollPanel(); }
+function renderIssuesList() { renderCurrentCollPanel(); }
+
+function slugNames(slugs, list) {
+  const names = (slugs || []).map(slug => {
+    const hit = (list || []).find(x => x.slug === slug);
+    return hit ? hit.name : slug;
+  }).filter(Boolean);
+  if (!names.length) return '<span class="empty-hint">—</span>';
+  return `<div class="name-list">${names.map(n => `<span>${escHtml(n)}</span>`).join('')}</div>`;
+}
+
+function renderCollectionsTable() {
+  const el = document.getElementById('collCollectionsPanel');
+  if (!el) return;
+  const rows = state.collectionsList || [];
+  let html = '<table class="lib-table"><thead><tr><th>Name</th><th class="wrap-col">Issues</th><th></th></tr></thead><tbody>';
+  rows.forEach(coll => {
+    html += `<tr>
+      <td><input class="name-field" type="text" value="${escAttr(coll.name)}" onchange="renameCollection('${coll.slug}', this.value)"></td>
+      <td class="assign-cell wrap-col">${slugNames(coll.issueSlugs, state.issuesList)}</td>
+      <td class="row-actions">
+        <button class="btn btn-small btn-primary" onclick="editCollection('${coll.slug}')">Edit</button>
+        <button class="btn btn-small btn-danger" onclick="deleteCollection('${coll.slug}')">Delete</button>
+      </td>
+    </tr>`;
+  });
+  if (!rows.length) html += '<tr><td colspan="3" class="empty-hint">No collections yet. Click "+ Add Row".</td></tr>';
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+function renderIssuesTable() {
+  const el = document.getElementById('collIssuesPanel');
+  if (!el) return;
+  const rows = state.issuesList || [];
+  let html = '<table class="lib-table"><thead><tr><th>Name</th><th class="wrap-col">Scenes</th><th></th></tr></thead><tbody>';
+  rows.forEach(iss => {
+    html += `<tr>
+      <td><input class="name-field" type="text" value="${escAttr(iss.name)}" onchange="renameIssue('${iss.slug}', this.value)"></td>
+      <td class="assign-cell wrap-col">${slugNames(iss.sceneSlugs, state.scenesList)}</td>
+      <td class="row-actions">
+        <button class="btn btn-small btn-primary" onclick="editIssue('${iss.slug}')">Edit</button>
+        <button class="btn btn-small btn-danger" onclick="deleteIssue('${iss.slug}')">Delete</button>
+      </td>
+    </tr>`;
+  });
+  if (!rows.length) html += '<tr><td colspan="3" class="empty-hint">No issues yet. Click "+ Add Row".</td></tr>';
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+function renderScenesTable() {
+  const el = document.getElementById('collScenesPanel');
+  if (!el) return;
+  const filt = (document.getElementById('collIssueFilter') || {}).value || 'all';
+  const iss = filt === 'all' ? null : (state.issuesList || []).find(i => i.slug === filt);
+  const rows = (state.scenesList || []).filter(s => {
+    if (filt === 'all') return true;
+    return ((iss && iss.sceneSlugs) || []).includes(s.slug);
+  });
+  let html = '<table class="lib-table"><thead><tr><th>Name</th><th>Type</th><th>Difficulty</th><th></th><th class="table-fill"></th></tr></thead><tbody>';
+  rows.forEach(s => {
+    html += `<tr>
+      <td><input class="name-field" type="text" value="${escAttr(s.name)}" onchange="renameScene('${s.slug}', this.value)"></td>
+      <td>${escHtml(s.sceneType || '')}</td>
+      <td>${escHtml(s.difficulty || '')}</td>
+      <td class="row-actions">
         <button class="btn btn-small btn-primary" onclick="editScene('${s.slug}')">Edit</button>
         <button class="btn btn-small btn-accent" onclick="loadSceneToBoard('${s.slug}')">Load to Board</button>
         <button class="btn btn-small btn-danger" onclick="deleteScene('${s.slug}')">Delete</button>
-      </div>
-    </div>`).join('');
+      </td>
+      <td class="table-fill"></td>
+    </tr>`;
+  });
+  if (!rows.length) html += '<tr><td colspan="5" class="empty-hint">No scenes yet. Click "+ Add Row".</td></tr>';
+  html += '</tbody></table>';
+  el.innerHTML = html;
 }
 
-async function newScene() {
+async function showCollectionsList() {
+  const list = document.getElementById('collectionsListView');
+  const collEd = document.getElementById('collectionEditorView');
+  const iss = document.getElementById('issueEditorView');
+  const sc = document.getElementById('sceneEditorView');
+  if (list) list.classList.remove('hidden');
+  if (collEd) collEd.classList.add('hidden');
+  if (iss) iss.classList.add('hidden');
+  if (sc) sc.classList.add('hidden');
+  state.editingCollectionSlug = null;
+  await Promise.all([refreshCollectionsList(), refreshIssuesList(), refreshScenesList()]);
+  switchCollTab(currentCollTab);
+}
+
+async function collAddRow() {
+  if (currentCollTab === 'collections') return newCollection();
+  if (currentCollTab === 'issues') return newIssue(false);
+  if (currentCollTab === 'scenes') {
+    const filt = document.getElementById('collIssueFilter');
+    const issueSlug = filt && filt.value && filt.value !== 'all' ? filt.value : null;
+    return newScene(issueSlug, false);
+  }
+  if (currentCollTab === 'locations') return addRow('locations');
+}
+
+async function newScene(issueSlug, openEditor) {
   const name = prompt('Scene name:');
   if (!name) return;
   const slug = uniqueSceneSlug(slugify(name));
   await apiSaveScene(slug, blankScene(name));
+  if (issueSlug && typeof issueSlug === 'string') {
+    const iss = await apiGetIssue(issueSlug);
+    if (iss) {
+      iss.sceneSlugs = iss.sceneSlugs || [];
+      iss.sceneSlugs.push(slug);
+      await apiSaveIssue(issueSlug, iss);
+    }
+  }
   await refreshScenesList();
-  renderScenesList();
-  editScene(slug);
+  await refreshIssuesList();
+  if (openEditor === false) renderCurrentCollPanel();
+  else editScene(slug);
 }
 
 function uniqueSceneSlug(base) {
@@ -679,22 +1344,27 @@ async function editScene(slug) {
   state.editingSlug = slug;
   state.scene = await apiGetScene(slug);
   if (state.scene) state.scene.__slug = slug;
-  document.getElementById('scenesListView').classList.add('hidden');
+  document.getElementById('collectionsListView').classList.add('hidden');
+  document.getElementById('collectionEditorView').classList.add('hidden');
+  document.getElementById('issueEditorView').classList.add('hidden');
   document.getElementById('sceneEditorView').classList.remove('hidden');
   renderSceneEditor();
 }
 
 function backToScenesList() {
-  document.getElementById('scenesListView').classList.remove('hidden');
-  document.getElementById('sceneEditorView').classList.add('hidden');
+  showCollectionsList();
   state.editingSlug = null;
 }
 
 async function loadSceneToBoard(slug) {
   await apiSetActiveScene(slug);
   state.activeSlug = slug;
+  state.turnMarks = {};
   state.scene = await apiGetScene(slug);
-  if (state.scene) state.scene.__slug = slug;
+  if (state.scene) {
+    state.scene.__slug = slug;
+    (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
+  }
   toast('Loaded "' + state.scene.name + '" to Board.');
   switchView('board');
   renderBoard();
@@ -714,40 +1384,100 @@ const saveSceneDebounced = debounce(async () => {
 
 /* ---------------- Activity Log ---------------- */
 
+const SKIP_TURN_ACTIONS = new Set([
+  'End of Round', 'Tracker Advanced', 'Challenge Progress',
+  'Damage', 'Save', 'Defeated', 'Degraded', 'Roll',
+]);
+
+function ensureRoundState() {
+  if (!state.scene) return;
+  if (!state.scene.round || state.scene.round < 1) state.scene.round = 1;
+}
+function livingCombatants() {
+  return (state.scene.tokens || []).filter(t =>
+    !t.ko && (t.kind === 'hero' || t.kind === 'villain' || t.kind === 'minion' || t.kind === 'lieutenant'));
+}
+function assignTurnNumber(actor) {
+  if (!state.scene || !actor || actor.ko) return null;
+  if (!(actor.kind === 'hero' || actor.kind === 'villain' || actor.kind === 'minion' || actor.kind === 'lieutenant')) return null;
+  ensureRoundState();
+  if (!state.turnMarks) state.turnMarks = {};
+  if (state.turnMarks[actor.id]) return state.turnMarks[actor.id];
+  const taken = Object.values(state.turnMarks).map(Number);
+  const next = (taken.length ? Math.max(0, ...taken) : 0) + 1;
+  state.turnMarks[actor.id] = next;
+  return next;
+}
+function maybeEndRound() {
+  const need = livingCombatants();
+  const marks = state.turnMarks || {};
+  if (!need.length || !need.every(t => marks[t.id])) return;
+  const n = state.scene.round || 1;
+  state.turnMarks = {};
+  (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
+  state.scene.round = n + 1;
+  logActivity(null, 'End of Round', null, `Round ${n} ended`, { roundEnded: n, countsAsTurn: false });
+}
+
 function logActivity(actor, action, target, result, details) {
   if (!state.scene) return;
   if (!state.scene.activityLog) state.scene.activityLog = [];
+  ensureRoundState();
+  const det = details || {};
+  const countTurn = det.countsAsTurn !== false
+    && actor
+    && !SKIP_TURN_ACTIONS.has(action || '');
   state.scene.activityLog.push({
+    id: uid('log'),
     timestamp: Date.now() / 1000,
-    round: null,
+    round: state.scene.round || 1,
     actor: actor || null,
     action: action || '',
     target: target || null,
     result: result || '',
-    details: details || {},
+    details: det,
   });
+  if (countTurn) {
+    const tok = findTok(actor.id) || actor;
+    det.turnNumber = assignTurnNumber(tok);
+    maybeEndRound();
+  }
   saveSceneDebounced();
   renderActivityLog();
+  if (countTurn) renderTokens();
 }
 
 function renderActivityLog() {
   const el = document.getElementById('activityLogPanel');
   if (!el) return;
   const log = (state.scene && state.scene.activityLog) || [];
-  if (!log.length) { el.innerHTML = '<h3 class="sidebar-heading">Activity Log</h3><p class="empty-hint">Nothing has happened yet.</p>'; return; }
+  const rnd = state.scene && state.scene.round ? state.scene.round : 1;
+  if (!log.length) { el.innerHTML = `<h3 class="sidebar-heading">Activity Log</h3><p class="empty-hint">Round ${rnd}. Nothing has happened yet.</p>`; return; }
   const recent = log.slice(-200).slice().reverse();
-  let html = '<h3 class="sidebar-heading">Activity Log</h3><div class="activity-log-list">';
-  recent.forEach(e => {
+  let html = `<h3 class="sidebar-heading">Activity Log</h3><p class="empty-hint">Round ${rnd}</p><div class="activity-log-list">`;
+  recent.forEach((e, i) => {
     const who = e.actor ? escHtml(e.actor.name) : '';
     const whom = e.target ? ' → ' + escHtml(e.target.name) : '';
     let diceStr = '';
     if (e.details && (e.details.min != null || e.details.mid != null || e.details.max != null)) {
       diceStr = ` <span class="activity-log-dice">(min ${e.details.min}, mid ${e.details.mid}, max ${e.details.max})</span>`;
     }
-    html += `<div class="activity-log-entry"><span class="activity-log-action">${escHtml(e.action)}</span>: ${who}${whom} — ${escHtml(e.result)}${diceStr}</div>`;
+    const eid = e.id != null ? String(e.id) : String(i);
+    const roundCls = e.action === 'End of Round' ? ' activity-log-round' : (e.action === 'Move' ? ' activity-log-move' : '');
+    const turn = e.details && e.details.turnNumber ? ` <span class="activity-log-dice">#${e.details.turnNumber}</span>` : '';
+    html += `<div class="activity-log-entry${roundCls}"><span class="activity-log-action">${escHtml(e.action)}</span>: ${who}${whom}${turn} — ${escHtml(e.result)}${diceStr}
+      <button type="button" class="btn btn-small btn-ghost" title="Delete" onclick="deleteActivityLog('${escAttr(eid)}')">✕</button></div>`;
   });
   html += '</div>';
   el.innerHTML = html;
+}
+function deleteActivityLog(id) {
+  if (!state.scene || !state.scene.activityLog) return;
+  if (!confirm('Delete this activity log entry? This cannot be undone.')) return;
+  const want = String(id);
+  state.scene.activityLog = state.scene.activityLog.filter((e, i) => String(e.id != null ? e.id : i) !== want);
+  saveSceneDebounced();
+  renderActivityLog();
 }
 
 /* ---------------- Scene Editor rendering ---------------- */
@@ -757,12 +1487,18 @@ function renderSceneEditor() {
   const el = document.getElementById('sceneEditorView');
   el.innerHTML = `
     <div class="scene-editor-header">
-      <button class="btn btn-ghost" onclick="backToScenesList()">&larr; Back to Scenes</button>
+      <button class="btn btn-ghost" onclick="backToScenesList()">&larr; Back to Collections</button>
       <span id="sceneSaveStatus" class="save-status"></span>
     </div>
 
     <label class="field-label">Scene Name</label>
     <input type="text" class="scene-name-input" value="${escAttr(s.name)}" onchange="updateSceneField('name', this.value)">
+
+    <label class="field-label">Scene Type</label>
+    <select class="scene-difficulty-select" onchange="updateSceneField('sceneType', this.value)">
+      ${['Action','Social','Montage'].map(d => `<option value="${d}" ${(s.sceneType||'Action') === d ? 'selected' : ''}>${d}</option>`).join('')}
+    </select>
+    <p class="empty-hint">Action is the default fight. Social / Montage can be switched mid-scene from the Board if a fight breaks out.</p>
 
     <label class="field-label">Difficulty</label>
     <select class="scene-difficulty-select" onchange="updateSceneField('difficulty', this.value)">
@@ -778,10 +1514,6 @@ function renderSceneEditor() {
     <label class="field-label">Scene Tracker</label>
     <div class="tracker-preset-row">
       ${Object.entries(TRACKER_PRESETS).map(([key, p]) => `<button class="btn btn-small btn-ghost" onclick="applyTrackerPreset('${key}')">${p.label} (${p.stars.length})</button>`).join('')}
-      <button class="btn btn-small btn-ghost" onclick="addTrackerStar('green')">+Green</button>
-      <button class="btn btn-small btn-ghost" onclick="addTrackerStar('yellow')">+Yellow</button>
-      <button class="btn btn-small btn-ghost" onclick="addTrackerStar('red')">+Red</button>
-      <button class="btn btn-small btn-ghost" onclick="removeLastTrackerStar()">Remove Last</button>
     </div>
     <div id="trackerEditorRow" class="tracker-row"></div>
 
@@ -790,10 +1522,13 @@ function renderSceneEditor() {
     <button class="btn btn-small btn-accent" onclick="addLocation()">+ Add Location</button>
 
     <label class="field-label">Environment <span class="gm-only-badge" style="background:var(--accent);">One per Scene — its Twists move the Scene Tracker</span></label>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <select class="scene-difficulty-select" onchange="updateSceneEnvironment(this.value)">
       <option value="">None</option>
       ${state.environments.map(e => `<option value="${e.Slug}" ${s.environment === e.Slug ? 'selected' : ''}>${escHtml(e.Name)}</option>`).join('')}
     </select>
+    <a class="btn btn-small btn-ghost" href="/environment-builder.html" target="_blank">Environment Builder ↗</a>
+    </div>
     <div id="environmentEditorPanel"></div>
 
     <label class="field-label">Challenges</label>
@@ -824,6 +1559,12 @@ function renderEnvironmentEditorPanel() {
           </span>`).join('')}
       </div>
       <button class="btn btn-small btn-ghost" onclick="openNotes('environments','${env.Slug}','${escAttr(env.Name)}')">View / Edit Twists</button>
+      ${(() => {
+        const locs = (state.locations || []).filter(l => l.EnvironmentSlug === env.Slug);
+        return locs.length
+          ? `<div class="empty-hint" style="margin-top:8px;">Locations for this environment: ${locs.map(l => escHtml(l.Name)).join(', ')}</div>`
+          : '<div class="empty-hint" style="margin-top:8px;">No Locations linked to this environment yet — set Environment on a Location in the Library.</div>';
+      })()}
     </div>`;
 }
 
@@ -836,7 +1577,8 @@ async function updateSceneEnvironment(slug) {
 function updateSceneField(field, value) {
   state.scene[field] = value;
   saveSceneDebounced();
-  if (field === 'difficulty') renderSceneEditor();
+  if (field === 'difficulty') { renderSceneEditor(); if (document.getElementById('boardContent') && !document.getElementById('boardContent').classList.contains('hidden')) refreshSpawnOptions(); }
+  if (field === 'sceneType' && document.getElementById('boardSceneType')) document.getElementById('boardSceneType').value = value;
 }
 
 /* ---- Scene Tracker editor (also reused, read-only, on Board/Display) ---- */
@@ -906,21 +1648,49 @@ function advanceTrackerToZone(zoneStart) {
 
 function renderLocationsEditor() {
   const el = document.getElementById('locationsEditorList');
-  el.innerHTML = state.scene.locations.map((loc, idx) => `
+  const used = new Set((state.scene.locations || []).map(l => l.locationSlug).filter(Boolean));
+  const catalog = (state.locations || []).filter(l => l.Name && !used.has(l.Slug));
+  const envSlug = state.scene.environment || '';
+  el.innerHTML = `
+    <div class="location-edit-row">
+      <select id="locCatalogPick">
+        <option value="">Add from Location list…</option>
+        ${catalog.map(l => `<option value="${escAttr(l.Slug)}">${escHtml(l.Name)}${l.EnvironmentSlug ? ' (' + escHtml((state.environments.find(e=>e.Slug===l.EnvironmentSlug)||{}).Name || l.EnvironmentSlug) + ')' : ''}</option>`).join('')}
+      </select>
+      <button class="btn btn-small btn-accent" type="button" onclick="addLocationFromCatalog()">Add</button>
+    </div>` + state.scene.locations.map((loc, idx) => `
     <div class="location-edit-row">
       <input type="text" value="${escAttr(loc.name)}" onchange="updateLocationField(${idx}, 'name', this.value)">
+      <select onchange="updateLocationField(${idx}, 'locationSlug', this.value)">
+        <option value="">custom</option>
+        ${(state.locations||[]).map(l => `<option value="${escAttr(l.Slug)}" ${loc.locationSlug===l.Slug?'selected':''}>${escHtml(l.Name)}</option>`).join('')}
+      </select>
       <input type="file" accept="image/*" onchange="uploadLocationBackground(${idx}, this.files[0])">
       ${loc.background ? `<img class="bg-thumb" src="${backgroundUrl(loc.background)}">
         <button class="btn btn-small btn-ghost" onclick="removeLocationBackground(${idx})">Remove BG</button>` : '<span class="bg-thumb-empty">No image</span>'}
       <button class="btn btn-small btn-danger" onclick="removeLocation(${idx})">Delete</button>
     </div>`).join('');
 }
+function addLocationFromCatalog() {
+  const sel = document.getElementById('locCatalogPick');
+  const slug = sel && sel.value;
+  const row = (state.locations || []).find(l => l.Slug === slug);
+  if (!row) return;
+  state.scene.locations.push({ id: uid('loc'), name: row.Name, locationSlug: row.Slug, background: null });
+  saveSceneDebounced();
+  renderLocationsEditor();
+}
 function updateLocationField(idx, field, value) {
   state.scene.locations[idx][field] = value;
+  if (field === 'locationSlug') {
+    const row = (state.locations || []).find(l => l.Slug === value);
+    if (row && row.Name) state.scene.locations[idx].name = row.Name;
+  }
   saveSceneDebounced();
+  if (field === 'locationSlug') renderLocationsEditor();
 }
 function addLocation() {
-  state.scene.locations.push({ id: uid('loc'), name: 'New Location', background: null });
+  state.scene.locations.push({ id: uid('loc'), name: 'New Location', locationSlug: '', background: null });
   saveSceneDebounced();
   renderLocationsEditor();
 }
@@ -954,7 +1724,7 @@ async function removeLocationBackground(idx) {
 function blankChallenge() {
   return {
     id: uid('chal'), title: 'New Challenge', type: 'Simple',
-    paths: [{ label: 'Path 1', successesNeeded: 3, successesMarked: 0 }],
+    paths: [{ label: 'Path 1', successesNeeded: 3, successesMarked: 0, hidden: false, failed: false }],
     timerMode: 'turns', timerTurnsRemaining: 2, timerTriggerZone: 'red', consequence: '',
     doomsdaySpeed: '1', outcome: '', impactScale: '',
     solution: '', hidden: true,
@@ -1020,12 +1790,10 @@ function renderChallengeEditRow(c, idx) {
         ${c.paths.map((p, pi) => `
           <div class="challenge-path-row">
             <input type="text" value="${escAttr(p.label)}" onchange="updatePathField(${idx},${pi},'label',this.value)">
-            <span class="counter-row">
-              <button class="btn btn-small btn-ghost" onclick="bumpPathField(${idx},${pi},'successesMarked',-1)">-</button>
-              <span class="counter-value">${p.successesMarked} / </span>
-              <input type="number" class="needed-input" value="${p.successesNeeded}" onchange="updatePathField(${idx},${pi},'successesNeeded',Number(this.value))">
-              <button class="btn btn-small btn-ghost" onclick="bumpPathField(${idx},${pi},'successesMarked',1)">+</button>
-            </span>
+            <label class="empty-hint" style="display:flex;align-items:center;gap:6px;white-space:nowrap;">Boxes
+              <input type="number" min="1" step="1" class="needed-input" value="${Number(p.successesNeeded)||1}" onchange="updatePathField(${idx},${pi},'successesNeeded',Math.max(1, parseInt(this.value,10)||1))">
+            </label>
+            <label class="hidden-toggle" style="margin:0;white-space:nowrap;"><input type="checkbox" ${p.hidden ? 'checked' : ''} onchange="updatePathField(${idx},${pi},'hidden',this.checked)"> Hide from Player Display</label>
             <button class="btn btn-small btn-ghost" onclick="removePath(${idx},${pi})">✕</button>
           </div>`).join('')}
         <button class="btn btn-small btn-ghost" onclick="addPath(${idx})">+ Path</button>
@@ -1059,7 +1827,7 @@ function bumpPathField(idx, pi, field, delta) {
   renderChallengesEditor();
 }
 function addPath(idx) {
-  state.scene.challenges[idx].paths.push({ label: 'New Path', successesNeeded: 3, successesMarked: 0 });
+  state.scene.challenges[idx].paths.push({ label: 'New Path', successesNeeded: 3, successesMarked: 0, hidden: false, failed: false });
   saveSceneDebounced();
   renderChallengesEditor();
 }
@@ -1106,11 +1874,14 @@ function renderBoard() {
   boardContent.classList.remove('hidden');
   document.getElementById('boardSceneName').textContent = state.scene.name;
   document.getElementById('boardSceneDifficulty').textContent = state.scene.difficulty;
+  const typeEl = document.getElementById('boardSceneType');
+  if (typeEl) typeEl.value = state.scene.sceneType || 'Action';
   renderBoardTracker();
   renderBoardEnvironment();
   renderLocationsBoard();
   renderChallengesPanel();
   renderActivityLog();
+  loadSceneRoster().then(() => refreshSpawnOptions());
 }
 
 function renderBoardEnvironment() {
@@ -1135,30 +1906,56 @@ function renderBoardTracker() {
   row.innerHTML = trackerStarsHtml(state.scene.tracker, true);
 }
 
-function renderLocationsBoard() {
-  const row = document.getElementById('locationsRow');
-  row.innerHTML = '';
-  state.scene.locations.forEach(loc => {
-    const col = document.createElement('div');
-    col.className = 'location-col';
-    if (loc.background) {
-      col.style.backgroundImage = `linear-gradient(rgba(11,13,18,0.55),rgba(11,13,18,0.75)), url('${backgroundUrl(loc.background)}')`;
-      col.style.backgroundSize = 'cover';
-      col.style.backgroundPosition = 'center';
-    }
-    col.innerHTML = `
-      <div class="location-header"><input type="text" value="${escAttr(loc.name)}" onchange="renameLocationOnBoard('${loc.id}', this.value)"></div>
-      <div class="location-body" id="locbody-${loc.id}" data-loc="${loc.id}"></div>`;
-    row.appendChild(col);
-    const body = col.querySelector('.location-body');
-    body.addEventListener('dragover', e => { e.preventDefault(); body.classList.add('drag-over'); });
-    body.addEventListener('dragleave', () => body.classList.remove('drag-over'));
-    body.addEventListener('drop', e => {
+function locKey(id){ return id || 'none'; }
+function bindLocationDrops(root) {
+  root.querySelectorAll('.location-drop').forEach(el => {
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
       e.preventDefault();
-      body.classList.remove('drag-over');
-      moveToken(e.dataTransfer.getData('text/plain'), loc.id);
+      el.classList.remove('drag-over');
+      const locId = el.dataset.loc || null;
+      moveToken(e.dataTransfer.getData('text/plain'), locId);
     });
   });
+}
+function renderLocationsBoard() {
+  const row = document.getElementById('locationsRow');
+  const locs = state.scene.locations || [];
+  const blocks = locs.map(loc => `
+    <section class="location-block">
+      <div class="location-drop location-header" data-loc="${loc.id}">
+        <input type="text" class="location-name-input" value="${escAttr(loc.name)}" onchange="renameLocationOnBoard('${loc.id}', this.value)">
+        <span class="location-drop-hint">Drop tokens here</span>
+      </div>
+      <div class="mvc-stage">
+        <div class="mvc-side heroes">
+          <div class="mvc-side-label">HEROES</div>
+          <div class="mvc-row" id="mvcHeroes-${locKey(loc.id)}"></div>
+        </div>
+        <div class="mvc-side villains">
+          <div class="mvc-side-label">VILLAINS</div>
+          <div class="mvc-row" id="mvcVillains-${locKey(loc.id)}"></div>
+          <div class="mvc-row mvc-row-small" id="mvcExtras-${locKey(loc.id)}"></div>
+        </div>
+      </div>
+    </section>`).join('');
+  row.innerHTML = blocks + `
+    <section class="location-block">
+      <div class="location-drop location-header" data-loc="">
+        <span class="location-name-display">Unplaced</span>
+        <span class="location-drop-hint">Drop here to clear location</span>
+      </div>
+      <div class="mvc-stage">
+        <div class="mvc-side heroes"><div class="mvc-row" id="mvcHeroes-none"></div></div>
+        <div class="mvc-side villains">
+          <div class="mvc-row" id="mvcVillains-none"></div>
+          <div class="mvc-row mvc-row-small" id="mvcExtras-none"></div>
+        </div>
+      </div>
+    </section>
+    <div class="mvc-ko" id="mvcKo"></div>`;
+  bindLocationDrops(row);
   renderTokens();
 }
 
@@ -1169,12 +1966,30 @@ function renameLocationOnBoard(locId, name) {
   saveSceneDebounced();
 }
 
+function locationNameById(locId) {
+  if (!locId) return 'unplaced';
+  const loc = (state.scene.locations || []).find(l => l.id === locId);
+  return (loc && loc.name) ? loc.name : 'unknown';
+}
+
 function moveToken(tokenId, locId) {
   const tok = state.scene.tokens.find(t => t.id === tokenId);
   if (!tok) return;
-  tok.locationId = locId;
+  const fromId = tok.locationId || '';
+  const toId = locId || '';
+  if (fromId === toId) return;
+  const fromName = locationNameById(fromId);
+  const toName = locationNameById(toId);
+  tok.locationId = locId || null;
+  logActivity(
+    { id: tok.id, name: tok.name, kind: tok.kind },
+    'Move',
+    { name: toName },
+    `${tok.name} moved from ${fromName} to ${toName}`,
+    { from: fromName, to: toName, fromId, toId }
+  );
   saveSceneDebounced();
-  renderTokens();
+  renderLocationsBoard();
 }
 
 // Touch/pen drag-and-drop, parallel to the native HTML5 drag API above.
@@ -1209,8 +2024,8 @@ function attachTouchDrag(card, tokenId) {
       if (shadow) { shadow.remove(); shadow = null; }
       card.classList.remove('dragging');
       const target = document.elementFromPoint(ev.clientX, ev.clientY);
-      const locBody = target && target.closest('.location-body');
-      if (locBody) moveToken(tokenId, locBody.dataset.loc);
+      const locDrop = target && target.closest('.location-drop');
+      if (locDrop) moveToken(tokenId, locDrop.dataset.loc);
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -1219,46 +2034,50 @@ function attachTouchDrag(card, tokenId) {
 }
 
 function renderTokens() {
-  state.scene.locations.forEach(loc => {
-    const body = document.getElementById('locbody-' + loc.id);
-    if (!body) return;
-    body.innerHTML = '';
-    const tokens = state.scene.tokens.filter(t => t.locationId === loc.id);
-    if (tokens.length === 0) { body.innerHTML = '<div class="location-empty-hint">Drop a token here</div>'; return; }
-    tokens.forEach(t => body.appendChild(renderToken(t)));
+  if (!state.scene) return;
+  const locs = (state.scene.locations || []).map(l => l.id).concat(['']);
+  locs.forEach(id => {
+    const k = locKey(id);
+    const heroes = document.getElementById('mvcHeroes-' + k);
+    const villains = document.getElementById('mvcVillains-' + k);
+    const extras = document.getElementById('mvcExtras-' + k);
+    if (!heroes) return;
+    heroes.innerHTML = '';
+    if (villains) villains.innerHTML = '';
+    if (extras) extras.innerHTML = '';
+    const here = state.scene.tokens.filter(t => !t.ko && (t.locationId || '') === (id || ''));
+    here.filter(t => t.kind === 'hero').forEach(t => heroes.appendChild(renderToken(t)));
+    here.filter(t => t.kind === 'villain').forEach(t => villains && villains.appendChild(renderToken(t)));
+    here.filter(t => t.kind === 'minion' || t.kind === 'lieutenant').forEach(t => extras && extras.appendChild(renderToken(t, true)));
+    if (!heroes.children.length) heroes.innerHTML = '<div class="mvc-empty">—</div>';
+    if (villains && !villains.children.length) villains.innerHTML = '<div class="mvc-empty">—</div>';
   });
+  const koEl = document.getElementById('mvcKo');
+  const ko = state.scene.tokens.filter(t => t.ko);
+  if (koEl) koEl.textContent = ko.length ? ('Out: ' + ko.map(t => t.name).join(', ')) : '';
 }
 
-function renderToken(t) {
+function renderToken(t, small) {
   const card = document.createElement('div');
-  card.className = 'token';
+  card.className = `token mvc-card ${t.kind}${small ? ' small' : ''}`;
   card.draggable = true;
-  card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', t.id); card.classList.add('dragging'); });
+  card.addEventListener('dragstart', e => {
+    if (e.target.closest('button, input, select, textarea, label, .board-ability')) { e.preventDefault(); return; }
+    e.dataTransfer.setData('text/plain', t.id); card.classList.add('dragging');
+  });
   card.addEventListener('dragend', () => card.classList.remove('dragging'));
   attachTouchDrag(card, t.id);
 
-  const typeLabel = t.kind === 'hero' ? 'Hero' : t.kind === 'villain' ? 'Villain' : t.kind;
-  let body = `<div class="token-top">
-      <div class="token-top-left">
-        <img class="token-portrait" src="${backgroundUrl(portraitKey(t.kind, t.slug))}" onerror="this.style.display='none'">
-        <div class="token-name">${escHtml(t.name)}</div>
-      </div>
-      <div class="token-controls">
-        <span class="token-type-chip ${t.kind}">${typeLabel}</span>
-        <button title="Remove from scene" onclick="removeToken('${t.id}')">✕</button>
-      </div>
-    </div>`;
   const heroRow = t.kind === 'hero' ? (state.heroes.find(h => h.Slug === t.slug) || {}) : null;
-  if (t.kind === 'hero' || t.kind === 'villain') body += renderHealthBlock(t, heroRow);
-  if (t.kind === 'villain') { /* status now shown inline in renderHealthBlock */ }
-  if (t.kind === 'minion' || t.kind === 'lieutenant') body += renderDieBlock(t);
-  const heroCanRoll = t.kind === 'hero' && String(heroRow && heroRow.GMControlled).toLowerCase() === 'true';
-  body += `<div class="token-footer">
-      ${(t.kind === 'villain' || heroCanRoll) ? `<button class="btn btn-small btn-accent" onclick="openDiceRoller('${t.id}')">Roll</button>` : ''}
-      ${t.kind === 'hero' ? `<button class="btn btn-small btn-ghost" onclick="openTwistPicker('${t.id}')">Twists</button>` : ''}
-      <button class="btn btn-small btn-ghost" onclick="openAbilities('${t.id}')">Read</button>
-      <button class="btn btn-small btn-danger" onclick="openAttack('${t.id}')">Resolve Attack</button>
+  let body = `${state.turnMarks && state.turnMarks[t.id] ? `<div class="turn-badge">${state.turnMarks[t.id]}</div>` : ''}
+    <div class="mvc-plate"><span>${escHtml(t.name)}</span>
+      <div class="token-controls"><button type="button" title="Remove from scene" onclick="removeToken('${t.id}')">✕</button></div>
     </div>`;
+  if (t.kind === 'hero' || t.kind === 'villain') body += renderHealthBlock(t, heroRow);
+  if (t.kind === 'minion' || t.kind === 'lieutenant') body += renderDieBlock(t);
+  body += bhdRowHtml(t, state.scene, true);
+  body += boardAbilityListHtml(t);
+  body += boardBasicActionsHtml(t);
   card.innerHTML = body;
   return card;
 }
@@ -1276,41 +2095,20 @@ function renderHealthBlock(t, heroRow) {
   }
   const pct = Math.max(0, Math.min(100, (t.currentHealth / maxHealth) * 100));
 
-  if (t.kind === 'hero') {
-    const worseNote = bandInfo.band !== bandInfo.personalBand ? ` (Scene Tracker is worse — ${bandInfo.sceneBand})` : '';
-    const statusDie = computeHeroStatusDie(heroRow || state.heroes.find(h => h.Slug === t.slug), t);
-    return `<div class="health-wrap">
-      <div class="health-bar-track"><div class="health-bar-fill ${bandInfo.band}" style="width:${pct}%"></div></div>
-      <div class="health-readout"><span>${bandInfo.band.toUpperCase()}${bandInfo.approx ? ' (approx)' : ''}${worseNote}</span><span>${t.currentHealth} / ${maxHealth}</span></div>
-      <div class="die-row">
-        ${statusDie.die ? `<button class="die-badge ${statusDie.die}" title="${escAttr(statusDie.source)} — click to roll" onclick="rollLabeledDie('${statusDie.die}','${escAttr(statusDie.source)}')">${statusDie.die}</button>` : ''}
-        <span class="die-row-label">${escHtml(statusDie.source)}</span>
-      </div>
-      <div class="health-controls">
-        <button class="btn btn-small btn-ghost" onclick="adjustHealth('${t.id}',-1)">-1</button>
-        <input type="number" value="${t.currentHealth}" onchange="setHealth('${t.id}',this.value)">
-        <button class="btn btn-small btn-ghost" onclick="adjustHealth('${t.id}',1)">+1</button>
-      </div></div>`;
-  }
-
-  // Villain: bar only, no numeric readout -- Status Die badge instead of a GYRO word.
-  const status = computeVillainStatus(villainRow, t);
   return `<div class="health-wrap">
       <div class="health-bar-track"><div class="health-bar-fill ${bandInfo.band}" style="width:${pct}%"></div></div>
-      <div class="die-row">
-        <button class="die-badge ${status.die || 'd8'}" title="${escAttr(status.source)} — click to roll" onclick="rollLabeledDie('${status.die}','Status')">${status.die || '?'}</button>
-        <span class="die-row-label" onclick="setVillainStatusOverride('${t.id}')" style="cursor:pointer;text-decoration:underline dotted;">${escHtml(status.source)}</span>
-      </div>
-      <div class="health-controls">
-        <button class="btn btn-small btn-ghost" onclick="adjustHealth('${t.id}',-1)">-1</button>
-        <input type="number" value="${t.currentHealth}" onchange="setHealth('${t.id}',this.value)">
-        <button class="btn btn-small btn-ghost" onclick="adjustHealth('${t.id}',1)">+1</button>
-      </div></div>`;
+    </div>`;
 }
 function renderDieBlock(t) {
   if (t.ko) return `<div class="die-row"><span class="die-badge ko">KO</span><span class="die-row-label">Defeated</span></div>`;
   const badge = `<button class="die-badge d${t.currentDie}" title="Roll" onclick="rollTokenDie('${t.id}')">d${t.currentDie}</button>`;
-  const label = t.kind === 'lieutenant' ? 'Lieutenant die (steps down)' : 'Minion die (defeated outright)';
+  let label = t.kind === 'lieutenant' ? 'Lieutenant die (steps down)' : 'Minion die (defeated outright)';
+  if (t.kind === 'minion') {
+    const row = state.minions.find(m => m.Slug === t.slug) || {};
+    const ph = String(row.PerHero || '');
+    const shown = ph === '0.5' ? '½ Ⓗ' : ph === '2' ? '2 Ⓗ' : ph === '1' ? '1 Ⓗ' : '';
+    if (shown) label += ' · ' + shown;
+  }
   return `<div class="die-row">${badge}<span class="die-row-label">${label}</span></div>`;
 }
 function renderStatusSlots(t) {
@@ -1369,12 +2167,12 @@ function renderChallengesPanel() {
       </div>
       ${c.paths.map((p, pi) => `
         <div class="challenge-path-row">
+          <label class="challenge-fail-toggle"><input type="checkbox" ${p.failed ? 'checked' : ''} onchange="togglePathFailedLive(${idx},${pi}, this.checked)"> Fail</label>
           <span>${escHtml(p.label)}</span>
-          <span class="counter-row">
-            <button class="btn btn-small btn-ghost" onclick="bumpPathFieldLive(${idx},${pi},-1)">-</button>
-            <span class="counter-value">${p.successesMarked} / ${p.successesNeeded}</span>
-            <button class="btn btn-small btn-ghost" onclick="bumpPathFieldLive(${idx},${pi},1)">+</button>
-          </span>
+          <label class="hidden-toggle" style="margin:0;"><input type="checkbox" ${p.hidden ? 'checked' : ''} onchange="togglePathHiddenLive(${idx},${pi}, this.checked)"> Hide</label>
+          <span class="challenge-checks">${Array.from({length: Math.max(1, Number(p.successesNeeded)||1)}, (_, n) =>
+            `<input type="checkbox" ${n < (Number(p.successesMarked)||0) ? 'checked' : ''} onchange="setPathChecksLive(${idx},${pi}, ${n}, this.checked)">`
+          ).join('')}</span>
         </div>`).join('')}
       ${c.type === 'Timed' && c.timerMode === 'turns' ? `
         <div class="challenge-path-row"><span>Turns remaining</span>
@@ -1393,12 +2191,31 @@ function bumpPathFieldLive(idx, pi, delta) {
   saveSceneDebounced(); renderChallengesPanel();
   logActivity(null, 'Challenge Progress', null, `${c.title} — ${p.label || 'path'}: ${p.successesMarked}`, { challenge: c.title, path: p.label, successesMarked: p.successesMarked, delta });
 }
+function setPathChecksLive(idx, pi, n, checked) {
+  const c = state.scene.challenges[idx];
+  const p = c.paths[pi];
+  const need = Math.max(1, Number(p.successesNeeded) || 1);
+  let marked = Number(p.successesMarked) || 0;
+  if (checked) marked = Math.max(marked, n + 1);
+  else marked = Math.min(marked, n);
+  p.successesMarked = Math.max(0, Math.min(need, marked));
+  saveSceneDebounced(); renderChallengesPanel();
+  logActivity(null, 'Challenge Progress', null, `${c.title} — ${p.label || 'path'}: ${p.successesMarked}/${need}`, { challenge: c.title, path: p.label, successesMarked: p.successesMarked });
+}
 function bumpChallengeFieldLive(idx, field, delta) {
   state.scene.challenges[idx][field] = Math.max(0, (Number(state.scene.challenges[idx][field]) || 0) + delta);
   saveSceneDebounced(); renderChallengesPanel();
 }
 function toggleChallengeHiddenLive(idx, val) {
   state.scene.challenges[idx].hidden = val;
+  saveSceneDebounced(); renderChallengesPanel();
+}
+function togglePathFailedLive(idx, pi, val) {
+  state.scene.challenges[idx].paths[pi].failed = !!val;
+  saveSceneDebounced(); renderChallengesPanel();
+}
+function togglePathHiddenLive(idx, pi, val) {
+  state.scene.challenges[idx].paths[pi].hidden = !!val;
   saveSceneDebounced(); renderChallengesPanel();
 }
 function advanceDoomsdayTurnLive(idx) {
@@ -1412,34 +2229,177 @@ function advanceDoomsdayTurnLive(idx) {
 
 function openAttack(tokenId) {
   const t = findTok(tokenId);
+  if (t.kind === 'villain') tokenHasEngine(t, 'Singular Strength');
   document.getElementById('attackModalTitle').textContent = 'Resolve Attack — ' + t.name;
   const body = document.getElementById('attackModalBody');
   if (t.kind === 'hero' || t.kind === 'villain') {
     body.innerHTML = `<label>Damage (effect die result)<input type="number" id="atkDamage" min="0" value="0"></label>
+      ${attackModPickerHtml(t)}
       <button class="btn btn-accent" onclick="applyDamageToHealth('${t.id}')">Apply Damage</button><div class="attack-result" id="atkResult"></div>`;
   } else if (t.kind === 'minion') {
     body.innerHTML = `<label>Damage dealt to this minion group<input type="number" id="atkDamage" min="0" value="0"></label>
+      ${attackModPickerHtml(t)}
       <p style="color:#555;">House rule: Minions are defeated outright on a failed save (no step-down).</p>
       <button class="btn btn-accent" onclick="resolveMinionSave('${t.id}')">Roll Save &amp; Resolve</button><div class="attack-result" id="atkResult"></div>`;
   } else if (t.kind === 'lieutenant') {
     body.innerHTML = `<label>Damage dealt to this lieutenant<input type="number" id="atkDamage" min="0" value="0"></label>
+      ${attackModPickerHtml(t)}
       <p style="color:#555;">Fail = degrade one step. Damage ≥ 2× die size = instant KO, no save.</p>
       <button class="btn btn-accent" onclick="resolveLieutenantSave('${t.id}')">Roll Save &amp; Resolve</button><div class="attack-result" id="atkResult"></div>`;
   }
   document.getElementById('attackModal').classList.remove('hidden');
 }
 function closeAttack() { document.getElementById('attackModal').classList.add('hidden'); }
+
+function openModCreate(tokenId, kind) {
+  const t = findTok(tokenId);
+  if (!t || !state.scene) return;
+  const title = kind === 'boost' ? 'Boost' : kind === 'hinder' ? 'Hinder' : 'Defend';
+  document.getElementById('modModalTitle').textContent = title + ' — ' + t.name;
+  const sameLoc = state.scene.tokens.filter(x => !x.ko && x.locationId === t.locationId);
+  const allTok = state.scene.tokens.filter(x => !x.ko);
+  const targetPool = kind === 'defend' ? sameLoc : allTok;
+  if (kind === 'defend' && sameLoc.length === 0) {
+    toast('Defend needs someone in the same location');
+    return;
+  }
+  const targetOpts = targetPool.map(x =>
+    `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(x.name)}${x.id === t.id ? ' (self)' : ''}</option>`
+  ).join('');
+  const existing = kind === 'defend' ? modsOnTarget(state.scene, t.id, 'defend') : modsCreatedBy(state.scene, t.id, kind);
+  const existingHtml = existing.length
+    ? `<div class="mod-list">${existing.map(m => {
+        const who = findTok(m.targetId);
+        const tag = m.exclusivePersistent ? 'Exclusive & Persistent' : 'one-off';
+        return `<div>${m.kind} ${m.value} → ${escHtml(who ? who.name : '?')} <small>(${tag})</small>
+          <button class="btn btn-small btn-ghost" type="button" onclick="consumeMod('${m.id}')">Clear</button></div>`;
+      }).join('')}</div>`
+    : '<p class="empty-hint">None yet.</p>';
+  const targetLabel = kind === 'defend'
+    ? 'Protect (same location)'
+    : (kind === 'hinder' ? 'Penalty sits on' : 'Optional attach (creator still spends)');
+  document.getElementById('modModalBody').innerHTML = `
+    ${existingHtml}
+    <label>Value <input type="number" id="modValue" min="0" value="2"></label>
+    <label>${targetLabel}<select id="modTarget">${targetOpts}</select></label>
+    <label class="hidden-toggle"><input type="checkbox" id="modPersistent"> Exclusive &amp; Persistent (one per creator)</label>
+    <p style="color:var(--text-lo);font-size:12px;">Default is one-off. Spend a Minor Twist later to reuse a one-off. Persistent stays until cleared. Defend subtracts from Attacks on the target.</p>
+    <button class="btn btn-accent" type="button" onclick="commitMod('${t.id}','${kind}')">Add ${title}</button>`;
+  document.getElementById('modModal').classList.remove('hidden');
+}
+function closeModCreate() { document.getElementById('modModal').classList.add('hidden'); }
+function commitMod(creatorId, kind) {
+  const creator = findTok(creatorId);
+  const value = Number(document.getElementById('modValue').value) || 0;
+  const targetId = document.getElementById('modTarget').value;
+  const exclusivePersistent = document.getElementById('modPersistent').checked;
+  if (value <= 0) { toast('Value must be &gt; 0'); return; }
+  if (kind === 'defend') {
+    const target = findTok(targetId);
+    if (!target || target.locationId !== creator.locationId) {
+      toast('Defend target must share this location');
+      return;
+    }
+  }
+  if (exclusivePersistent && creatorHasExclusivePersistent(state.scene, creatorId)) {
+    toast('This creator already has an Exclusive & Persistent mod');
+    return;
+  }
+  ensureMods(state.scene).push({
+    id: uid('mod'), kind, creatorId, targetId, value, exclusivePersistent, consumed: false
+  });
+  const cName = creator.name;
+  const tName = (findTok(targetId) || {}).name || '?';
+  logActivity({ id: creator.id, name: cName, kind: creator.kind }, kind[0].toUpperCase() + kind.slice(1),
+    { id: targetId, name: tName }, `${kind} ${value}${exclusivePersistent ? ' (Exclusive & Persistent)' : ''}`, { value, kind });
+  saveSceneDebounced(); renderTokens(); closeModCreate();
+}
+function consumeMod(modId) {
+  const m = ensureMods(state.scene).find(x => x.id === modId);
+  if (m) m.consumed = true;
+  saveSceneDebounced(); renderTokens(); closeModCreate();
+}
+
+function attackModPickerHtml(target) {
+  const spend = liveMods(state.scene).filter(m => m.kind === 'boost' || m.kind === 'hinder');
+  const defend = bhdTotals(state.scene, target).defend;
+  const rows = spend.length
+    ? spend.map(m => {
+        const cr = findTok(m.creatorId);
+        const tag = m.exclusivePersistent ? 'Exclusive & Persistent' : 'one-off';
+        return `<label><input type="checkbox" class="atk-mod" data-id="${m.id}">
+          ${m.kind === 'boost' ? '+' : '−'}${m.value} ${m.kind} from ${escHtml(cr ? cr.name : '?')} (${tag})</label>`;
+      }).join('')
+    : '<p class="empty-hint">No Boost/Hinder to stack.</p>';
+  return `<div class="mod-list"><b>Stack mods (creator spends)</b>${rows}
+    <label><input type="checkbox" id="atkTwistReuse"> Minor Twist: reuse selected one-offs instead of consuming</label>
+    <div style="color:var(--text-lo);font-size:12px;">Defend on ${escHtml(target.name)}: ${defend} (subtracted automatically)</div></div>`;
+}
+
+function selectedAttackMods() {
+  return [...document.querySelectorAll('.atk-mod:checked')].map(el =>
+    liveMods(state.scene).find(m => m.id === el.dataset.id)
+  ).filter(Boolean);
+}
+
+function applyStackedAttack(target, raw) {
+  const notes = [];
+  let dmg = raw;
+  const twist = !!(document.getElementById('atkTwistReuse') && document.getElementById('atkTwistReuse').checked);
+  selectedAttackMods().forEach(m => {
+    if (m.kind === 'boost') { dmg += Number(m.value) || 0; notes.push(`+${m.value} Boost`); }
+    if (m.kind === 'hinder') { dmg -= Number(m.value) || 0; notes.push(`−${m.value} Hinder`); }
+    if (!m.exclusivePersistent && !twist) m.consumed = true;
+  });
+  const defend = bhdTotals(state.scene, target).defend;
+  if (defend) {
+    dmg = Math.max(0, dmg - defend);
+    notes.push(`Defend −${defend}`);
+    modsOnTarget(state.scene, target.id, 'defend').forEach(m => {
+      if (!m.exclusivePersistent && !twist) m.consumed = true;
+    });
+  }
+  return { dmg: Math.max(0, dmg), notes };
+}
+
 function applyDamageToHealth(id) {
-  const dmg = Number(document.getElementById('atkDamage').value) || 0;
+  const raw = Number(document.getElementById('atkDamage').value) || 0;
   const t = findTok(id);
+  const stacked = applyStackedAttack(t, raw);
+  let dmg = stacked.dmg;
+  const notes = stacked.notes.slice();
+  if (t.kind === 'villain' && tokenHasEngine(t, 'Singular Strength') && !nearbyAllies(t).length) {
+    dmg = Math.max(0, dmg - 1);
+    notes.push('Singular Strength −1 incoming (no nearby allies)');
+  }
   t.currentHealth = Math.max(0, t.currentHealth - dmg);
   saveSceneDebounced(); renderTokens();
-  document.getElementById('atkResult').textContent = `Applied ${dmg} damage. New Health: ${t.currentHealth}.`;
-  logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Damage', null, `Took ${dmg} damage (Health: ${t.currentHealth})`, { damage: dmg });
+  document.getElementById('atkResult').textContent =
+    `Applied ${dmg} damage` + (dmg !== raw ? ` (typed ${raw})` : '') +
+    `. New Health: ${t.currentHealth}.` + (notes.length ? ' ' + notes.join('; ') : '');
+  logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Damage', null,
+    `Took ${dmg} damage (Health: ${t.currentHealth})`, { damage: dmg, typed: raw, notes });
+}
+function nearbyAllies(t) {
+  if (!state.scene || !state.scene.tokens) return [];
+  return state.scene.tokens.filter(x =>
+    x.id !== t.id && !x.ko && x.locationId === t.locationId &&
+    (x.kind === 'villain' || x.kind === 'minion' || x.kind === 'lieutenant'));
+}
+function tokenHasEngine(t, abilityName) {
+  const cache = (state._mdCache = state._mdCache || {});
+  const key = (t.kind || '') + ':' + (t.slug || '');
+  const md = cache[key];
+  if (typeof md === 'string') return md.toLowerCase().includes(abilityName.toLowerCase());
+  apiReadMd(t.kind === 'villain' ? 'villains' : t.kind + 's', t.slug).then(text => {
+    cache[key] = text || '';
+  });
+  return false;
 }
 function resolveMinionSave(id) {
-  const dmg = Number(document.getElementById('atkDamage').value) || 0;
+  const raw = Number(document.getElementById('atkDamage').value) || 0;
   const t = findTok(id);
+  const dmg = applyStackedAttack(t, raw).dmg;
   const roll = rollDie(t.currentDie);
   const resultEl = document.getElementById('atkResult');
   if (roll < dmg) {
@@ -1456,8 +2416,9 @@ function confirmMinionKo(id) {
   logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Defeated', null, `${t.name} defeated`, {});
 }
 function resolveLieutenantSave(id) {
-  const dmg = Number(document.getElementById('atkDamage').value) || 0;
+  const raw = Number(document.getElementById('atkDamage').value) || 0;
   const t = findTok(id);
+  const dmg = applyStackedAttack(t, raw).dmg;
   const resultEl = document.getElementById('atkResult');
   if (dmg >= t.currentDie * 2) {
     resultEl.innerHTML = `Damage (${dmg}) ≥ double d${t.currentDie}. <b>Instant KO — no save.</b>
@@ -1499,10 +2460,11 @@ function switchView(view) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   document.getElementById('boardView').classList.toggle('hidden', view !== 'board');
   document.getElementById('libraryView').classList.toggle('hidden', view !== 'library');
-  document.getElementById('scenesView').classList.toggle('hidden', view !== 'scenes');
-  document.getElementById('issuesView').classList.toggle('hidden', view !== 'issues');
+  document.getElementById('collectionsView').classList.toggle('hidden', view !== 'collections');
   document.getElementById('rulesView').classList.toggle('hidden', view !== 'rules');
+  document.getElementById('builderView').classList.toggle('hidden', view !== 'builder');
   if (view === 'board') refreshBoardFromServer();
+  if (view === 'collections') { showCollectionsList(); }
   if (view === 'rules' && state.rulesList.length === 0) initRules();
 }
 
@@ -1512,7 +2474,11 @@ function switchView(view) {
 async function refreshBoardFromServer() {
   if (state.activeSlug) {
     const fresh = await apiGetScene(state.activeSlug);
-    if (fresh) { fresh.__slug = state.activeSlug; state.scene = fresh; }
+    if (fresh) {
+      fresh.__slug = state.activeSlug;
+      (fresh.tokens || []).forEach(t => { delete t.turnNumber; });
+      state.scene = fresh;
+    }
   }
   renderBoard();
 }
@@ -1536,35 +2502,63 @@ async function initRules() {
   renderRulesList('');
 }
 
+const RULES_CHAPTERS = [
+  { title: 'Chapter 1: Introduction', slugs: [] },
+  { title: 'Chapter 2: Playing the Game', slugs: ['02-1-playing-the-game'] },
+  { title: 'Chapter 3: Creating Heroes', slugs: [
+    '03-1-backgrounds','03-2-power-sources','03-3-archetypes','03-4-personality',
+    '03-5-red-abilities','03-6-principles','03-7-powers-and-qualities',
+    '03-8-hero-creation-process','03-9-hero-advancement'] },
+  { title: 'Chapter 4: Moderating the Game', slugs: ['04-1-moderating-the-game'] },
+  { title: 'Chapter 5: The Bullpen', slugs: [
+    '05-1-scene-building','05-2-minions-lieutenants-villains',
+    '05-3-villain-archetypes-upgrades-health','05-4-environments-issue-structure',
+    '05-5-alternate-rewards-collections'] },
+  { title: 'Chapter 8: Appendices', slugs: ['08-1-index-and-glossary'] },
+];
+let rulesOpenChapter = null;
+
 function renderRulesList(filter) {
   const el = document.getElementById('rulesList');
   const q = (filter || '').trim().toLowerCase();
-  if (!q) {
-    el.innerHTML = state.rulesList.map(r => `
-      <button class="rules-list-item" onclick="openRuleDoc('${r.slug}')">${escHtml(r.title)}</button>`).join('');
-    return;
-  }
-  // Search across cached full text; show a matching snippet per hit.
-  const hits = [];
-  state.rulesList.forEach(r => {
-    const text = state.rulesContent[r.slug] || '';
-    const idx = text.toLowerCase().indexOf(q);
-    if (r.title.toLowerCase().includes(q) || idx !== -1) {
-      let snippet = '';
-      if (idx !== -1) {
-        const start = Math.max(0, idx - 40);
-        snippet = (start > 0 ? '…' : '') + text.slice(start, idx + q.length + 60).replace(/\s+/g, ' ') + '…';
+  const bySlug = Object.fromEntries((state.rulesList || []).map(r => [r.slug, r]));
+  if (q) {
+    const hits = [];
+    state.rulesList.forEach(r => {
+      const text = state.rulesContent[r.slug] || '';
+      const idx = text.toLowerCase().indexOf(q);
+      if (r.title.toLowerCase().includes(q) || idx !== -1) {
+        let snippet = '';
+        if (idx !== -1) {
+          const start = Math.max(0, idx - 40);
+          snippet = (start > 0 ? '…' : '') + text.slice(start, idx + q.length + 60).replace(/\s+/g, ' ') + '…';
+        }
+        hits.push({ slug: r.slug, title: r.title, snippet });
       }
-      hits.push({ slug: r.slug, title: r.title, snippet });
-    }
-  });
-  el.innerHTML = hits.length
-    ? hits.map(h => `
+    });
+    el.innerHTML = hits.length
+      ? hits.map(h => `
       <button class="rules-list-item" onclick="openRuleDoc('${h.slug}')">
         <div class="rules-hit-title">${escHtml(h.title)}</div>
         ${h.snippet ? `<div class="rules-hit-snippet">${escHtml(h.snippet)}</div>` : ''}
       </button>`).join('')
-    : '<p class="empty-hint" style="padding:10px;">No matches.</p>';
+      : '<p class="empty-hint" style="padding:10px;">No matches.</p>';
+    return;
+  }
+  el.innerHTML = RULES_CHAPTERS.map((ch, i) => {
+    const open = rulesOpenChapter === i;
+    const files = ch.slugs.map(slug => bySlug[slug]).filter(Boolean);
+    const body = open
+      ? (files.length
+          ? files.map(r => `<button class="rules-list-item" onclick="openRuleDoc('${r.slug}')">${escHtml(r.title)}</button>`).join('')
+          : '<p class="empty-hint" style="padding:8px;">No source file ingested for this chapter yet.</p>')
+      : '';
+    return `<button class="rules-list-item rules-chapter" onclick="toggleRulesChapter(${i})">${escHtml(ch.title)}</button>${body}`;
+  }).join('');
+}
+function toggleRulesChapter(i) {
+  rulesOpenChapter = rulesOpenChapter === i ? null : i;
+  renderRulesList(document.getElementById('rulesSearchInput').value);
 }
 
 function openRuleDoc(slug) {
@@ -1618,8 +2612,17 @@ function inlineMd(s) {
 function switchLibTab(kind) {
   currentLibTab = kind;
   document.querySelectorAll('.lib-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.lib === kind));
-  ['heroes','villains','minions','environments','twists','abilities'].forEach(k => document.getElementById(k + 'Panel').classList.toggle('hidden', k !== kind));
+  ['heroes','villains','minions','environments','twists','abilities'].forEach(k => {
+    const panel = document.getElementById(k + 'Panel');
+    if (panel) panel.classList.toggle('hidden', k !== kind);
+  });
   document.getElementById('villainRefBtn').classList.toggle('hidden', kind !== 'villains');
+  const issueFilt = document.getElementById('libIssueFilter');
+  if (issueFilt) issueFilt.classList.toggle('hidden', kind === 'twists');
+  const sevFilt = document.getElementById('twistSeverityFilter');
+  const effFilt = document.getElementById('twistEffectFilter');
+  if (sevFilt) sevFilt.classList.toggle('hidden', kind !== 'twists');
+  if (effFilt) effFilt.classList.toggle('hidden', kind !== 'twists');
   renderLibraryTable(kind);
 }
 
@@ -1632,7 +2635,12 @@ function populateApproachArchetypeDatalists() {
 
 function openReferenceModal() {
   const body = document.getElementById('referenceModalBody');
-  body.innerHTML = `
+  const slugs = ['05-2-minions-lieutenants-villains', '05-3-villain-archetypes-upgrades-health'];
+  const md = slugs.map(s => state.rulesContent[s]).filter(Boolean).join('\n\n');
+  if (md) {
+    body.innerHTML = renderMarkdownLite(md);
+  } else {
+    body.innerHTML = `
     <h4 style="font-family:var(--font-display);color:var(--text-ink);margin:0 0 6px;">Approaches (base Health)</h4>
     <table class="difficulty-ref-table" style="margin-bottom:16px;">
       <tbody>${VILLAIN_APPROACHES.map(a => `<tr><td>${escHtml(a.name)}</td><td>${a.health}</td></tr>`).join('')}</tbody>
@@ -1641,8 +2649,10 @@ function openReferenceModal() {
     <table class="difficulty-ref-table">
       <tbody>${VILLAIN_ARCHETYPES.map(a => `<tr><td>${escHtml(a.name)}</td><td>${a.health >= 0 ? '+' : ''}${a.health}</td><td>${escHtml(a.status)}</td></tr>`).join('')}</tbody>
     </table>
-    <p style="font-family:var(--font-data);font-size:11px;color:#555;margin-top:10px;">Health = (H × 5) + Approach base + Archetype bonus + Upgrade bonuses. H = number of heroes.</p>`;
+    <p class="empty-hint">Open the Rules tab (Chapter 5) for the full Approach / Archetype text.</p>`;
+  }
   document.getElementById('referenceModal').classList.remove('hidden');
+  if (!md) initRules().then(() => { if (document.getElementById('referenceModal') && !document.getElementById('referenceModal').classList.contains('hidden')) openReferenceModal(); });
 }
 function closeReferenceModal() { document.getElementById('referenceModal').classList.add('hidden'); }
 
@@ -1996,30 +3006,146 @@ async function apiListIssues() { const r = await fetch('/api/issues'); return r.
 async function apiGetIssue(slug) { const r = await fetch(`/api/issues/${encodeURIComponent(slug)}`); return r.ok ? await r.json() : null; }
 async function apiSaveIssue(slug, issue) { await fetch(`/api/issues/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(issue, null, 2) }); }
 async function apiDeleteIssue(slug) { await fetch(`/api/issues/${encodeURIComponent(slug)}`, { method: 'DELETE' }); }
+async function apiListCollections() { const r = await fetch('/api/collections'); return r.ok ? await r.json() : []; }
+async function apiGetCollection(slug) { const r = await fetch(`/api/collections/${encodeURIComponent(slug)}`); return r.ok ? await r.json() : null; }
+async function apiSaveCollection(slug, coll) { await fetch(`/api/collections/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(coll, null, 2) }); }
+async function apiDeleteCollection(slug) { await fetch(`/api/collections/${encodeURIComponent(slug)}`, { method: 'DELETE' }); }
 
-function blankIssue(name) { return { name: name || 'New Issue', sceneSlugs: [], notes: '' }; }
+function blankIssue(name) { return { name: name || 'New Issue', sceneSlugs: [], villainSlugs: [], heroSlugs: [], minionSlugs: [], notes: '' }; }
 
 async function refreshIssuesList() { state.issuesList = await apiListIssues(); }
+async function refreshCollectionsList() { state.collectionsList = await apiListCollections(); }
 
-function renderIssuesList() {
-  const el = document.getElementById('issuesListCards');
-  if (state.issuesList.length === 0) { el.innerHTML = '<p class="empty-hint">No issues yet.</p>'; return; }
-  el.innerHTML = state.issuesList.map(i => `
-    <div class="scene-card">
-      <div class="scene-card-name">${escHtml(i.name)}</div>
-      <div class="scene-card-actions">
-        <button class="btn btn-small btn-primary" onclick="editIssue('${i.slug}')">Edit</button>
-        <button class="btn btn-small btn-danger" onclick="deleteIssue('${i.slug}')">Delete</button>
-      </div>
-    </div>`).join('');
+function uniqueCollectionSlug(base) {
+  let candidate = base, n = 1;
+  const taken = new Set((state.collectionsList || []).map(c => c.slug));
+  while (taken.has(candidate)) candidate = base + '-' + (++n);
+  return candidate;
 }
-async function newIssue() {
+function blankCollection(name) { return { name: name || 'New Collection', issueSlugs: [] }; }
+async function newCollection() {
+  const name = prompt('Collection name:');
+  if (!name) return;
+  const slug = uniqueCollectionSlug(slugify(name));
+  await apiSaveCollection(slug, blankCollection(name));
+  await refreshCollectionsList();
+  editCollection(slug);
+}
+async function deleteCollection(slug) {
+  if (!confirm('Delete this collection? Issues inside it are not deleted.')) return;
+  await apiDeleteCollection(slug);
+  await refreshCollectionsList();
+  renderCurrentCollPanel();
+}
+async function renameCollection(slug, name) {
+  const coll = (state.collectionsList || []).find(c => c.slug === slug);
+  if (!coll) return;
+  coll.name = name;
+  await apiSaveCollection(slug, coll);
+}
+async function editCollection(slug) {
+  state.editingCollectionSlug = slug;
+  state.collection = await apiGetCollection(slug);
+  if (!state.collection) state.collection = blankCollection(slug);
+  state.collection.issueSlugs = state.collection.issueSlugs || [];
+  document.getElementById('collectionsListView').classList.add('hidden');
+  document.getElementById('issueEditorView').classList.add('hidden');
+  document.getElementById('sceneEditorView').classList.add('hidden');
+  document.getElementById('collectionEditorView').classList.remove('hidden');
+  renderCollectionEditor();
+}
+function backToCollectionsList() {
+  showCollectionsList();
+}
+const saveCollectionDebounced = debounce(async () => {
+  if (!state.editingCollectionSlug) return;
+  await apiSaveCollection(state.editingCollectionSlug, state.collection);
+  const status = document.getElementById('collectionSaveStatus');
+  if (status) status.textContent = 'Saved ✓';
+}, 500);
+function renderCollectionEditor() {
+  const coll = state.collection;
+  const el = document.getElementById('collectionEditorView');
+  const attachedNames = (coll.issueSlugs || []).map(s => (state.issuesList.find(x => x.slug === s) || {}).name || s);
+  el.innerHTML = `
+    <div class="scene-editor-header">
+      <button class="btn btn-ghost" onclick="backToCollectionsList()">&larr; Back to Collections</button>
+      <span id="collectionSaveStatus" class="save-status"></span>
+    </div>
+    <label class="field-label">Collection Name</label>
+    <input type="text" class="scene-name-input" value="${escAttr(coll.name)}" onchange="updateCollectionField('name', this.value)">
+
+    <label class="field-label">Issues (in order)</label>
+    <div>
+      ${(coll.issueSlugs || []).map((s, i) => `
+        <div class="location-edit-row">
+          <span style="flex:1;">${i + 1}. ${escHtml(attachedNames[i])}</span>
+          <button class="btn btn-small btn-ghost" onclick="moveCollectionIssue(${i},-1)">&uarr;</button>
+          <button class="btn btn-small btn-ghost" onclick="moveCollectionIssue(${i},1)">&darr;</button>
+          <button class="btn btn-small btn-danger" onclick="removeCollectionIssue(${i})">Remove</button>
+        </div>`).join('') || '<p class="empty-hint">No issues attached yet.</p>'}
+    </div>
+    <select id="collectionIssueAdd">
+      <option value="">Add an Issue…</option>
+      ${state.issuesList.filter(i => !(coll.issueSlugs || []).includes(i.slug)).map(i => `<option value="${i.slug}">${escHtml(i.name)}</option>`).join('')}
+    </select>
+    <button class="btn btn-small btn-accent" onclick="addCollectionIssue()">Add</button>
+  `;
+}
+function updateCollectionField(field, value) { state.collection[field] = value; saveCollectionDebounced(); }
+function addCollectionIssue() {
+  const sel = document.getElementById('collectionIssueAdd');
+  if (!sel.value) return;
+  state.collection.issueSlugs = state.collection.issueSlugs || [];
+  state.collection.issueSlugs.push(sel.value);
+  saveCollectionDebounced(); renderCollectionEditor();
+}
+function removeCollectionIssue(i) {
+  state.collection.issueSlugs.splice(i, 1);
+  saveCollectionDebounced(); renderCollectionEditor();
+}
+function moveCollectionIssue(i, delta) {
+  const arr = state.collection.issueSlugs;
+  const j = i + delta;
+  if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  saveCollectionDebounced(); renderCollectionEditor();
+}
+async function renameIssue(slug, name) {
+  const iss = (state.issuesList || []).find(i => i.slug === slug);
+  if (!iss) return;
+  iss.name = name;
+  await apiSaveIssue(slug, iss);
+  fillLibIssueFilter();
+}
+async function toggleIssueScene(issueSlug, sceneSlug, on) {
+  const iss = await apiGetIssue(issueSlug);
+  if (!iss) return;
+  const set = new Set(iss.sceneSlugs || []);
+  if (on) set.add(sceneSlug); else set.delete(sceneSlug);
+  iss.sceneSlugs = [...set];
+  await apiSaveIssue(issueSlug, iss);
+  await refreshIssuesList();
+  renderCurrentCollPanel();
+}
+async function renameScene(slug, name) {
+  const sc = await apiGetScene(slug);
+  if (!sc) return;
+  sc.name = name;
+  await apiSaveScene(slug, sc);
+  await refreshScenesList();
+  renderCurrentCollPanel();
+}
+
+async function newIssue(openEditor) {
   const name = prompt('Issue name (e.g. "Issue #4: The Tarama Lab Breach"):');
   if (!name) return;
   const slug = uniqueIssueSlug(slugify(name));
   await apiSaveIssue(slug, blankIssue(name));
-  await refreshIssuesList(); renderIssuesList();
-  editIssue(slug);
+  await refreshIssuesList();
+  fillLibIssueFilter();
+  if (openEditor === false) renderCurrentCollPanel();
+  else editIssue(slug);
 }
 function uniqueIssueSlug(base) {
   let candidate = base, n = 1;
@@ -2034,13 +3160,14 @@ async function deleteIssue(slug) {
 async function editIssue(slug) {
   state.editingIssueSlug = slug;
   state.issue = await apiGetIssue(slug);
-  document.getElementById('issuesListView').classList.add('hidden');
+  document.getElementById('collectionsListView').classList.add('hidden');
+  document.getElementById('collectionEditorView').classList.add('hidden');
+  document.getElementById('sceneEditorView').classList.add('hidden');
   document.getElementById('issueEditorView').classList.remove('hidden');
   renderIssueEditor();
 }
 function backToIssuesList() {
-  document.getElementById('issuesListView').classList.remove('hidden');
-  document.getElementById('issueEditorView').classList.add('hidden');
+  showCollectionsList();
   state.editingIssueSlug = null;
 }
 const saveIssueDebounced = debounce(async () => {
@@ -2056,7 +3183,7 @@ function renderIssueEditor() {
   const attachedNames = iss.sceneSlugs.map(s => (state.scenesList.find(x => x.slug === s) || {}).name || s);
   el.innerHTML = `
     <div class="scene-editor-header">
-      <button class="btn btn-ghost" onclick="backToIssuesList()">&larr; Back to Issues</button>
+      <button class="btn btn-ghost" onclick="backToIssuesList()">&larr; Back to Collections</button>
       <span id="issueSaveStatus" class="save-status"></span>
     </div>
     <label class="field-label">Issue Name</label>
@@ -2101,7 +3228,24 @@ function moveIssueScene(i, delta) {
 async function init() {
   document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
   document.querySelectorAll('.lib-tab-btn').forEach(b => b.addEventListener('click', () => switchLibTab(b.dataset.lib)));
+  document.querySelectorAll('.coll-tab-btn').forEach(b => b.addEventListener('click', () => switchCollTab(b.dataset.coll)));
   document.getElementById('addRowBtn').addEventListener('click', () => addRow(currentLibTab));
+  document.getElementById('collAddRowBtn').addEventListener('click', collAddRow);
+  const libFilt = document.getElementById('libIssueFilter');
+  if (libFilt) libFilt.addEventListener('change', () => renderLibraryTable(currentLibTab));
+  const twistSev = document.getElementById('twistSeverityFilter');
+  const twistEff = document.getElementById('twistEffectFilter');
+  if (twistEff) {
+    twistEff.innerHTML = '<option value="all">All effect types</option>' +
+      TWIST_EFFECT_TYPES.map(t => `<option value="${escAttr(t)}">${escHtml(t)}</option>`).join('');
+  }
+  if (twistSev) twistSev.addEventListener('change', () => renderLibraryTable('twists'));
+  if (twistEff) twistEff.addEventListener('change', () => renderLibraryTable('twists'));
+  const collFilt = document.getElementById('collIssueFilter');
+  if (collFilt) collFilt.addEventListener('change', () => {
+    if (currentCollTab === 'locations') renderLibraryTable('locations');
+    else if (currentCollTab === 'scenes') renderScenesTable();
+  });
   document.getElementById('spawnType').addEventListener('change', refreshSpawnOptions);
   document.getElementById('spawnBtn').addEventListener('click', spawnToken);
   document.getElementById('clearSceneBtn').addEventListener('click', () => {
@@ -2111,12 +3255,11 @@ async function init() {
   });
   document.getElementById('trackerAdvanceBtn').addEventListener('click', () => advanceTracker(1));
   document.getElementById('trackerRetreatBtn').addEventListener('click', () => advanceTracker(-1));
-  document.getElementById('newSceneBtn').addEventListener('click', newScene);
-  document.getElementById('newIssueBtn').addEventListener('click', newIssue);
   document.getElementById('rulesSearchInput').addEventListener('input', (e) => renderRulesList(e.target.value));
   document.getElementById('notesModalClose').addEventListener('click', closeNotes);
   document.getElementById('notesModalSave').addEventListener('click', saveNotes);
   document.getElementById('attackModalClose').addEventListener('click', closeAttack);
+  document.getElementById('modModalClose').addEventListener('click', closeModCreate);
   document.getElementById('villainRefBtn').addEventListener('click', openReferenceModal);
   document.getElementById('referenceModalClose').addEventListener('click', closeReferenceModal);
   document.getElementById('healthCalcClose').addEventListener('click', closeHealthCalc);
@@ -2126,21 +3269,26 @@ async function init() {
   populateApproachArchetypeDatalists();
 
   const nameEl = document.getElementById('folderLabel');
-  try { nameEl.textContent = 'Campaign: ' + await apiCampaignName(); } catch (e) { nameEl.textContent = 'Not connected to server'; }
+  try { nameEl.textContent = await apiCampaignName(); } catch (e) { nameEl.textContent = 'Not connected to server'; }
 
   await loadLibrary();
   await refreshScenesList();
   await refreshIssuesList();
-  renderScenesList();
-  renderIssuesList();
+  await refreshCollectionsList();
+  fillLibIssueFilter();
+  renderCurrentCollPanel();
   renderLibraryTable(currentLibTab);
   refreshSpawnOptions();
 
   const active = await apiGetActiveScene();
   if (active.slug) {
     state.activeSlug = active.slug;
+    state.turnMarks = {};
     state.scene = await apiGetScene(active.slug);
-    if (state.scene) state.scene.__slug = active.slug;
+    if (state.scene) {
+      state.scene.__slug = active.slug;
+      (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
+    }
   }
   renderBoard();
 }

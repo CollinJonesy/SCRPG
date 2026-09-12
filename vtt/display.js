@@ -22,6 +22,42 @@ let libHeroes = [], libVillains = [], libEnvironments = [];
 
 function escHtml(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
+function ensureMods(scene) {
+  if (!scene) return [];
+  if (!Array.isArray(scene.mods)) scene.mods = [];
+  return scene.mods;
+}
+function liveMods(scene) { return ensureMods(scene).filter(m => !m.consumed); }
+function modsCreatedBy(scene, tokenId, kind) {
+  return liveMods(scene).filter(m => m.creatorId === tokenId && (!kind || m.kind === kind));
+}
+function modsOnTarget(scene, tokenId, kind) {
+  return liveMods(scene).filter(m => m.targetId === tokenId && (!kind || m.kind === kind));
+}
+function bhdTotals(scene, token) {
+  const boost = modsCreatedBy(scene, token.id, 'boost').reduce((s, m) => s + (Number(m.value) || 0), 0);
+  const hinder = modsCreatedBy(scene, token.id, 'hinder').reduce((s, m) => s + (Number(m.value) || 0), 0);
+  const defend = modsOnTarget(scene, token.id, 'defend').reduce((s, m) => s + (Number(m.value) || 0), 0);
+  const d = token.bhdDelta || {};
+  return {
+    boost: Math.max(0, boost + (Number(d.boost) || 0)),
+    hinder: Math.max(0, hinder + (Number(d.hinder) || 0)),
+    defend: Math.max(0, defend + (Number(d.defend) || 0)),
+  };
+}
+function locName(scene, locId) {
+  const loc = (scene.locations || []).find(l => l.id === locId);
+  return loc ? loc.name : '';
+}
+function bhdRowHtml(t, scene) {
+  const n = bhdTotals(scene, t);
+  return `<div class="bhd-row">
+    <div class="bhd-stat boost"><span>BOOST</span><b>${n.boost}</b></div>
+    <div class="bhd-stat hinder"><span>HINDER</span><b>${n.hinder}</b></div>
+    <div class="bhd-stat defend"><span>DEFEND</span><b>${n.defend}</b></div>
+  </div>`;
+}
+
 function heroBand(maxHealth, current) {
   let chart = HERO_GYRO_CHART[maxHealth];
   let approx = false;
@@ -60,22 +96,68 @@ function trackerStarsHtml(tracker) {
     `<div class="tracker-star ${color} ${i === tracker.position ? 'tracker-marker' : ''}">★</div>`).join('') + '</div>';
 }
 
+function sceneVisualSig(scene) {
+  if (!scene) return 'null';
+  return JSON.stringify({
+    name: scene.name, difficulty: scene.difficulty, tracker: scene.tracker,
+    locations: scene.locations, tokens: scene.tokens, mods: scene.mods,
+    environment: scene.environment, challenges: scene.challenges
+  });
+}
+
+function fitNameSize(el, ctx, hi) {
+  const text = (el.textContent || '').trim();
+  if (!text) return hi;
+  const cs = getComputedStyle(el);
+  const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const maxW = el.clientWidth - pad;
+  if (maxW <= 1) return hi;
+  const family = cs.fontFamily;
+  const weight = cs.fontWeight;
+  let lo = 10, best = 10, top = hi;
+  while (top - lo > 0.2) {
+    const mid = (lo + top) / 2;
+    ctx.font = weight + ' ' + mid + 'px ' + family;
+    if (ctx.measureText(text).width <= maxW) { best = mid; lo = mid; }
+    else top = mid;
+  }
+  return best;
+}
+function fitHeroNamePlates() {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  document.querySelectorAll('.mvc-row').forEach(row => {
+    const plates = [...row.querySelectorAll('.mvc-card .mvc-plate')];
+    if (!plates.length) return;
+    let shared = 26;
+    plates.forEach(el => { shared = Math.min(shared, fitNameSize(el, ctx, 26)); });
+    plates.forEach(el => {
+      el.style.fontSize = shared + 'px';
+      el.style.textOverflow = 'clip';
+    });
+  });
+}
+function scheduleFitHeroNames() {
+  requestAnimationFrame(() => requestAnimationFrame(fitHeroNamePlates));
+}
+window.addEventListener('resize', scheduleFitHeroNames);
+
+let lastVisualSig = '';
 function renderScene(scene) {
+  const sig = sceneVisualSig(scene);
+  if (sig === lastVisualSig) return;
+  lastVisualSig = sig;
   document.getElementById('displayEmpty').classList.toggle('hidden', !!scene);
   document.getElementById('locationsRow').classList.toggle('hidden', !scene);
   if (!scene) {
     document.getElementById('displaySceneName').textContent = 'No active scene';
-    document.getElementById('displayDifficulty').textContent = '';
     document.getElementById('displayTrackerRow').innerHTML = '';
     document.getElementById('displayChallenges').innerHTML = '';
-    const logEl = document.getElementById('displayActivityLog');
-    if (logEl) logEl.innerHTML = '';
     const envEl = document.getElementById('displayEnvironment');
     if (envEl) envEl.innerHTML = '';
     return;
   }
   document.getElementById('displaySceneName').textContent = scene.name;
-  document.getElementById('displayDifficulty').textContent = scene.difficulty;
   document.getElementById('displayTrackerRow').innerHTML = trackerStarsHtml(scene.tracker);
 
   const envEl = document.getElementById('displayEnvironment');
@@ -87,59 +169,62 @@ function renderScene(scene) {
   }
 
   const row = document.getElementById('locationsRow');
-  row.innerHTML = '';
-  scene.locations.forEach(loc => {
-    const col = document.createElement('div');
-    col.className = 'location-col';
-    if (loc.background) {
-      col.style.backgroundImage = `linear-gradient(rgba(11,13,18,0.55),rgba(11,13,18,0.75)), url('/api/backgrounds/${encodeURIComponent(loc.background)}')`;
-      col.style.backgroundSize = 'cover';
-      col.style.backgroundPosition = 'center';
-    }
-    const tokensHtml = scene.tokens.filter(t => t.locationId === loc.id).map(t => renderTokenReadOnly(t, scene)).join('')
-      || '<div class="location-empty-hint">&nbsp;</div>';
-    col.innerHTML = `<div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
-      <div class="location-body">${tokensHtml}</div>`;
-    row.appendChild(col);
-  });
+  const locs = scene.locations || [];
+  const ko = scene.tokens.filter(t => t.ko);
+  const at = (locId) => scene.tokens.filter(t => !t.ko && (t.locationId || '') === (locId || ''));
+  const side = (label, cls, tokens) => `
+    <div class="mvc-side ${cls}">
+      <div class="mvc-side-label">${label}</div>
+      <div class="mvc-row">${tokens.map(t => renderFighterCard(t, scene)).join('') || '<div class="mvc-empty">—</div>'}</div>
+    </div>`;
+  row.innerHTML = locs.map(loc => {
+    const here = at(loc.id);
+    const heroes = here.filter(t => t.kind === 'hero');
+    const enemies = sortEnemyTokens(here.filter(t => t.kind === 'villain' || t.kind === 'lieutenant' || t.kind === 'minion'));
+    return `<section class="location-block">
+      <div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
+      <div class="mvc-stage">
+        ${side('HEROES', 'heroes', heroes)}
+        ${side('VILLAINS', 'villains', enemies)}
+      </div>
+    </section>`;
+  }).join('') + (ko.length ? `<div class="mvc-ko">Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');
+  scheduleFitHeroNames();
 
   const chalEl = document.getElementById('displayChallenges');
   const visible = scene.challenges || [];
-  chalEl.innerHTML = visible.length === 0 ? '' : visible.map(c => `
+  if (!visible.length) { chalEl.innerHTML = ''; }
+  else {
+    const pathRows = visible.flatMap(c => (c.paths || []).filter(p => !p.hidden)).map(p => {
+      const outcome = pathDisplayOutcome(p);
+      const titleCls = outcome === 'success' ? ' challenge-success-title' : '';
+      const badge = outcome === 'fail'
+        ? '<span class="challenge-outcome fail">Fail</span>'
+        : outcome === 'success'
+          ? '<span class="challenge-outcome success">Success</span>'
+          : '';
+      return `<div class="challenge-path-row">
+        <span class="challenge-path-label${titleCls}">${escHtml(p.label)}</span>
+        ${badge}
+      </div>`;
+    }).join('');
+    const solutions = visible.filter(c => !c.hidden && c.solution)
+      .map(c => `<div class="challenge-path-row"><em>${escHtml(c.solution)}</em></div>`).join('');
+    chalEl.innerHTML = `
     <div class="challenge-board-card">
       <div class="challenge-board-top">
-        <span class="challenge-board-title">${escHtml(c.title)}</span>
-        <span class="token-type-chip challenge-type-chip">${c.type}</span>
+        <span class="challenge-board-title">Challenge(s)</span>
       </div>
-      ${c.paths.map(p => `<div class="challenge-path-row"><span>${escHtml(p.label)}</span><span class="counter-value">${p.successesMarked} / ${p.successesNeeded}</span></div>`).join('')}
-      ${c.type === 'Timed' && c.timerMode === 'turns' ? `<div class="challenge-path-row"><span>Turns remaining</span><span class="counter-value">${c.timerTurnsRemaining}</span></div>` : ''}
-      ${!c.hidden && c.solution ? `<div class="challenge-path-row"><em>${escHtml(c.solution)}</em></div>` : ''}
-    </div>`).join('');
-
-  renderActivityLog(scene);
+      ${pathRows}${solutions}
+    </div>`;
+  }
 }
 
-// Player Display gets the FULL feed (actor + target + result + dice values) --
-// not redacted -- matching the GM Console's own renderActivityLog(), duplicated
-// here per this project's established app.js/display.js duplication pattern.
-function renderActivityLog(scene) {
-  const el = document.getElementById('displayActivityLog');
-  if (!el) return;
-  const log = (scene && scene.activityLog) || [];
-  if (!log.length) { el.innerHTML = '<h3 class="sidebar-heading">Activity Log</h3><p class="empty-hint">Nothing has happened yet.</p>'; return; }
-  const recent = log.slice(-200).slice().reverse();
-  let html = '<h3 class="sidebar-heading">Activity Log</h3><div class="activity-log-list">';
-  recent.forEach(e => {
-    const who = e.actor ? escHtml(e.actor.name) : '';
-    const whom = e.target ? ' → ' + escHtml(e.target.name) : '';
-    let diceStr = '';
-    if (e.details && (e.details.min != null || e.details.mid != null || e.details.max != null)) {
-      diceStr = ` <span class="activity-log-dice">(min ${e.details.min}, mid ${e.details.mid}, max ${e.details.max})</span>`;
-    }
-    html += `<div class="activity-log-entry"><span class="activity-log-action">${escHtml(e.action)}</span>: ${who}${whom} — ${escHtml(e.result)}${diceStr}</div>`;
-  });
-  html += '</div>';
-  el.innerHTML = html;
+function pathDisplayOutcome(p) {
+  if (p && p.failed) return 'fail';
+  const need = Math.max(1, Number(p && p.successesNeeded) || 1);
+  const marked = Number(p && p.successesMarked) || 0;
+  return marked >= need ? 'success' : '';
 }
 
 const GYRO_RANK = { green: 3, yellow: 2, red: 1, out: 0 };
@@ -177,7 +262,10 @@ function countBoardStateFor(type, token, scene) {
   if (type === 'minions') return scene.tokens.filter(t => (t.kind === 'minion' || t.kind === 'lieutenant') && !t.ko).length;
   if (type === 'villains') return scene.tokens.filter(t => t.kind === 'villain' && t.id !== token.id).length;
   if (type === 'opponents') return scene.tokens.filter(t => t.kind === 'hero' && t.locationId === token.locationId).length;
-  if (type === 'heroPenalties') return scene.tokens.filter(t => t.kind === 'hero' && (t.tags || []).length > 0).length;
+  if (type === 'heroPenalties') {
+    const hit = new Set(liveMods(scene).filter(m => m.kind === 'hinder').map(m => m.targetId));
+    return scene.tokens.filter(t => t.kind === 'hero' && hit.has(t.id)).length;
+  }
   return null;
 }
 function computeVillainStatus(villainRow, token, scene) {
@@ -203,51 +291,55 @@ function computeVillainStatus(villainRow, token, scene) {
   return { die: villainRow.Status1Die || '', source: '' };
 }
 
+function byName(a, b) {
+  return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+}
+function dieSize(t) {
+  return Number(t.currentDie) || 0;
+}
+function villainMaxHealth(t) {
+  const row = libVillains.find(v => v.Slug === t.slug) || {};
+  return Number(row.MaxHealth) || Number(t.maxHealth) || 0;
+}
+function sortEnemyTokens(tokens) {
+  const villains = tokens.filter(t => t.kind === 'villain')
+    .sort((a, b) => villainMaxHealth(b) - villainMaxHealth(a) || byName(a, b));
+  const lieutenants = tokens.filter(t => t.kind === 'lieutenant')
+    .sort((a, b) => dieSize(b) - dieSize(a) || byName(a, b));
+  const minions = tokens.filter(t => t.kind === 'minion')
+    .sort((a, b) => dieSize(b) - dieSize(a) || byName(a, b));
+  return villains.concat(lieutenants, minions);
+}
+
 function backgroundUrl(key) {
-  return `/api/backgrounds/${encodeURIComponent(key)}?t=${Date.now()}`;
+  return `/api/backgrounds/${encodeURIComponent(key)}`;
 }
 function portraitKey(kind, slug) {
   const pk = kind === 'hero' ? 'hero' : kind === 'villain' ? 'villain' : 'minion';
   return `portrait-${pk}-${slug}`;
 }
 
-function renderTokenReadOnly(t, scene) {
-  let body = `<div class="token-top">
-      <div class="token-top-left">
-        <img class="token-portrait" src="${backgroundUrl(portraitKey(t.kind, t.slug))}" onerror="this.style.display='none'">
-        <div class="token-name">${escHtml(t.name)}</div>
-      </div>
-      <span class="token-type-chip ${t.kind}">${t.kind === 'hero' ? 'Hero' : t.kind === 'villain' ? 'Villain' : t.kind}</span></div>`;
-
+function renderFighterCard(t, scene) {
+  let meter = '';
   if (t.kind === 'hero') {
     const row = libHeroes.find(h => h.Slug === t.slug) || {};
     const maxHealth = Number(row.MaxHealth) || t.maxHealth || 20;
     const bandInfo = computeHeroStatus(maxHealth, t.currentHealth, scene);
     const pct = Math.max(0, Math.min(100, (t.currentHealth / maxHealth) * 100));
-    const bandKey = bandInfo.band === 'out' ? null : (bandInfo.band.charAt(0).toUpperCase() + bandInfo.band.slice(1));
-    const statusDie = bandKey ? (row[bandKey + 'StatusDie'] || '') : '';
-    const statusBlock = bandInfo.band === 'out'
-      ? `<div class="die-row"><span class="die-row-label">OUT — Out ability only</span></div>`
-      : (statusDie
-          ? `<div class="die-row"><span class="die-badge ${statusDie}">${statusDie}</span><span class="die-row-label">${bandInfo.band.toUpperCase()} Status</span></div>`
-          : '');
-    body += `<div class="health-wrap"><div class="health-bar-track"><div class="health-bar-fill ${bandInfo.band}" style="width:${pct}%"></div></div>
-      <div class="health-readout"><span>${bandInfo.band.toUpperCase()}</span></div>${statusBlock}</div>`;
+    meter = `<div class="health-bar-track"><div class="health-bar-fill ${bandInfo.band}" style="width:${pct}%"></div></div>`;
   } else if (t.kind === 'villain') {
     const row = libVillains.find(v => v.Slug === t.slug) || {};
     const maxHealth = Number(row.MaxHealth) || t.maxHealth || 20;
     const band = villainBand(row, t.currentHealth);
     const pct = Math.max(0, Math.min(100, (t.currentHealth / maxHealth) * 100));
-    const status = computeVillainStatus(row, t, scene);
-    body += `<div class="health-wrap"><div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div></div>
-      <div class="die-row"><span class="die-badge ${status.die || 'd8'}">${status.die || '?'}</span>${status.source ? `<span class="die-row-label">${escHtml(status.source)}</span>` : ''}</div>`;
+    meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
   }
-  if (t.kind === 'minion' || t.kind === 'lieutenant') {
-    body += t.ko
-      ? `<div class="die-row"><span class="die-badge ko">KO</span><span class="die-row-label">Defeated</span></div>`
-      : `<div class="die-row"><span class="die-badge d${t.currentDie}">d${t.currentDie}</span></div>`;
-  }
-  return `<div class="token">${body}</div>`;
+  return `<div class="mvc-card ${t.kind}">
+    <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
+    <div class="mvc-plate">${escHtml(t.name)}</div>
+    ${meter}
+    ${bhdRowHtml(t, scene)}
+  </div>`;
 }
 
 async function poll() {

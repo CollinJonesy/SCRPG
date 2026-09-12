@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Minion / Lieutenant Builder</title>
+<style>
+  :root{--ink:#1a1a2e;--card:#fff;--bg:#eef1f6;--line:#d4d9e3;--accent:#6d28d9;}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0}
+  header{background:linear-gradient(120deg,#4c1d95,#7c3aed);color:#fff;padding:16px 22px}
+  header h1{margin:0;font-size:1.35rem}
+  header p{margin:4px 0 0;opacity:.9;font-size:.85rem}
+  .wrap{max-width:960px;margin:0 auto;padding:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
+  input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  textarea{min-height:80px}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer}
+  .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
+  .ghost.sel{background:var(--accent);color:#fff}
+  .tiny{padding:6px 8px;font-size:.8rem}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .hidden{display:none}
+  table.land{width:100%;border-collapse:collapse;font-size:.86rem}
+  table.land th,table.land td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+  table.land tr{cursor:pointer}
+  table.land tr:hover{background:#f3e8ff}
+  .muted{color:#888;font-size:.8rem}
+  .ok{color:#2e7d32}
+  .issue-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-weight:400}
+  .issue-row input{width:auto}
+  .ab-card{border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0}
+  .perhero-row{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0;font-weight:400}
+  .perhero-row label{display:flex;gap:6px;align-items:center;font-weight:400;margin:0}
+  .perhero-row input{width:auto}
+</style>
+</head>
+<body>
+<header>
+  <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#e9d5ff;font-size:.8rem;text-decoration:none">← All builders</a></p>
+  <h1>Minion / Lieutenant Builder</h1>
+  <p>Same landing table as Villains: All / Custom / Premade, then edit the row.</p>
+</header>
+<div class="wrap">
+  <div id="landing" class="panel">
+    <div class="actions" style="margin-top:0">
+      <button class="btn" type="button" onclick="startNew()">+ New</button>
+      <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+    </div>
+    <p class="muted" id="landEmpty">Loading…</p>
+    <table class="land hidden" id="landTable">
+      <thead><tr><th>Name</th><th>Type</th><th>Die</th><th>Faction</th><th>Origin</th></tr></thead>
+      <tbody id="landBody"></tbody>
+    </table>
+  </div>
+  <div id="form" class="panel hidden">
+    <div class="actions" style="margin-top:0"><button class="ghost tiny" type="button" onclick="showLanding()">← List</button></div>
+    <label>Name</label><input id="name">
+    <label>Slug</label><input id="slug" placeholder="auto from name">
+    <label>Type</label>
+    <select id="type" onchange="onTypeChange()"><option>Minion</option><option>Lieutenant</option></select>
+    <label>Die</label>
+    <select id="die"></select>
+    <div id="perHeroWrap">
+      <label>Per Hero Ⓗ</label>
+      <div class="perhero-row">
+        <label><input type="checkbox" class="perhero" value="0.5" onchange="setPerHero('0.5')"> 1/2 Ⓗ</label>
+        <label><input type="checkbox" class="perhero" value="1" onchange="setPerHero('1')"> 1 Ⓗ</label>
+        <label><input type="checkbox" class="perhero" value="2" onchange="setPerHero('2')"> 2 Ⓗ</label>
+      </div>
+    </div>
+    <label>Faction</label><input id="faction" placeholder="Aliens, Citizens, etc.">
+    <label>Description</label><textarea id="description"></textarea>
+    <label>Abilities</label>
+    <div id="abList"></div>
+    <button class="ghost tiny" type="button" onclick="addAbility()">+ Ability</button>
+    <label>Tactics</label><textarea id="tactics"></textarea>
+    <label>Appears in Collections</label>
+    <select id="collPick" onchange="fillAppearsBox()"><option value="">Choose a collection…</option></select>
+    <div id="issueBox" class="muted">Choose a collection to see its Issues.</div>
+    <div class="actions">
+      <button class="btn" type="button" onclick="saveRow()">Save to Library</button>
+      <button class="ghost" type="button" onclick="showLanding()">Cancel</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+</div>
+<script>
+let landMeta=[], originFilter='all', editing=null, headers=[], issueIndex=[], collections=[], pickedIssues=[], abilities=[];
+const MINION_DICE=['d4','d6','d8','d10','d12'];
+const LT_DICE=['d6','d8','d10','d12'];
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function slugify(n){return (n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'minion';}
+function parseRow(line){
+  const cells=[], cur={v:'',q:false};
+  for (const ch of line+'\0'){
+    if (ch==='"'){cur.q=!cur.q;continue;}
+    if ((ch===','||ch==='\0')&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+    cur.v+=ch;
+  }
+  return cells;
+}
+function setOrigin(o){
+  originFilter=o;
+  document.querySelectorAll('.origin-btn').forEach(b=>b.classList.toggle('sel', b.dataset.origin===o));
+  renderLanding();
+}
+function showLanding(){ document.getElementById('landing').classList.remove('hidden'); document.getElementById('form').classList.add('hidden'); loadLanding(); loadAppears(); }
+function selectedIssues(){ return pickedIssues.slice(); }
+function fillAppearsBox(){
+  const el=document.getElementById('issueBox');
+  const sel=document.getElementById('collPick');
+  if (!collections.length){ el.innerHTML='No collections yet — use Collections on the Board.'; return; }
+  const slug=sel.value;
+  if (!slug){ el.innerHTML='Choose a collection to see its Issues.'; return; }
+  const coll=collections.find(c=>c.slug===slug)||{};
+  const slugs=coll.issueSlugs||[];
+  if (!slugs.length){ el.innerHTML='No issues in this collection.'; return; }
+  el.innerHTML=slugs.map(s=>{
+    const i=issueIndex.find(x=>x.slug===s)||{slug:s,name:s};
+    return `<div class="issue-row"><span>${esc(i.name)}</span><input type="checkbox" value="${esc(s)}" ${pickedIssues.includes(s)?'checked':''} onchange="togglePicked(this)"></div>`;
+  }).join('');
+}
+function togglePicked(cb){
+  if (cb.checked){ if (!pickedIssues.includes(cb.value)) pickedIssues.push(cb.value); }
+  else pickedIssues=pickedIssues.filter(s=>s!==cb.value);
+}
+async function loadAppears(){
+  collections=await fetch('/api/collections').then(r=>r.json()).catch(()=>[])||[];
+  const il=await fetch('/api/issues').then(r=>r.json()).catch(()=>[]);
+  issueIndex=await Promise.all((il||[]).map(async i=>{
+    const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>({}));
+    return {slug:i.slug, name:i.name||i.slug, minionSlugs: full.minionSlugs||[]};
+  }));
+  const sel=document.getElementById('collPick');
+  const keep=sel.value;
+  sel.innerHTML='<option value="">Choose a collection…</option>'+collections.map(c=>`<option value="${esc(c.slug)}">${esc(c.name||c.slug)}</option>`).join('');
+  sel.value=keep;
+  fillAppearsBox();
+}
+function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }
+function onTypeChange(){
+  const type=document.getElementById('type').value;
+  const dice=type==='Lieutenant'?LT_DICE:MINION_DICE;
+  const dieEl=document.getElementById('die');
+  const cur=dieEl.value;
+  dieEl.innerHTML=dice.map(d=>`<option ${d===cur?'selected':''}>${d}</option>`).join('');
+  if (![...dieEl.options].some(o=>o.value===cur)) dieEl.value=type==='Lieutenant'?'d8':'d8';
+  document.getElementById('perHeroWrap').classList.toggle('hidden', type==='Lieutenant');
+  if (type==='Lieutenant') setPerHero('');
+}
+function setPerHero(v){
+  document.querySelectorAll('.perhero').forEach(c=>{ c.checked = v!=='' && c.value===v; });
+}
+function currentPerHero(){
+  const on=[...document.querySelectorAll('.perhero')].find(c=>c.checked);
+  return on?on.value:'';
+}
+function addAbility(name, text){
+  abilities.push({name:name||'', text:text||''});
+  renderAbilities();
+}
+function removeAbility(i){ abilities.splice(i,1); renderAbilities(); }
+function renderAbilities(){
+  const el=document.getElementById('abList');
+  if (!abilities.length){ el.innerHTML='<p class="muted">No abilities yet.</p>'; return; }
+  el.innerHTML=abilities.map((a,i)=>`<div class="ab-card">
+    <label>Ability Name</label><input value="${esc(a.name)}" oninput="abilities[${i}].name=this.value">
+    <label>Description</label><textarea oninput="abilities[${i}].text=this.value">${esc(a.text)}</textarea>
+    <button class="ghost tiny" type="button" onclick="removeAbility(${i})">Remove</button>
+  </div>`).join('');
+}
+async function loadLanding(){
+  const csvText=await fetch('/api/csv/minions').then(r=>r.text());
+  const lines=csvText.trim().split(/\r?\n/);
+  headers=parseRow(lines[0]||'');
+  const rows=lines.slice(1).map(l=>{const c=parseRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).filter(r=>r.Slug);
+  landMeta=await Promise.all(rows.map(async r=>{
+  const md=await fetch('/api/md/minions/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
+  return {...r, origin: (md||'').includes('## Builder') ? 'custom' : 'premade', md};
+  }));
+  renderLanding();
+}
+function renderLanding(){
+  const empty=document.getElementById('landEmpty'), table=document.getElementById('landTable'), body=document.getElementById('landBody');
+  let rows=landMeta;
+  if (originFilter!=='all') rows=rows.filter(r=>r.origin===originFilter);
+  if (!landMeta.length){ empty.classList.remove('hidden'); empty.textContent='No minions or lieutenants in this campaign yet.'; table.classList.add('hidden'); return; }
+  if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No rows match this filter.'; table.classList.add('hidden'); return; }
+  empty.classList.add('hidden'); table.classList.remove('hidden');
+  body.innerHTML=rows.map(r=>`<tr onclick="editRow('${esc(r.Slug)}')"><td>${esc(r.Name)}</td><td>${esc(r.Type)}</td><td>${esc(r.Die)}</td><td>${esc(r.Faction)}</td><td>${esc(r.origin)}</td></tr>`).join('');
+}
+function startNew(){
+  editing=null;
+  document.getElementById('name').value='';
+  document.getElementById('slug').value='';
+  document.getElementById('type').value='Minion';
+  document.getElementById('faction').value='';
+  document.getElementById('description').value='';
+  document.getElementById('tactics').value='';
+  document.getElementById('msg').textContent='';
+  abilities=[]; renderAbilities();
+  pickedIssues=[];
+  document.getElementById('collPick').value='';
+  setPerHero('1');
+  onTypeChange();
+  fillAppearsBox();
+  showForm();
+}
+function sectionText(md, heading){
+  const re=new RegExp('##\\\\s+'+heading+'\\\\s*\\n([\\s\\S]*?)(?=\\n##\\\\s+|$)','i');
+  const m=md.match(re);
+  return m?m[1].replace(/^_None yet\\._\\s*/,'').trim():'';
+}
+async function editRow(slug){
+  const r=landMeta.find(x=>x.Slug===slug); if(!r) return;
+  editing=slug;
+  document.getElementById('name').value=r.Name||'';
+  document.getElementById('slug').value=slug;
+  document.getElementById('type').value=r.Type||'Minion';
+  document.getElementById('faction').value=r.Faction||'';
+  const md=r.md||await fetch('/api/md/minions/'+encodeURIComponent(slug)).then(x=>x.ok?x.text():'');
+  let desc='', tac='', abs=[];
+  try{
+    const jm=md.match(/## Builder[\\s\\S]*?```json\\s*([\\s\\S]*?)```/);
+    if (jm){
+      const st=JSON.parse(jm[1]);
+      abs=(st.abilities||[]).map(a=>({name:a.name||'', text:a.text||a.description||''}));
+    }
+  }catch(e){}
+  if (!abs.length){
+    const re=/###\\s*\\[[ARI?]\\]\\s*(?:\\[[^\\]]*\\]\\s*)?\"([^\"]+)\"\\s*\\n([\\s\\S]*?)(?=\\n###|\\n##\\s+|$)/g;
+    let m; while((m=re.exec(md))) abs.push({name:m[1], text:m[2].trim()});
+  }
+  const d=md.match(/## Description\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)/i);
+  const t=md.match(/## Tactics\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)/i);
+  desc=d?d[1].replace(/^_None yet\\._\\s*/,'').trim():'';
+  tac=t?t[1].replace(/^_None yet\\._\\s*/,'').trim():'';
+  if (!desc && !tac && !abs.length) desc=md.replace(/^#.*\\n+/,'').replace(/## Builder[\\s\\S]*$/,'').trim();
+  document.getElementById('description').value=desc;
+  document.getElementById('tactics').value=tac;
+  abilities=abs; renderAbilities();
+  document.getElementById('msg').textContent='';
+  pickedIssues=issueIndex.filter(i=>(i.minionSlugs||[]).includes(slug)).map(i=>i.slug);
+  const home=collections.find(c=>(c.issueSlugs||[]).some(s=>pickedIssues.includes(s)));
+  document.getElementById('collPick').value=home?home.slug:'';
+  onTypeChange();
+  document.getElementById('die').value=(r.Die||'d8');
+  setPerHero(r.Type==='Lieutenant'?'':(r.PerHero||'1'));
+  fillAppearsBox();
+  showForm();
+}
+async function saveRow(){
+  const name=document.getElementById('name').value.trim();
+  if(!name){ document.getElementById('msg').textContent='Name required.'; return; }
+  const slug=editing || document.getElementById('slug').value.trim() || slugify(name);
+  const die=document.getElementById('die').value;
+  const type=document.getElementById('type').value;
+  const faction=document.getElementById('faction').value.trim();
+  const description=document.getElementById('description').value.trim();
+  const tactics=document.getElementById('tactics').value.trim();
+  const perHero=type==='Lieutenant'?'':(currentPerHero()||'1');
+  const res=await fetch('/api/builder/minion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,slug,type,die,faction,description,tactics,perHero,abilities})});
+  const j=await res.json().catch(()=>({}));
+  if(!res.ok){ document.getElementById('msg').textContent=j.error||'Save failed'; return; }
+  const saved=j.slug||slug;
+  for (const i of issueIndex){
+    const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>null);
+    if (!full) continue;
+    const set=new Set(full.minionSlugs||[]);
+    if (pickedIssues.includes(i.slug)) set.add(saved); else set.delete(saved);
+    full.minionSlugs=[...set];
+    if (!Array.isArray(full.villainSlugs)) full.villainSlugs=[];
+    if (!Array.isArray(full.heroSlugs)) full.heroSlugs=[];
+    if (!Array.isArray(full.sceneSlugs)) full.sceneSlugs=[];
+    await fetch('/api/issues/'+encodeURIComponent(i.slug),{method:'PUT', body:JSON.stringify(full,null,2)});
+  }
+  document.getElementById('msg').innerHTML='<span class="ok">Saved '+esc(saved)+'</span>';
+  showLanding();
+}
+loadLanding();
+loadAppears();
+</script>
+</body>
+</html>

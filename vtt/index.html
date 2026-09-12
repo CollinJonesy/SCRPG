@@ -16,10 +16,10 @@
   </div>
   <nav class="view-tabs" role="tablist">
     <button class="tab-btn active" data-view="board" role="tab">Board</button>
-    <button class="tab-btn" data-view="scenes" role="tab">Scenes</button>
-    <button class="tab-btn" data-view="issues" role="tab">Issues</button>
+    <button class="tab-btn" data-view="collections" role="tab">Collections</button>
     <button class="tab-btn" data-view="library" role="tab">Library</button>
     <button class="tab-btn" data-view="rules" role="tab">Rules</button>
+    <button class="tab-btn" data-view="builder" role="tab">Build</button>
   </nav>
   <div class="folder-status">
     <span id="folderLabel" class="folder-label">Connecting…</span>
@@ -29,13 +29,16 @@
 
 <main id="boardView" class="view">
   <div id="boardEmptyState" class="empty-hint" style="padding:40px 0;text-align:center;">
-    No scene loaded. Go to <b>Scenes</b>, build one, and click "Load to Board".
+    No scene loaded. Go to <b>Collections</b>, open a scene, and click "Load to Board".
   </div>
 
   <div id="boardContent" class="hidden">
     <div class="board-scene-header">
       <div>
         <h2 id="boardSceneName" class="board-scene-name"></h2>
+        <select id="boardSceneType" class="scene-difficulty-select" onchange="updateSceneField('sceneType', this.value)">
+          <option>Action</option><option>Social</option><option>Montage</option>
+        </select>
         <span id="boardSceneDifficulty" class="token-type-chip villain"></span>
       </div>
       <div class="tracker-controls">
@@ -55,6 +58,7 @@
         </select>
         <select id="spawnSelect"><option value="">Select from Library&hellip;</option></select>
         <button id="spawnBtn" class="btn btn-accent">+ Add to Scene</button>
+        <span id="spawnHint" class="empty-hint"></span>
       </div>
       <div class="scene-actions">
         <button id="clearSceneBtn" class="btn btn-ghost">Clear Tokens</button>
@@ -74,24 +78,27 @@
   </div>
 </main>
 
-<main id="scenesView" class="view hidden">
-  <div id="scenesListView">
-    <button id="newSceneBtn" class="btn btn-accent" style="margin-bottom:14px;">+ New Scene</button>
-    <div id="scenesListCards"></div>
+<main id="collectionsView" class="view hidden">
+  <div id="collectionsListView">
+    <nav class="library-tabs" role="tablist">
+      <button class="coll-tab-btn active" data-coll="collections" role="tab">Collections</button>
+      <button class="coll-tab-btn" data-coll="issues" role="tab">Issues</button>
+      <button class="coll-tab-btn" data-coll="scenes" role="tab">Scenes</button>
+      <button class="coll-tab-btn" data-coll="locations" role="tab">Locations</button>
+    </nav>
+    <div class="lib-panel-toolbar">
+      <button id="collAddRowBtn" class="btn btn-accent">+ Add Row</button>
+      <select id="collIssueFilter" class="scene-difficulty-select hidden"><option value="all">All issues</option></select>
+      <span id="collSaveStatus" class="save-status">&nbsp;</span>
+    </div>
+    <div id="collCollectionsPanel" class="lib-panel"></div>
+    <div id="collIssuesPanel" class="lib-panel hidden"></div>
+    <div id="collScenesPanel" class="lib-panel hidden"></div>
+    <div id="locationsPanel" class="lib-panel hidden"></div>
   </div>
-  <div id="sceneEditorView" class="hidden"></div>
-</main>
-
-<main id="issuesView" class="view hidden">
-  <div id="issuesListView">
-    <p class="empty-hint" style="max-width:640px;margin-bottom:12px;">
-      An Issue is a session — typically 2-3 Action Scenes plus connecting Social/Montage beats.
-      Impromptu-scene rule of thumb: add 1 challenge, minion group, villain, or minion/lieutenant group per hero in the scene.
-    </p>
-    <button id="newIssueBtn" class="btn btn-accent" style="margin-bottom:14px;">+ New Issue</button>
-    <div id="issuesListCards"></div>
-  </div>
+  <div id="collectionEditorView" class="hidden"></div>
   <div id="issueEditorView" class="hidden"></div>
+  <div id="sceneEditorView" class="hidden"></div>
 </main>
 
 <main id="rulesView" class="view hidden">
@@ -106,6 +113,9 @@
   </div>
 </main>
 
+<main id="builderView" class="view hidden" style="padding:0;height:calc(100vh - 56px);">
+  <iframe id="builderFrame" src="/builder-hub.html" title="Builders" style="width:100%;height:100%;border:0;background:#12121c;"></iframe>
+</main>
 
 <main id="libraryView" class="view hidden">
   <nav class="library-tabs" role="tablist">
@@ -120,6 +130,16 @@
   <div class="lib-panel-toolbar">
     <button id="addRowBtn" class="btn btn-accent">+ Add Row</button>
     <button id="villainRefBtn" class="btn btn-ghost hidden">Approach / Archetype Reference</button>
+    <select id="libIssueFilter" class="scene-difficulty-select"><option value="all">All issues</option></select>
+    <select id="twistSeverityFilter" class="scene-difficulty-select hidden">
+      <option value="all">All severities</option>
+      <option value="Minor">Minor</option>
+      <option value="Major">Major</option>
+      <option value="Any">Any</option>
+    </select>
+    <select id="twistEffectFilter" class="scene-difficulty-select hidden">
+      <option value="all">All effect types</option>
+    </select>
     <span id="saveStatus" class="save-status">&nbsp;</span>
   </div>
 
@@ -205,6 +225,16 @@
       <button id="attackModalClose" class="btn btn-ghost">&times;</button>
     </div>
     <div id="attackModalBody"></div>
+  </div>
+</div>
+
+<div id="modModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modModalTitle">Mod</h3>
+      <button id="modModalClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="modModalBody" style="padding:14px;"></div>
   </div>
 </div>
 
