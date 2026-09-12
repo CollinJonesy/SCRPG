@@ -2451,6 +2451,19 @@ function confirmLieutenantKo(id) {
   t.ko = true; saveSceneDebounced(); renderTokens(); closeAttack();
   logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Defeated', null, `${t.name} defeated`, {});
 }
+function resetLieutenantDice() {
+  if (!state.scene) { toast('Load a scene onto the Board first.'); return; }
+  const lts = (state.scene.tokens || []).filter(t => t.kind === 'lieutenant');
+  if (!lts.length) { toast('No lieutenants on the board.'); return; }
+  lts.forEach(t => {
+    const row = state.minions.find(m => m.Slug === t.slug) || {};
+    t.currentDie = Number((row.Die || 'd8').replace('d', '')) || 8;
+    t.ko = false;
+    logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Reset', null, `${t.name} die reset to d${t.currentDie}`, {});
+  });
+  saveSceneDebounced(); renderTokens();
+  toast(`Reset ${lts.length} lieutenant die${lts.length === 1 ? '' : 's'}.`);
+}
 
 /* ============================================================
    Wiring
@@ -3253,6 +3266,7 @@ async function init() {
     state.scene.tokens = [];
     saveSceneDebounced(); renderTokens();
   });
+  document.getElementById('resetLtDiceBtn').addEventListener('click', resetLieutenantDice);
   document.getElementById('trackerAdvanceBtn').addEventListener('click', () => advanceTracker(1));
   document.getElementById('trackerRetreatBtn').addEventListener('click', () => advanceTracker(-1));
   document.getElementById('rulesSearchInput').addEventListener('input', (e) => renderRulesList(e.target.value));
