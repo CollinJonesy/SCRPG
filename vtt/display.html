@@ -83,14 +83,14 @@
   .empty-display { padding: 8vh 2vw; text-align: center; font-family: var(--font-display); font-size: 3vh; color: var(--text-lo); }
   .mvc-stage {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(11, minmax(0, 1fr));
     gap: 0.7vw;
     align-items: start;
     min-height: 0;
   }
   .mvc-side { min-width: 0; margin: 0; padding: 0; }
   .mvc-side.heroes { grid-column: 1 / span 5; }
-  .mvc-side.villains { grid-column: 6 / span 7; }
+  .mvc-side.villains { grid-column: 6 / span 6; }
   .mvc-side-label {
     font-family: var(--font-display);
     font-size: clamp(16px, 2.4vh, 28px);
@@ -107,7 +107,7 @@
     width: 100%;
   }
   .mvc-side.villains .mvc-row {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
   .mvc-card {
     box-sizing: border-box;
