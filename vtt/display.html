@@ -124,8 +124,8 @@
   }
   .mvc-card.hero { border-color: #2454E8; }
   .mvc-card.villain { border-color: #ff8a8a; }
-  .mvc-card.lieutenant { border-color: #b45309; }
-  .mvc-card.minion { border-color: #e6ff00; }
+  .mvc-card.lieutenant { border-color: #b45309; width: 100%; }
+  .mvc-card.minion { border-color: #e6ff00; width: 100%; }
   .mvc-art { height: 16vh; flex: 1 1 auto; min-height: 9vh; background: #000; overflow: hidden; border: 0.15vh solid #000; }
   .mvc-side.villains .mvc-art { height: 16vh; min-height: 9vh; }
   .mvc-art img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
@@ -150,9 +150,21 @@
     font-size: clamp(13px, 2.1vh, 24px);
   }
   .mvc-card .health-bar-track { height: 1vh; margin: 0.35vh 0 0.45vh; }
-  .mvc-card .bhd-row { margin-top: 0; gap: 0.3vw; }
-  .mvc-card .bhd-stat { cursor: default; padding: 0.35vh 0.15vw; }
-  .mvc-card .bhd-stat span { font-size: clamp(9px, 1.15vh, 14px); font-weight: 800; }
+  .mvc-card .bhd-row { margin-top: 0; gap: 0.25vw; min-width: 0; }
+  .mvc-card .bhd-stat {
+    cursor: default;
+    padding: 0.35vh 0.1vw;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .mvc-card .bhd-stat span {
+    font-size: clamp(6px, 0.85vh, 10px);
+    font-weight: 800;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+  }
   .mvc-card .bhd-stat b { font-size: clamp(14px, 2vh, 22px); }
   .mvc-empty { color: var(--text-lo); font-style: italic; padding: 2vh; font-size: 1.6vh; }
   .mvc-ko { text-align: center; color: var(--text-lo); margin-top: 0.6vh; font-size: 1.4vh; }
