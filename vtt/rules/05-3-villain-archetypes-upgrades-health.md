@@ -66,22 +66,30 @@ updated: 2026-08-24
 **Status:** 0 other villains = d10; 1–2 = d8; 3+ = d6 | **Health:** +10
 **Suggested pairings:** Leech, Relentless, Skilled
 **Role:** Works w/ others but best alone.
+**Abilities (choose 2):** Antisocial Behavior, Best on my Own, Better Them than Me, Singular Strength, Thin the Herd, Worst Case Response.
 
 ## Overlord Archetype
 **Status:** More minions = stronger | **Health:** +15
-**Role:** Mob villain; minions improve position.
+**Role:** Mob villain; minions improve position. Status is manual — fill Status slots directly rather than an auto-counted condition.
+**Abilities (choose 2):** By My Command, Give Me Your Strength, Rapid Deployment, Form Up.
 
 ## Predator Archetype
 **Status:** Fewer opponents = better | **Health:** +15
-**Role:** Most effective 1-on-1.
+**Role:** Most effective 1-on-1. Status is manual — fill Status slots directly rather than an auto-counted condition.
+**Abilities (choose 2):** Surprise Trap, Hazardous Terrain, Hidden Hunter, Hunt the Weak, Stealth Approach, Track my Prey.
 
 ## Squad Archetype
 **Status:** Based on # allies | **Health:** +5
-**Role:** Stronger in groups.
+**Role:** Stronger in groups. Status is manual — fill Status slots directly rather than an auto-counted condition.
+**Abilities (choose 2):** On My Mark, My Allies are my Strength, Press the Advantage, Protect My Allies, Take Point.
 
 ## Titan Archetype
 **Status:** Built-in challenge to reduce status | **Health:** +30
-**Role:** Massive villains; designed for scale.
+**Role:** Massive villains; designed for scale. Status ties to a Scene Challenge instead of a board-state
+count — see the VTT's `resolveChallengeLinkedStatus()` (name a Challenge path to match the villain's
+Status label text, e.g. "Expose a vulnerability (needs 2 successes)", and it auto-resolves once the
+party marks enough successes on that path).
+**Abilities (choose 2):** Crush All Underfoot, Down the Hatch, Foolish Insect, You Are But Gnats to Me, So Easily, The Land Quakes Underfoot.
 
 ---
 

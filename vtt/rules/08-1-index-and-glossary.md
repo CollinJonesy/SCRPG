@@ -64,10 +64,10 @@ Page citations are preserved from the source (they often reference multiple page
 **Hero Points** — pg.14, 31. Earned via playing to Principles and roleplay; max 5 per issue; spent at the start of the next issue as bonuses.
 **Hero Point Bonus** — pg.31. Floating bonuses gained by spending last issue's Hero Points, usable during the issue they're gained.
 **Hero Sheet** — pg.10–13, 292–345, 439. The full record of everything needed to run your hero.
-
-## I
 **Hinder** — pg.19, 26–27. An action to make things harder for a character, resulting in a penalty.
 **Hit the Deck!** — pg.29. A basic Defend reaction to protect yourself, at the cost of a minor twist.
+
+## I
 **Index Cards** — pg.159–160. A recommended GM play aid.
 **Inherent** — pg.12, 45. An ability that's always on, no activation needed.
 **Issue** — pg.8–9, 142. A single play session, usually 2–4 hours.

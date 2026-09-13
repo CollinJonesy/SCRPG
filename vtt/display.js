@@ -51,10 +51,16 @@ function locName(scene, locId) {
 }
 function bhdRowHtml(t, scene) {
   const n = bhdTotals(scene, t);
+  // Hero Health numbers show on Player Display; Villain Health numbers stay hidden
+  // (bar only, via renderFighterCard's meter) — asymmetric on purpose, see CLAUDE.md.
+  const healthCell = t.kind === 'hero'
+    ? `<div class="bhd-stat health"><span>HEALTH</span><b>${Number(t.currentHealth) || 0}</b></div>`
+    : '';
   return `<div class="bhd-row">
     <div class="bhd-stat boost"><span>BOOST</span><b>${n.boost}</b></div>
     <div class="bhd-stat hinder"><span>HINDER</span><b>${n.hinder}</b></div>
     <div class="bhd-stat defend"><span>DEFEND</span><b>${n.defend}</b></div>
+    ${healthCell}
   </div>`;
 }
 
@@ -255,6 +261,9 @@ function guessStatusCountType(label) {
   if (l.includes('opponent') || l.includes('engaged')) return 'opponents';
   if (l.includes('heroes') && l.includes('penalt')) return 'heroPenalties';
   if (l.includes('always') || l.includes('constant')) return 'always';
+  // Villains like Baron Blade ("Inventions") and Ray-Manta ("Mods") track their
+  // OWN accumulated bonuses -- count live boost mods targeting the villain itself.
+  if (l.includes('invention') || /\bmods?\b/.test(l)) return 'ownBonuses';
   return null;
 }
 function countBoardStateFor(type, token, scene) {
@@ -266,6 +275,48 @@ function countBoardStateFor(type, token, scene) {
     const hit = new Set(liveMods(scene).filter(m => m.kind === 'hinder').map(m => m.targetId));
     return scene.tokens.filter(t => t.kind === 'hero' && hit.has(t.id)).length;
   }
+  if (type === 'ownBonuses') return liveMods(scene).filter(m => m.kind === 'boost' && m.targetId === token.id).length;
+  return null;
+}
+// Villains like Ermine track a compound Penalty/Bonus state (not a simple count) --
+// detected generically: any villain whose Status labels mention both "penalty" and
+// "bonus" uses this resolution instead of the numeric-range one below.
+function resolveOwnPenaltyBonusStatus(villainRow, token, scene) {
+  const labels = [1, 2, 3, 4, 5].map(i => villainRow['Status' + i + 'Label'] || '');
+  const hasPattern = labels.some(l => /penalt/i.test(l)) && labels.some(l => /bonus/i.test(l));
+  if (!hasPattern) return null;
+  const mods = liveMods(scene);
+  const hasPenalty = mods.some(m => m.kind === 'hinder' && m.targetId === token.id);
+  const hasBonus = mods.some(m => m.kind === 'boost' && m.targetId === token.id);
+  let idx = -1;
+  if (!hasPenalty) idx = labels.findIndex(l => /no penalt/i.test(l));
+  else if (!hasBonus) idx = labels.findIndex(l => /penalt/i.test(l) && /no bonus/i.test(l));
+  else idx = labels.findIndex(l => /penalt/i.test(l) && /bonus/i.test(l) && !/no bonus/i.test(l));
+  if (idx < 0) return null;
+  const n = idx + 1;
+  return { die: villainRow['Status' + n + 'Die'], source: labels[idx] };
+}
+// Titan-archetype villains (Xxtz'Hulissh-style) tie their Status to Scene Challenge
+// progress -- see the app.js twin of this function for the full rationale.
+function resolveChallengeLinkedStatus(villainRow, token, scene) {
+  if (!scene || !scene.challenges) return null;
+  const labels = [1, 2, 3, 4, 5].map(i => villainRow['Status' + i + 'Label'] || '');
+  const stages = labels.map((l, i) => {
+    const m = l.match(/needs?\s+(\d+)\s+success/i);
+    return m ? { idx: i, needed: Number(m[1]), text: l.replace(/\(.*?\)/g, '').trim() } : null;
+  }).filter(Boolean);
+  if (!stages.length) return null;
+  const allPaths = scene.challenges.flatMap(c => c.paths || []);
+  let best = null;
+  for (const st of stages) {
+    const path = allPaths.find(p => p.label && st.text && p.label.toLowerCase().includes(st.text.toLowerCase()));
+    if (path && (Number(path.successesMarked) || 0) >= st.needed) {
+      if (!best || st.idx > best.idx) best = st; // later stage (by Status slot order) wins, not whichever needs more successes
+    }
+  }
+  if (best) return { die: villainRow['Status' + (best.idx + 1) + 'Die'], source: labels[best.idx] };
+  const baselineIdx = labels.findIndex((l, i) => l && !stages.some(st => st.idx === i));
+  if (baselineIdx >= 0) return { die: villainRow['Status' + (baselineIdx + 1) + 'Die'], source: labels[baselineIdx] };
   return null;
 }
 function computeVillainStatus(villainRow, token, scene) {
@@ -275,6 +326,10 @@ function computeVillainStatus(villainRow, token, scene) {
     const die = { green: villainRow.GreenStatusDie, yellow: villainRow.YellowStatusDie, red: villainRow.RedStatusDie, out: villainRow.RedStatusDie }[band];
     return { die, source: band.toUpperCase() + ' zone' };
   }
+  const pb = resolveOwnPenaltyBonusStatus(villainRow, token, scene);
+  if (pb) return pb;
+  const cl = resolveChallengeLinkedStatus(villainRow, token, scene);
+  if (cl) return cl;
   for (let i = 1; i <= 5; i++) {
     const label = villainRow['Status' + i + 'Label'], die = villainRow['Status' + i + 'Die'];
     if (!label || !die) continue;

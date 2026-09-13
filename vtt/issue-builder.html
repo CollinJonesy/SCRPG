@@ -74,6 +74,7 @@
     <div id="msg"></div>
   </div>
 </div>
+<script src="/collection-picker.js"></script>
 <script>
 let issues=[], villains=[], heroes=[], minions=[], scenes=[], sceneSlugs=[], editing=null, originFilter='all', collections=[];
 let selH=[], selV=[], selM=[];
@@ -87,11 +88,13 @@ function parseCsv(text){
 }
 function parseRow(l){
   const c=[],cur={v:'',q:false};
-  for (const ch of l+'\0'){
-    if (ch==='"'){cur.q=!cur.q;continue;}
-    if ((ch===','||ch==='\0')&&!cur.q){c.push(cur.v);cur.v='';continue;}
+  for (let i=0;i<l.length;i++){
+    const ch=l[i];
+    if (ch==='"'){ if (cur.q && l[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){c.push(cur.v);cur.v='';continue;}
     cur.v+=ch;
   }
+  c.push(cur.v);
   return c;
 }
 function collectionForIssue(issueSlug){
@@ -125,7 +128,7 @@ async function boot(){
   cf.innerHTML='<option value="">All collections</option>'+collections.map(c=>`<option value="${esc(c.slug)}">${esc(c.name||c.slug)}</option>`).join('');
   cf.value=keep;
   const cp=document.getElementById('collPick');
-  cp.innerHTML='<option value="">Choose a collection…</option>'+collections.map(c=>`<option value="${esc(c.slug)}">${esc(c.name||c.slug)}</option>`).join('');
+  fillCollectionSelect(cp, collections, 'Choose a collection…');
   renderList();
 }
 function setOrigin(o){
@@ -170,7 +173,11 @@ function rosterSets(collSlug){
 function startNew(){ editing=null; document.getElementById('name').value=''; document.getElementById('slug').value=''; document.getElementById('notes').value=''; document.getElementById('collPick').value=''; sceneSlugs=[]; selH=[]; selV=[]; selM=[]; fillForm(); showForm(); }
 function showList(){ renderList(); }
 function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }
-function onCollPick(){ fillForm(); }
+async function onCollPick(){
+  const sel=document.getElementById('collPick');
+  await resolveCollectionPick(sel, collections, 'Choose a collection…');
+  fillForm();
+}
 function fillForm(){
   const coll=document.getElementById('collPick').value;
   const box=(id, rows, selected, empty)=>{

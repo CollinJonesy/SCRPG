@@ -124,6 +124,7 @@ STATIC_FILES = {
     '/style.css': ('style.css', 'text/css; charset=utf-8'),
     '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
     '/display.js': ('display.js', 'application/javascript; charset=utf-8'),
+    '/collection-picker.js': ('collection-picker.js', 'application/javascript; charset=utf-8'),
     '/builder.html': ('builder.html', 'text/html; charset=utf-8'),
     '/villain-builder.html': ('villain-builder.html', 'text/html; charset=utf-8'),
     '/builder-hub.html': ('builder-hub.html', 'text/html; charset=utf-8'),

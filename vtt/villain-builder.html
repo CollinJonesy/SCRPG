@@ -189,6 +189,7 @@
 </div>
 </div>
 
+<script src="/collection-picker.js"></script>
 <script>
 const ICONS = ['Attack','Defend','Boost','Hinder','Overcome','Recover'];
 const DICE = ['d4','d6','d8','d10','d12'];
@@ -212,10 +213,11 @@ function setOrigin(o){
 }
 let collections=[], pickedIssues=[];
 function selectedIssues(){ return pickedIssues.slice(); }
-function fillIssueBox(){
+async function fillIssueBox(){
   const el=document.getElementById('issueBox');
   const sel=document.getElementById('collPick');
   if (!sel) return;
+  await resolveCollectionPick(sel, collections, 'Choose a collection…');
   if (!collections.length){ el.innerHTML='No collections yet.'; return; }
   const slug=sel.value;
   if (!slug){ el.innerHTML='Choose a collection to see its Issues.'; return; }
@@ -277,8 +279,9 @@ async function loadCsv(name){
 }
 function parseRow(line){
   const cells=[]; let cur='', q=false;
-  for (const ch of line){
-    if (ch==='"'){ q=!q; continue; }
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (q && line[i+1]==='"'){ cur+='"'; i++; } else { q=!q; } continue; }
     if (ch===',' && !q){ cells.push(cur); cur=''; continue; }
     cur+=ch;
   }
@@ -297,11 +300,7 @@ async function loadLanding(){
   ]);
   collections = cl||[];
   const cp=document.getElementById('collPick');
-  if (cp){
-    const keep=cp.value;
-    cp.innerHTML='<option value="">Choose a collection…</option>'+collections.map(c=>`<option value="${esc(c.slug)}">${esc(c.name||c.slug)}</option>`).join('');
-    cp.value=keep;
-  }
+  if (cp) fillCollectionSelect(cp, collections, 'Choose a collection…');
   issueIndex = await Promise.all((il||[]).map(async i=>{
     const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>({}));
     return {slug:i.slug, name:i.name||i.slug, villainSlugs: full.villainSlugs||[]};

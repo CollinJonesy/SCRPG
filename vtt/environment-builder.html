@@ -75,11 +75,13 @@ function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function slugify(n){return (n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'environment';}
 function parseRow(line){
   const cells=[], cur={v:'',q:false};
-  for (const ch of line+'\0'){
-    if (ch==='"'){cur.q=!cur.q;continue;}
-    if ((ch===','||ch==='\0')&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (cur.q && line[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){cells.push(cur.v);cur.v='';continue;}
     cur.v+=ch;
   }
+  cells.push(cur.v);
   return cells;
 }
 function setOrigin(o){

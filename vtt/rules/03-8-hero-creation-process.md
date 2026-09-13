@@ -35,7 +35,7 @@ This is the actual dependency chain — each step's *output dice* become the *in
 
 ### Step 5 detail — Red Abilities (the Power-gating step you flagged)
 "Choose two Red Abilities. Pick from the list that corresponds with the category of the Power or Quality that you will use for this ability."
-**This confirms the gating mechanic directly:** Red Abilities aren't chosen freely — each one is tied to a specific Power/Quality *category* (e.g., Athletic, Elemental/Energy, Psychic, etc. — the same categories from Powers_and_Qualities.md). You can only pick Red Abilities whose category matches a Power or Quality your hero already has. **The actual per-category Red Ability lists themselves are on pg.106 — not yet transcribed, this is high-priority for the next screenshot batch since it's the exact mechanic you flagged as important.**
+**This confirms the gating mechanic directly:** Red Abilities aren't chosen freely — each one is tied to a specific Power/Quality *category* (e.g., Athletic, Elemental/Energy, Psychic, etc. — the same categories from Powers_and_Qualities.md). You can only pick Red Abilities whose category matches a Power or Quality your hero already has. **The full per-category Red Ability lists are transcribed in `03-5-red-abilities.md`** (also fully implemented in `builder.html`'s `RED_ABILITIES` constant, used by both the Constructed and Free For All builder methods) — this note previously said "not yet transcribed," which was stale.
 
 ### Step 6 detail — Retcon (pick one)
 Confirmed verbatim: "You're almost done — but maybe there's something that's not quiiite right. That's what the retcon (comics parlance for 'retroactive continuity') is for: tweaking a hero's origin story in a subtle way." Options:
@@ -51,7 +51,14 @@ Confirmed verbatim: "You're almost done — but maybe there's something that's n
 > Attack using Robot Horse. Use your Max die. Hinder each nearby opponent with your Min die. After using this ability, you and up to 2 allies may end up anywhere in the scene, even outside of the action.
 
 ### Step 7 — Health formula
-**Health = 8 + (maximum of your Red Status die) + (maximum of your choice of one Athletic Power or Mental Quality, or a d4 if you have none) + (the roll of a d6, or just use 4 if you don't want to roll — choose before rolling)**
+**Health = 8 + (maximum of your Red Status die) + (maximum of your choice of one Athletic Power or Mental Quality, or a d4 if you have none) + (the roll of a d10, or just use 4 if you don't want to roll — choose before rolling)**
+
+**Correction:** this previously said "the roll of a d6," which is wrong — confirmed by checking real
+published Volume1 hero data. Aeon Girl, Bunker, and Legacy's actual recorded MaxHealth values only
+work out if `8 + Red status + Athletic/Mental` leaves a remainder of 7 or 8 to be explained by the
+roll, which a d6 cannot produce under any roll. `builder.html`'s own UI (Step 7's hint text and the
+"Roll d10 or choose 4" label) already said d10 — that was correct all along; this doc's "d6" was the
+error, not the app.
 
 **Health Quick Reference chart** (partial — visible range pg.113, totals 17–40; may extend further, worth confirming):
 | Max Health | Green range | Yellow range | Red range |
@@ -83,7 +90,16 @@ Confirmed verbatim: "You're almost done — but maybe there's something that's n
 
 **Worked example (Time-Slinger):** Christopher looks at Jim's Red status die (d8) and his Athletic powers/Mental qualities, finding Self-Discipline at **d10**. He rolls d6 and gets a 4. Total: **8 + 8 (Red status) + 10 (Self-Discipline) + 4 (rolled) = 30.** He notes Green range 30-23, Yellow 22-12, Red 11-1.
 
-**⚠️ Discrepancy flagged:** Personality.md's worked example records Self-Discipline at **d8**, not d10, from the Reality Shaper archetype step. This Health-step example uses 10 in the formula, implying it had grown to d10 by this point — but no intervening step in our documentation (Red Abilities, Retcon) shows an explicit upgrade to it. Possibly missed in a screenshot, or an "I've Already Got That" upgrade during a step we have less detail on. Worth a direct page check next time you're near pg.112-113 to resolve which is correct.
+**⚠️ Discrepancy — now fully resolved.** The real, published Time-Slinger record (`Volume1/heroes.csv`,
+transcribed from the physical rulebook) confirms **Self-Discipline is d8, not d10** — Personality.md's
+worked example was right, this Health-step example's d10 was wrong. That alone left a 2-point gap
+(`8 + 8 + 8 + 4 = 28`, not his real MaxHealth of 30) — but the actual root cause was the *other* bug on
+this page: the roll is a **d10, not a d6** (see the Health formula correction above, confirmed against
+Aeon Girl/Bunker/Legacy's real numbers, which can't work under a d6 cap at all). With that fixed,
+`8 + 8 (Red) + 8 (Self-Discipline) + 6 (rolled) = 30` matches his real MaxHealth exactly — the worked
+example's "rolls a d6 and gets a 4" was wrong in both the die size AND the specific result; the real
+roll was very likely a 6, not a 4, consistent with everything else now confirmed. No physical-book
+check needed after all — both errors traced back to the same root cause, verified against real data.
 
 ## Dice Assignment Mechanics (applies throughout all steps)
 - Take the dice you just rolled (or would have rolled, constructed method) and assign each to a specific Power or Quality.

@@ -136,9 +136,10 @@
     <div class="methods">
       <div class="mbtn active" id="mConstructed" onclick="setMethod('Constructed')">Constructed Method</div>
       <div class="mbtn stub" id="mGuided" onclick="setMethod('Guided')">Guided Method (soon)</div>
-      <div class="mbtn stub" id="mFree" onclick="setMethod('Free')">Secret 3rd Method (soon)</div>
+      <div class="mbtn" id="mFree" onclick="setMethod('Free')">Free For All</div>
     </div>
     <div class="steps" id="stepbar"></div>
+    <div id="methodNote" class="hint" style="display:none"></div>
     <div id="saveMsg" class="muted" style="margin-top:6px"></div>
   </div>
   <div class="creator-layout">
@@ -239,6 +240,7 @@
   </div>
 </div>
 
+<script src="/collection-picker.js"></script>
 <script>
 /* ============ VERIFIED BOOK DATA (verbatim where quoted; data from PDF text layer) ============ */
 const DICE=["d4","d6","d8","d10","d12"];
@@ -455,6 +457,7 @@ const state={bg:null,ps:null,ar:null,pe:null,reds:[],retcon:null,method:"Constru
   peQual:{}, peCustom:"", peOutBind:"", health:null, abBinds:{}, retconSpec:{}, reqDie:"",
   psReq:{mode:'',die:'',name:''}, arReq:{mode:'',die:'',name:''},
   modPair:null, modD6:[], modGreen:"", modYellow:[], modRed:"", modPowerless:false,
+  freePow:{}, freeQual:{},
   f:{name:"",alias:"",player:"",gender:"",age:"",height:"",eyes:"",hair:"",skin:"",build:"",costume:"",notes:""}};
 const sel={bg:null,ps:null,ar:null,pe:null};
 const die=s=>s?`<span class="die">${s}</span>`:"";
@@ -514,11 +517,13 @@ function parseCsvText(text){
 }
 function parseCsvRow(line){
   const cells=[], cur={v:'',q:false};
-  for (const ch of line+'\0'){
-    if (ch==='"'){cur.q=!cur.q;continue;}
-    if ((ch===','||ch==='\0')&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (cur.q && line[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){cells.push(cur.v);cur.v='';continue;}
     cur.v+=ch;
   }
+  cells.push(cur.v);
   return cells;
 }
 function poolDice(row, prefix){
@@ -580,13 +585,13 @@ function currentPe(){ return (sel.pe!=null && CAT.personalities[sel.pe]) ? CAT.p
 function incomingPsDice(){ const bg=currentBg(); return bg?poolDice(bg,'next_die'):[]; }
 function incomingArDice(){ const ps=currentPs(); return ps?poolDice(ps,'next_die'):[]; }
 function assignedPow(){
-  const o=Object.assign({}, state.psPow||{}, state.arPow||{});
+  const o=Object.assign({}, state.psPow||{}, state.arPow||{}, state.freePow||{});
   (state.modD6||[]).forEach(n=>{ if(n) o[n]='d6'; });
   overlayReqSwap(o, 'power');
   return o;
 }
 function assignedQual(){
-  const o=Object.assign({}, state.bgQual||{}, state.arQual||{}, state.peQual||{});
+  const o=Object.assign({}, state.bgQual||{}, state.arQual||{}, state.peQual||{}, state.freeQual||{});
   overlayReqSwap(o, 'quality');
   return o;
 }
@@ -1278,10 +1283,10 @@ function redEligible(a){
   return true;
 }
 function redCap(){ return state.retcon===6 ? 3 : 2; }
-function renderReds(){
+function renderReds(){ renderRedsShared(redCap()); }
+function renderRedsShared(cap){
   const rl=document.getElementById('redList'); if(!rl) return;
   const elig=RED_ABILITIES.map((a,i)=>({a,i})).filter(x=>redEligible(x.a));
-  const cap=redCap();
   state.reds=state.reds.filter(k=>elig.some(x=>'r'+x.i===k));
   if(!elig.length){
     rl.innerHTML=catKeyHtml()+'<p class="empty-hint">No Red abilities match your assigned powers/qualities yet. Assign dice in steps 1–4.</p>';
@@ -1438,7 +1443,7 @@ function updateSidecar(step){
   const body=document.getElementById('sideBody');
   if (!kicker) return;
   const names=['','Background','Power Source','Archetype','Personality','Red Abilities','Retcon','Health','Finish'];
-  kicker.textContent='Step '+step+' · Constructed';
+  kicker.textContent='Step '+step+' · '+(state.method||'Constructed');
   title.textContent=names[step]||'Hero';
   let html='';
   const bg=currentBg();
@@ -1512,12 +1517,32 @@ savePill.id="saveVttBtn";
 savePill.textContent="Save to VTT + Occidia";
 savePill.onclick=saveToVtt;
 stepBar.appendChild(savePill);
-function setMethod(m){ state.method=m; ["Constructed","Guided","Free"].forEach(x=>document.getElementById("m"+x).classList.toggle("active",x===m));
-  const note=document.getElementById("methodNote"); if(m==="Constructed"){document.querySelectorAll(".panel").forEach(p=>p.classList.remove("hidden"));}
-  else{document.querySelectorAll(".panel[data-step]").forEach(p=>p.classList.add("hidden")); alert((m==="Guided"?"Guided":"Secret 3rd")+" Method is planned but not yet implemented. Constructed Method remains active for now."); setMethod("Constructed");} }
+const FREE_METHOD_NOTE = "Free For All: Background, Power Source, and Archetype are plain dropdowns — a character sheet, not a guided walkthrough. Pick up to 6 Powers and 6 Qualities directly with manual dice. Power Source and Archetype Abilities stay gated to whichever one you picked (same as Constructed), and Red Abilities stay gated by the Powers/Qualities you've assigned — there's just no pick-count cap. Personality, Health, and Retcon work exactly like Constructed Method.";
+function applyMethodUi(m){
+  ["Constructed","Guided","Free"].forEach(x=>{const b=document.getElementById("m"+x); if(b) b.classList.toggle("active",x===m);});
+  const note=document.getElementById("methodNote");
+  if(note){
+    if(m==="Free"){ note.style.display=""; note.textContent=FREE_METHOD_NOTE; }
+    else { note.style.display="none"; note.textContent=""; }
+  }
+  const isFree=(m==="Free");
+  ['bgGrid','psGrid','arGrid'].forEach(id=>{ const g=document.getElementById(id); if(g) g.style.display=isFree?'none':''; });
+  document.querySelectorAll('[data-step="1"] .hint, [data-step="2"] .hint, [data-step="3"] .hint, [data-step="6"] .hint').forEach(h=>{ h.style.display=isFree?'none':''; });
+}
+function setMethod(m){
+  if(m==="Guided"){
+    alert("Guided Method is planned but not yet implemented. Constructed Method remains active for now.");
+    return setMethod("Constructed");
+  }
+  state.method=m;
+  applyMethodUi(m);
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("hidden"));
+  onPick();
+}
 
 /* ============ PICK HANDLERS ============ */
 function onPick(opts){
+  if(state.method==="Free"){ renderPickPanels(); return; }
   if(!(opts&&opts.skipRebuild)){
   rebuildBgQualFromSlots();
   const ps=currentPs();
@@ -1546,6 +1571,7 @@ function onPick(opts){
   renderPickPanels();
 }
 function renderPickPanels(){
+  if(state.method==="Free"){ renderFreeStepPanels(); return; }
   const bg=currentBg();
   if(bg){
     const incoming=poolDice(bg,'next_die').map(d=>die(d)).join(' ');
@@ -1572,6 +1598,19 @@ function renderPickPanels(){
     const el=document.getElementById('arAssign'); if(el) el.innerHTML='';
     document.getElementById("arPick").innerHTML='';
   }
+  renderPeStepShared();
+  renderReds();
+  renderRetconAssign();
+  const catsAvail=RED_CATS.filter(c=>dieInRedCat(c));
+  document.getElementById("redGate").innerHTML=
+    `<div class="gate"><b>Filtered by assigned powers/qualities.</b> Categories with a die: <b>${catsAvail.join(", ")||"NONE"}</b>. Showing only Red abilities you can take (Inherent with no [power]/[quality] need d6+ in that category).</div>`;
+  document.getElementById("redPick").innerHTML = state.reds.length?`<div class="summary"><div class="row"><span>Chosen (${state.reds.length}/${redCap()})</span><span>${state.reds.map(k=>RED_ABILITIES[+k.slice(1)][0]).join(", ")}</span></div></div>`:"";
+  document.getElementById("retconPick").innerHTML = state.retcon!==null?`<div class="summary"><div class="row"><span>Retcon</span><span>${RETCONS[state.retcon]}</span></div></div>`:"";
+  ["pill1","pill2","pill3","pill4"].forEach((p,i)=>{document.getElementById(p).classList.toggle("done",[sel.bg,sel.ps,sel.ar,sel.pe][i]!==null);});
+  const vis=document.querySelector('#wizard [data-step]:not(.hidden)');
+  if(vis) updateSidecar(+vis.dataset.step);
+}
+function renderPeStepShared(){
   const pe=currentPe();
   if(pe){
     const outTxt=pe.out_ability||'';
@@ -1583,13 +1622,123 @@ function renderPickPanels(){
     const el=document.getElementById('peAssign'); if(el) el.innerHTML='';
     document.getElementById("pePick").innerHTML='';
   }
-  renderReds();
+}
+
+/* ============ FREE FOR ALL (3rd Method — character-sheet entry, abilities stay gated) ============ */
+function renderFreeIdentitySelect(el, opts){
+  const wrap=document.createElement('div');
+  const cur=sel[opts.selKey];
+  wrap.innerHTML=`<label>${opts.label}</label><select id="freeSel_${opts.selKey}"><option value="">— none —</option>${opts.list.map((row,i)=>`<option value="${i}" ${cur===i?'selected':''}>${escLand(row.name)}</option>`).join('')}</select>`;
+  el.appendChild(wrap);
+  wrap.querySelector('select').onchange=(e)=>{
+    const i=e.target.value===''?null:+e.target.value;
+    sel[opts.selKey]=i;
+    if(opts.onSet) opts.onSet(i);
+    onPick();
+  };
+}
+function renderFreeSixSlots(kind /* 'pow' | 'qual' */){
+  const map = kind==='pow' ? (state.freePow=state.freePow||{}) : (state.freeQual=state.freeQual||{});
+  const label = kind==='pow' ? 'Power' : 'Quality';
+  const catList = kind==='pow' ? (CAT.powers||[]) : (CAT.qualities||[]);
+  const names = Object.keys(map).slice(0,6);
+  while(names.length<6) names.push('');
+  let html=`<div class="assign-head">${label}s (up to 6)</div><div style="display:flex;flex-direction:column;gap:6px">`;
+  names.forEach((n,idx)=>{
+    html+=`<div class="assign-row">
+      <select class="dq" data-slot-name-${kind}="${idx}" style="flex:2">
+        <option value="">— none —</option>
+        ${catList.map(x=>`<option value="${escLand(x.name)}" ${x.name===n?'selected':''}>${escLand(x.name)}${x.category?' ('+escLand(x.category)+')':''}</option>`).join('')}
+      </select>
+      <select class="dq" data-slot-die-${kind}="${idx}">${['','d4','d6','d8','d10','d12'].map(d=>`<option value="${d}" ${(n && map[n]===d)?'selected':''}>${d||'—'}</option>`).join('')}</select>
+    </div>`;
+  });
+  html+='</div>';
+  const wrap=document.createElement('div');
+  wrap.innerHTML=html;
+  wrap.querySelectorAll(`select[data-slot-name-${kind}]`).forEach(selEl=>{
+    const idx=+selEl.getAttribute(`data-slot-name-${kind}`);
+    selEl.onchange=()=>{
+      const oldName=names[idx];
+      if(oldName) delete map[oldName];
+      const newName=selEl.value;
+      if(newName){
+        const dieSel=wrap.querySelector(`select[data-slot-die-${kind}="${idx}"]`);
+        map[newName]=(dieSel&&dieSel.value)||'d6';
+      }
+      renderPickPanels();
+    };
+  });
+  wrap.querySelectorAll(`select[data-slot-die-${kind}]`).forEach(selEl=>{
+    const idx=+selEl.getAttribute(`data-slot-die-${kind}`);
+    selEl.onchange=()=>{
+      const n=names[idx];
+      if(n) map[n]=selEl.value||'d6';
+      renderPickPanels();
+    };
+  });
+  return wrap;
+}
+function renderFreePrincipleSelect(el, stateKey){
+  if(!el) return;
+  const wrap=document.createElement('div');
+  wrap.innerHTML=`<label>Principle</label>
+    <select id="freePrinciple_${stateKey}"><option value="">— choose one —</option>${principleOptionsGrouped()}</select>`;
+  el.appendChild(wrap);
+  const sel2=wrap.querySelector('select');
+  sel2.value=state[stateKey]||'';
+  if(state[stateKey]){
+    const pr=CAT.principles.find(p=>p.slug===state[stateKey]);
+    if(pr) wrap.insertAdjacentHTML('beforeend', `<div class="hint" style="margin-top:8px"><b>${escLand(pr.name)}</b><br>${pr.roleplay||''}<br><small>Minor: ${pr.minor_twist||''}<br>Major: ${pr.major_twist||''}</small></div>`);
+  }
+  sel2.onchange=()=>{ state[stateKey]=sel2.value; renderPickPanels(); };
+}
+function renderFreeAbilityPicker(el, rows, selectedKey, heading){
+  if(!el) return;
+  const box=document.createElement('div');
+  box.insertAdjacentHTML('beforeend', `<div class="assign-head">${heading}</div>`);
+  el.appendChild(box);
+  renderAbilityPicks(box, rows||[], {g:9999, y:0, same:true, distinct:false, instead:''}, selectedKey);
+}
+function renderFreeStepPanels(){
+  // Step 1 — sheet header: Background dropdown + its Principle, then up to 6 Powers + 6 Qualities.
+  document.getElementById('bgPick').innerHTML=`<div class="summary"><div class="row"><span>Mode</span><span>Free For All — sheet-style entry. Abilities in Steps 2/3/5 stay gated.</span></div></div>`;
+  const bgEl=document.getElementById('bgAssign'); bgEl.innerHTML='';
+  renderFreeIdentitySelect(bgEl, {label:'Background', list:CAT.backgrounds, selKey:'bg'});
+  renderFreePrincipleSelect(bgEl, 'bgPrinciple');
+  bgEl.appendChild(renderFreeSixSlots('pow'));
+  bgEl.appendChild(renderFreeSixSlots('qual'));
+
+  // Step 2 — Power Source dropdown + Abilities gated 100% to that Power Source.
+  const ps=currentPs();
+  document.getElementById('psPick').innerHTML=`<div class="summary"><div class="row"><span>Power Source</span><span>${ps?escLand(ps.name):'none chosen'}</span></div><div class="row"><span>Abilities</span><span>${(state.psAbilities||[]).length?state.psAbilities.map(s=>(CAT.psAbilities.find(a=>a.slug===s)||{}).name||s).join(', '):'none selected'}</span></div></div>`;
+  const psEl=document.getElementById('psAssign'); psEl.innerHTML='';
+  renderFreeIdentitySelect(psEl, {label:'Power Source', list:CAT.powerSources, selKey:'ps', onSet:()=>{ state.psAbilities=[]; }});
+  if(ps) renderFreeAbilityPicker(psEl, abilitiesFor(CAT.psAbilities, ps.slug), 'psAbilities', `${escLand(ps.name)} Abilities — gated to this Power Source. Pick any number.`);
+  else psEl.insertAdjacentHTML('beforeend', '<p class="empty-hint">Choose a Power Source above to see its abilities.</p>');
+
+  // Step 3 — Archetype dropdown + its Principle + Abilities gated 100% to that Archetype.
+  const ar=currentAr();
+  document.getElementById('arPick').innerHTML=`<div class="summary"><div class="row"><span>Archetype</span><span>${ar?escLand(ar.name):'none chosen'}</span></div><div class="row"><span>Abilities</span><span>${(state.arAbilities||[]).length?state.arAbilities.map(s=>(CAT.arAbilities.find(a=>a.slug===s)||{}).name||s).join(', '):'none selected'}</span></div></div>`;
+  const arEl=document.getElementById('arAssign'); arEl.innerHTML='';
+  renderFreeIdentitySelect(arEl, {label:'Archetype', list:CAT.archetypes, selKey:'ar', onSet:()=>{ state.arAbilities=[]; state.arPrinciple=''; }});
+  renderFreePrincipleSelect(arEl, 'arPrinciple');
+  if(ar && ar.slug==='modular') arEl.insertAdjacentHTML('beforeend', '<p class="empty-hint">Modular isn\'t supported in Free For All — pick a different Archetype.</p>');
+  else if(ar) renderFreeAbilityPicker(arEl, abilitiesFor(CAT.arAbilities, ar.slug), 'arAbilities', `${escLand(ar.name)} Abilities — gated to this Archetype. Pick any number.`);
+  else arEl.insertAdjacentHTML('beforeend', '<p class="empty-hint">Choose an Archetype above to see its abilities.</p>');
+
+  // Step 4 — Personality: identical to Constructed Method (book-locked GYRO dice, Out bind-only).
+  renderPeStepShared();
+
+  // Step 5 — Red Abilities: gated by assigned Powers/Qualities exactly like Constructed, no pick cap.
+  document.getElementById('redGate').innerHTML=`<div class="gate"><b>Free For All:</b> gated the same way as Constructed — you need a die in the matching Power/Quality category (Step 1) to unlock a Red ability. No pick-count cap.</div>`;
+  renderRedsShared(Infinity);
+  document.getElementById('redPick').innerHTML=state.reds.length?`<div class="summary"><div class="row"><span>Chosen (${state.reds.length})</span><span>${state.reds.map(k=>RED_ABILITIES[+k.slice(1)][0]).join(', ')}</span></div></div>`:"";
+
+  // Step 6 — Retcon: same mechanism as Constructed. Doesn't matter much here, but not disabled.
   renderRetconAssign();
-  const catsAvail=RED_CATS.filter(c=>dieInRedCat(c));
-  document.getElementById("redGate").innerHTML=
-    `<div class="gate"><b>Filtered by assigned powers/qualities.</b> Categories with a die: <b>${catsAvail.join(", ")||"NONE"}</b>. Showing only Red abilities you can take (Inherent with no [power]/[quality] need d6+ in that category).</div>`;
-  document.getElementById("redPick").innerHTML = state.reds.length?`<div class="summary"><div class="row"><span>Chosen (${state.reds.length}/${redCap()})</span><span>${state.reds.map(k=>RED_ABILITIES[+k.slice(1)][0]).join(", ")}</span></div></div>`:"";
-  document.getElementById("retconPick").innerHTML = state.retcon!==null?`<div class="summary"><div class="row"><span>Retcon</span><span>${RETCONS[state.retcon]}</span></div></div>`:"";
+  document.getElementById('retconPick').innerHTML=state.retcon!==null?`<div class="summary"><div class="row"><span>Retcon</span><span>${RETCONS[state.retcon]}</span></div></div>`:"";
+
   ["pill1","pill2","pill3","pill4"].forEach((p,i)=>{document.getElementById(p).classList.toggle("done",[sel.bg,sel.ps,sel.ar,sel.pe][i]!==null);});
   const vis=document.querySelector('#wizard [data-step]:not(.hidden)');
   if(vis) updateSidecar(+vis.dataset.step);
@@ -1737,71 +1886,6 @@ function loadLS(){ const s=localStorage.getItem("scrpg_hero"); if(!s){alert("No 
   onPick(); document.getElementById("saveMsg").textContent="✅ Loaded saved hero.";
 }
 
-/* ============ FILLABLE PDF ============ */
-/* Fills the OFFICIAL-STYLE fillable sheet (CBattles6's "SCRPG Character Sheet (FF-PP)",
-   which mirrors the published GTG layout). The user supplies the PDF via the file input;
-   we map verified hero data onto its form fields with pdf-lib and download the filled copy. */
-function exportPDF(file){
-  collectF();
-  if(!file){ alert("Click 'Fillable PDF…' and choose the fillable sheet PDF (e.g. SCRPG_Character_Sheet_Fillable.pdf)."); return; }
-  if(typeof PDFLib==="undefined"){ alert("PDF library not loaded (offline?). Use Print → 'Save as PDF' instead."); window.print(); return; }
-  const {PDFDocument}=PDFLib;
-  (async()=>{
-    const bytesArr=new Uint8Array(await file.arrayBuffer());
-    const doc=await PDFDocument.load(bytesArr);
-    const form=doc.getForm();
-    const set=(name,val)=>{ try{ const f=form.getTextField(name); if(f) f.setText(String(val||"")); }catch(e){} };
-    // --- identity ---
-    set("Hero Name",state.f.name||"");
-    set("Alias",state.f.alias||"");
-    set("Player",state.f.player||"");
-    set("Background",sel.bg!==null?BACKGROUNDS[sel.bg][0]:"");
-    set("Power Source",sel.ps!==null?POWER_SOURCES[sel.ps][0]:"");
-    set("Archetype",sel.ar!==null?ARCHETYPES[sel.ar][0]:"");
-    set("Personality",sel.pe!==null?PERSONALITIES[sel.pe][0]:"");
-    if(sel.pe!==null){ set("Status Die G",PERSONALITIES[sel.pe][1]); set("Status Die Y",PERSONALITIES[sel.pe][2]); set("Status Die R",PERSONALITIES[sel.pe][3]);
-      set("Out",PERSONALITIES[sel.pe][4]||""); }
-    // --- powers (ps + ar) with dice ---
-    const powers=[];
-    for(const p in state.psPow) if(state.psPow[p]) powers.push([p,""]); // power-source dice assigned later if any
-    for(const p in state.arPow) if(state.arPow[p]) powers.push([p,""]);
-    // We don't store separate power dice in this app; show power names. (The sheet's Power Die fields
-    // are for the player's rolled dice — left for the player, or fill d? if source implies.)
-    powers.slice(0,6).forEach((pw,i)=>{ set("Powers "+(i+1),pw[0]); });
-    // --- qualities with assigned dice (Step 1 assignment) ---
-    const quals=[];
-    for(const q in state.bgQual) if(state.bgQual[q]) quals.push([q,state.bgQual[q]]);
-    for(const q in state.peQual) if(state.peQual[q]) quals.push([q,""]);
-    quals.slice(0,6).forEach((qd,i)=>{ set("Qualities "+(i+1),qd[0]); set("Quality Die "+(i+1),qd[1]||""); });
-    // --- health zones ---
-    if(state.health){
-      const [tot,g,y,r]=state.health;
-      set("Health Range 1",`Total ${tot}`);
-      set("Health Range 2",`Green ${g}`);
-      set("Health Range 3",`Yellow ${y}`);
-      set("Health Range 4",`Red ${r}`);
-    }
-    // --- retcon / red abilities ---
-    if(state.retcon!==null) set("Reward 1",RETCONS[state.retcon]); // retcon note parked in Reward 1; player may relocate
-    set("Reward 2",state.reds.map(k=>RED_ABILITIES[+k.slice(1)][0]).join("; "));
-    // --- principle (split into two lines) ---
-    const pr=(state.f.principle||"").split(/\n+/);
-    set("Principle 1",pr[0]||""); set("Principle 2",pr.slice(1).join(" "));
-    // --- physical / costume ---
-    set("Gender",state.f.gender||""); set("Age",state.f.age||""); set("Height",state.f.height||"");
-    set("Eyes",state.f.eyes||""); set("Hair",state.f.hair||""); set("Skin",state.f.skin||"");
-    set("Build",state.f.build||"");
-    set("Costume/Equipment",state.f.costume||"");
-    // status icons are glyphs; leave for print. Save filled copy.
-    try{ if(form.flatten) form.flatten(); }catch(e){}
-    const bytes=await doc.save();
-    const blob=new Blob([bytes],{type:"application/pdf"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download=(state.f.name||"scrpg-hero")+"_filled.pdf"; a.click();
-    alert("Filled the official-style sheet with your hero data and downloaded it. Ability-text slots (Name/Type/Text/Icon per status) are left blank for you to write in — the app collects identity, powers, qualities, and health, not ability prose.");
-  })().catch(e=>{ alert("PDF fill error: "+e.message); });
-}
-
 /* ============ INIT ============ */
 onPick(); setMethod("Constructed"); showHeroLanding(); bootCatalogs();
 
@@ -1809,11 +1893,13 @@ let heroLand=[], heroOrigin='all';
 const BOOK_HERO_SLUGS = new Set(['absolute-zero','aeon-girl','bunker','heritage','legacy','muerto','muse','rockstar','tachyon','headlong','wraith','time-slinger']);
 function parseCsvRow(line){
   const cells=[], cur={v:'',q:false};
-  for (const ch of line+'\0'){
-    if (ch==='"'){cur.q=!cur.q;continue;}
-    if ((ch===','||ch==='\0')&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (cur.q && line[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){cells.push(cur.v);cur.v='';continue;}
     cur.v+=ch;
   }
+  cells.push(cur.v);
   return cells;
 }
 function escLand(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -1878,6 +1964,8 @@ function snapshotBuilder(){
     modD6: state.modD6||[], modGreen: state.modGreen||'', modYellow: state.modYellow||[], modRed: state.modRed||'', modPowerless: !!state.modPowerless,
     peCustom: state.peCustom||'', peOutBind: state.peOutBind||'', peQual: state.peQual||{},
     reds: state.reds||[], retcon: state.retcon, retconSpec: state.retconSpec||{}, abBinds: state.abBinds||{}, health: state.health,
+    method: state.method||'Constructed',
+    freePow: state.freePow||{}, freeQual: state.freeQual||{},
     f: Object.assign({}, state.f)
   };
 }
@@ -1890,6 +1978,7 @@ function resetHeroForm(){
   state.peQual={}; state.peCustom=''; state.peOutBind='';
   state.health=null; state.abBinds={}; state.retconSpec={}; state.reds=[]; state.retcon=null;
   state.modPair=null; state.modD6=[]; state.modGreen=''; state.modYellow=[]; state.modRed=''; state.modPowerless=false;
+  state.freePow={}; state.freeQual={};
   state.f={name:'',alias:'',player:'',gender:'',age:'',height:'',eyes:'',hair:'',skin:'',build:'',costume:'',notes:''};
   ['heroName','alias','player','gender','age','height','eyes','hair','skin','build','costume','notes'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
@@ -1929,6 +2018,10 @@ function applyBuilderState(st){
   state.retconSpec=Object.assign({}, st.retconSpec||{});
   state.abBinds=Object.assign({}, st.abBinds||{});
   state.health=st.health||null;
+  state.freePow=Object.assign({}, st.freePow||{});
+  state.freeQual=Object.assign({}, st.freeQual||{});
+  state.method=st.method||'Constructed';
+  applyMethodUi(state.method);
   if(st.f) Object.assign(state.f, st.f);
   const nameEl=document.getElementById('heroName'); if(nameEl) nameEl.value=state.f.name||'';
   ['alias','player','gender','age','height','eyes','hair','skin','build','costume','notes'].forEach(k=>{
@@ -2039,14 +2132,21 @@ async function editHeroRow(slug){
   applyHeroIssues(heroIssueIndex.filter(i=>(i.heroSlugs||[]).includes(slug)).map(i=>i.slug));
   renderBgGrid(); renderPsGrid(); renderArGrid(); renderPeGrid();
   const hasSlots=snap && ((snap.bgSlots||[]).some(Boolean)||(snap.psSlots||[]).some(Boolean)||(snap.arSlots||[]).some(Boolean));
-  onPick(hasSlots?undefined:{skipRebuild:true});
+  // Only re-derive dice from the catalog's fixed pool when the loaded hero has slot
+  // *names* but no actual saved die values (legacy/incomplete data) — otherwise this
+  // would silently overwrite real saved dice (e.g. from a Retcon swap or a hand-tuned
+  // build) with whatever the background/power-source/archetype catalog mechanically
+  // produces by position, which isn't necessarily what was actually saved.
+  const hasDiceValues=snap && (Object.keys(snap.bgQual||{}).length || Object.keys(snap.psPow||{}).length || Object.keys(snap.arPow||{}).length || Object.keys(snap.arQual||{}).length);
+  onPick((hasSlots && !hasDiceValues)?undefined:{skipRebuild:true});
 }
 
 let heroIssueIndex=[], heroCollections=[], pickedHeroIssues=[];
 function selectedHeroIssues(){ return pickedHeroIssues.slice(); }
-function fillHeroIssueBox(){
+async function fillHeroIssueBox(){
   const el=document.getElementById('issueBox'); if(!el) return;
   const sel=document.getElementById('collPick');
+  await resolveCollectionPick(sel, heroCollections, 'Choose a collection…');
   if (!heroCollections.length){ el.innerHTML='No collections yet.'; return; }
   const slug=sel?sel.value:'';
   if (!slug){ el.innerHTML='Choose a collection to see its Issues.'; return; }
@@ -2070,11 +2170,9 @@ function applyHeroIssues(list){
   fillHeroIssueBox();
 }
 async function loadHeroIssues(){
-  heroCollections=await fetch('/api/collections').then(r=>r.json()).catch(()=>[])||[];
+  heroCollections=await fetchCollections();
   const sel=document.getElementById('collPick');
-  if (sel){
-    sel.innerHTML='<option value="">Choose a collection…</option>'+heroCollections.map(c=>`<option value="${escLand(c.slug)}">${escLand(c.name||c.slug)}</option>`).join('');
-  }
+  if (sel) fillCollectionSelect(sel, heroCollections, 'Choose a collection…');
   const il=await fetch('/api/issues').then(r=>r.json()).catch(()=>[]);
   heroIssueIndex=await Promise.all((il||[]).map(async i=>{
     const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>({}));

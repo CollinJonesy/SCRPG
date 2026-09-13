@@ -88,6 +88,7 @@
     <div id="msg"></div>
   </div>
 </div>
+<script src="/collection-picker.js"></script>
 <script>
 let landMeta=[], originFilter='all', editing=null, headers=[], issueIndex=[], collections=[], pickedIssues=[], abilities=[];
 const MINION_DICE=['d4','d6','d8','d10','d12'];
@@ -96,11 +97,13 @@ function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function slugify(n){return (n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'minion';}
 function parseRow(line){
   const cells=[], cur={v:'',q:false};
-  for (const ch of line+'\0'){
-    if (ch==='"'){cur.q=!cur.q;continue;}
-    if ((ch===','||ch==='\0')&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (cur.q && line[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){cells.push(cur.v);cur.v='';continue;}
     cur.v+=ch;
   }
+  cells.push(cur.v);
   return cells;
 }
 function setOrigin(o){
@@ -110,9 +113,10 @@ function setOrigin(o){
 }
 function showLanding(){ document.getElementById('landing').classList.remove('hidden'); document.getElementById('form').classList.add('hidden'); loadLanding(); loadAppears(); }
 function selectedIssues(){ return pickedIssues.slice(); }
-function fillAppearsBox(){
+async function fillAppearsBox(){
   const el=document.getElementById('issueBox');
   const sel=document.getElementById('collPick');
+  await resolveCollectionPick(sel, collections, 'Choose a collection…');
   if (!collections.length){ el.innerHTML='No collections yet — use Collections on the Board.'; return; }
   const slug=sel.value;
   if (!slug){ el.innerHTML='Choose a collection to see its Issues.'; return; }
@@ -136,9 +140,7 @@ async function loadAppears(){
     return {slug:i.slug, name:i.name||i.slug, minionSlugs: full.minionSlugs||[]};
   }));
   const sel=document.getElementById('collPick');
-  const keep=sel.value;
-  sel.innerHTML='<option value="">Choose a collection…</option>'+collections.map(c=>`<option value="${esc(c.slug)}">${esc(c.name||c.slug)}</option>`).join('');
-  sel.value=keep;
+  fillCollectionSelect(sel, collections, 'Choose a collection…');
   fillAppearsBox();
 }
 function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }

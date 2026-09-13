@@ -359,6 +359,9 @@ function guessStatusCountType(label) {
   if (l.includes('opponent') || l.includes('engaged')) return 'opponents';
   if (l.includes('heroes') && l.includes('penalt')) return 'heroPenalties';
   if (l.includes('always') || l.includes('constant')) return 'always';
+  // Villains like Baron Blade ("Inventions") and Ray-Manta ("Mods") track their
+  // OWN accumulated bonuses — count live boost mods targeting the villain itself.
+  if (l.includes('invention') || /\bmods?\b/.test(l)) return 'ownBonuses';
   return null;
 }
 function countBoardStateFor(type, token, scene) {
@@ -370,6 +373,53 @@ function countBoardStateFor(type, token, scene) {
     const hit = new Set(liveMods(scene).filter(m => m.kind === 'hinder').map(m => m.targetId));
     return scene.tokens.filter(t => t.kind === 'hero' && hit.has(t.id)).length;
   }
+  if (type === 'ownBonuses') return liveMods(scene).filter(m => m.kind === 'boost' && m.targetId === token.id).length;
+  return null;
+}
+// Villains like Ermine track a compound Penalty/Bonus state (not a simple count) --
+// e.g. "Any Penalties and No Bonuses" / "Some Penalties and Some Bonuses" / "No
+// Penalties". Detected generically: any villain whose Status labels mention both
+// "penalty" and "bonus" uses this resolution instead of the numeric-range one below.
+function resolveOwnPenaltyBonusStatus(villainRow, token, scene) {
+  const labels = [1, 2, 3, 4, 5].map(i => villainRow['Status' + i + 'Label'] || '');
+  const hasPattern = labels.some(l => /penalt/i.test(l)) && labels.some(l => /bonus/i.test(l));
+  if (!hasPattern) return null;
+  const mods = liveMods(scene);
+  const hasPenalty = mods.some(m => m.kind === 'hinder' && m.targetId === token.id);
+  const hasBonus = mods.some(m => m.kind === 'boost' && m.targetId === token.id);
+  let idx = -1;
+  if (!hasPenalty) idx = labels.findIndex(l => /no penalt/i.test(l));
+  else if (!hasBonus) idx = labels.findIndex(l => /penalt/i.test(l) && /no bonus/i.test(l));
+  else idx = labels.findIndex(l => /penalt/i.test(l) && /bonus/i.test(l) && !/no bonus/i.test(l));
+  if (idx < 0) return null;
+  const n = idx + 1;
+  return { die: villainRow['Status' + n + 'Die'], source: labels[idx] + ' (auto)' };
+}
+// Titan-archetype villains (Xxtz'Hulissh-style) tie their Status to Scene Challenge
+// progress instead of board-state counts -- Status labels read like "Expose a
+// vulnerability (needs 2 successes)". Detected generically by the "needs N success(es)"
+// phrasing; matched against a Challenge path in the current scene whose label contains
+// the same phrase (minus the count), so any future Titan works via the same convention
+// without new schema -- the GM just names the Challenge path to match the Status label.
+function resolveChallengeLinkedStatus(villainRow, token, scene) {
+  if (!scene || !scene.challenges) return null;
+  const labels = [1, 2, 3, 4, 5].map(i => villainRow['Status' + i + 'Label'] || '');
+  const stages = labels.map((l, i) => {
+    const m = l.match(/needs?\s+(\d+)\s+success/i);
+    return m ? { idx: i, needed: Number(m[1]), text: l.replace(/\(.*?\)/g, '').trim() } : null;
+  }).filter(Boolean);
+  if (!stages.length) return null;
+  const allPaths = scene.challenges.flatMap(c => c.paths || []);
+  let best = null;
+  for (const st of stages) {
+    const path = allPaths.find(p => p.label && st.text && p.label.toLowerCase().includes(st.text.toLowerCase()));
+    if (path && (Number(path.successesMarked) || 0) >= st.needed) {
+      if (!best || st.idx > best.idx) best = st; // later stage (by Status slot order) wins, not whichever needs more successes
+    }
+  }
+  if (best) return { die: villainRow['Status' + (best.idx + 1) + 'Die'], source: labels[best.idx] + ' (auto — Challenge complete)' };
+  const baselineIdx = labels.findIndex((l, i) => l && !stages.some(st => st.idx === i));
+  if (baselineIdx >= 0) return { die: villainRow['Status' + (baselineIdx + 1) + 'Die'], source: labels[baselineIdx] + ' (auto)' };
   return null;
 }
 function computeVillainStatus(villainRow, token) {
@@ -379,6 +429,10 @@ function computeVillainStatus(villainRow, token) {
     const die = { green: villainRow.GreenStatusDie, yellow: villainRow.YellowStatusDie, red: villainRow.RedStatusDie, out: villainRow.RedStatusDie }[band];
     return { die, source: band.toUpperCase() + ' zone (auto)' };
   }
+  const pb = resolveOwnPenaltyBonusStatus(villainRow, token, state.scene);
+  if (pb) return pb;
+  const cl = resolveChallengeLinkedStatus(villainRow, token, state.scene);
+  if (cl) return cl;
   for (let i = 1; i <= 5; i++) {
     const label = villainRow['Status' + i + 'Label'], die = villainRow['Status' + i + 'Die'];
     if (!label || !die) continue;
@@ -674,7 +728,10 @@ async function openNotes(kind, slug, name) {
   if (!slug) { toast('Name this entry first, then add notes.'); return; }
   currentNotesTarget = { kind, slug };
   document.getElementById('notesModalTitle').textContent = 'Notes — ' + name;
-  document.getElementById('notesModalText').value = await apiReadMd(kind, slug);
+  const md = await apiReadMd(kind, slug);
+  document.getElementById('notesModalText').value = md;
+  const hasStructured = /^###\s*\[|^##\s+Builder\s*$/im.test(md || '');
+  document.getElementById('notesModalWarning').classList.toggle('hidden', !hasStructured);
   document.getElementById('notesModal').classList.remove('hidden');
 }
 function closeNotes() { document.getElementById('notesModal').classList.add('hidden'); }
@@ -706,7 +763,8 @@ function toggleAbilityRollType(idx, type, on) {
 
 function parseAbilitiesMd(md) {
   const sections = { Abilities: [], Upgrades: [], Mastery: [], Tactics: [] };
-  if (!md) return sections;
+  let tacticsText = [];
+  if (!md) { sections.TacticsText = ''; return sections; }
   const lines = md.split('\n');
   let currentKey = null;
   let currentCard = null;
@@ -724,6 +782,9 @@ function parseAbilitiesMd(md) {
       currentKey = Object.keys(sections).find(k => k.toLowerCase() === h2[1].toLowerCase());
       continue;
     }
+    // Any other H2 (e.g. "## Builder") ends whichever section we were in, so its
+    // content (like the raw builder-state JSON block) never leaks into Tactics text.
+    if (/^##\s+/.test(line)) { flush(); currentKey = null; continue; }
     const h3 = line.match(/^###\s*\[([ARI?])\]\s*\[([^\]]+)\]\s*"([^"]+)"/)
       || line.match(/^###\s*\[([ARI?])\]\s*"([^"]+)"/);
     if (h3) {
@@ -734,8 +795,14 @@ function parseAbilitiesMd(md) {
       continue;
     }
     if (currentCard) currentCard.body.push(line);
+    // Tactics is often free prose with no "### [Type] Name" card wrapper (see
+    // save_built_minion in server.py) — capture that raw text separately so it
+    // isn't silently dropped just because it's not a discrete ability card.
+    else if (currentKey === 'Tactics') tacticsText.push(line);
   }
   flush();
+  sections.TacticsText = tacticsText.join('\n').trim();
+  if (sections.TacticsText === '_None yet._') sections.TacticsText = '';
   return sections;
 }
 
@@ -752,7 +819,7 @@ async function openAbilities(tokenId) {
   document.getElementById('abilitiesModalTitle').textContent = 'Abilities — ' + row.Name;
   const md = await apiReadMd(mdKind, t.slug);
   const sections = parseAbilitiesMd(md);
-  const hasAny = sections.Abilities.length || sections.Upgrades.length || sections.Mastery.length || sections.Tactics.length;
+  const hasAny = sections.Abilities.length || sections.Upgrades.length || sections.Mastery.length || sections.Tactics.length || sections.TacticsText;
   const el = document.getElementById('abilitiesModalBody');
 
   if (!hasAny) {
@@ -798,6 +865,10 @@ async function openAbilities(tokenId) {
     html += renderSection('Mastery', sections.Mastery);
   }
   html += renderSection('Tactics', sections.Tactics);
+  if (sections.TacticsText) {
+    html += `<label class="field-label" style="margin-top:12px;">Tactics</label>
+      <p class="ability-card-body">${escHtml(sections.TacticsText)}</p>`;
+  }
   el.innerHTML = html || '<p class="empty-hint">No abilities recorded.</p>';
   document.getElementById('abilitiesModal').classList.remove('hidden');
 }
@@ -883,12 +954,26 @@ function boardBasicActionsHtml(t) {
 }
 
 let boardActionState = null;
+// Abilities whose text/icon never resolve to one of the 6 board actions (Attack/
+// Defend/Boost/Hinder/Overcome/Recover) are passives, Upgrades, or other
+// non-targeted effects — e.g. a flat damage-reduction trait or a "increase all
+// power dice one size" Upgrade. There's nothing to target or roll, so show the
+// text and stop rather than forcing the Attack-style target/effect-die flow.
+function showAbilityReadOnly(t, name, body) {
+  boardActionState = null;
+  document.getElementById('abilitiesModalTitle').textContent = name + ' — ' + t.name;
+  document.getElementById('abilitiesModalBody').innerHTML = `
+    <p class="ability-card-body">${escHtml(body || '')}</p>
+    <p class="empty-hint">Passive / no target — nothing to apply here.</p>`;
+  document.getElementById('abilitiesModal').classList.remove('hidden');
+}
 function openHeroAbility(tokenId, idx) {
   const t = findTok(tokenId);
   const a = heroAbilitiesForToken(t)[idx];
   if (!a) return;
   const types = abilityRollTypes(a);
-  openBoardAction(tokenId, types[0] || 'Attack', {
+  if (!types.length) { showAbilityReadOnly(t, a.Name, a.GameText || ''); return; }
+  openBoardAction(tokenId, types[0], {
     name: a.Name, text: a.GameText || '', rollTypes: types, effectHint: a.EffectDieHint || ''
   });
 }
@@ -897,7 +982,8 @@ function openVillainAbility(tokenId, idx) {
   const a = villainAbilitiesForToken(t)[idx];
   if (!a) return;
   const types = abilityRollTypes(a);
-  openBoardAction(tokenId, types[0] || 'Attack', {
+  if (!types.length) { showAbilityReadOnly(t, a.name, a.body || ''); return; }
+  openBoardAction(tokenId, types[0], {
     name: a.name, text: a.body || '', rollTypes: types, effectHint: ''
   });
 }
@@ -1070,6 +1156,17 @@ function useAbilityCard(tokenId, idx) {
   const card = abilityUseCards[idx];
   if (!card) return;
   closeAbilities();
+  const t = findTok(tokenId);
+  if (t && (t.kind === 'minion' || t.kind === 'lieutenant')) {
+    // Minions/Lieutenants have no Powers/Qualities dice pool — resolve via the same
+    // effect-die/target flow the board's own ability list already uses for them.
+    const types = abilityRollTypes(card);
+    if (!types.length) { showAbilityReadOnly(t, card.name, card.body || ''); return; }
+    openBoardAction(tokenId, types[0], {
+      name: card.name, text: card.body || '', rollTypes: types, effectHint: ''
+    });
+    return;
+  }
   openDiceRoller(tokenId);
   const rs = rollerState;
   if (!rs) return;
@@ -2154,6 +2251,14 @@ function spawnToken() {
 }
 
 /* ---- Challenges panel (live, on the Board) ---- */
+// Same completion check Player Display already uses (pathDisplayOutcome in display.js) --
+// the GM should never see LESS completion info than the players do.
+function pathDisplayOutcome(p) {
+  if (p && p.failed) return 'fail';
+  const need = Math.max(1, Number(p && p.successesNeeded) || 1);
+  const marked = Number(p && p.successesMarked) || 0;
+  return marked >= need ? 'success' : '';
+}
 
 function renderChallengesPanel() {
   const el = document.getElementById('challengesPanel');
@@ -2165,15 +2270,21 @@ function renderChallengesPanel() {
         <span class="challenge-board-title">${escHtml(c.title)}</span>
         <span class="token-type-chip challenge-type-chip">${c.type}</span>
       </div>
-      ${c.paths.map((p, pi) => `
+      ${c.paths.map((p, pi) => {
+          const outcome = pathDisplayOutcome(p);
+          const badge = outcome === 'fail' ? '<span class="challenge-outcome fail">Fail</span>'
+            : outcome === 'success' ? '<span class="challenge-outcome success">Success</span>' : '';
+          return `
         <div class="challenge-path-row">
           <label class="challenge-fail-toggle"><input type="checkbox" ${p.failed ? 'checked' : ''} onchange="togglePathFailedLive(${idx},${pi}, this.checked)"> Fail</label>
-          <span>${escHtml(p.label)}</span>
+          <span class="challenge-path-label${outcome === 'success' ? ' challenge-success-title' : ''}">${escHtml(p.label)}</span>
+          ${badge}
           <label class="hidden-toggle" style="margin:0;"><input type="checkbox" ${p.hidden ? 'checked' : ''} onchange="togglePathHiddenLive(${idx},${pi}, this.checked)"> Hide</label>
           <span class="challenge-checks">${Array.from({length: Math.max(1, Number(p.successesNeeded)||1)}, (_, n) =>
             `<input type="checkbox" ${n < (Number(p.successesMarked)||0) ? 'checked' : ''} onchange="setPathChecksLive(${idx},${pi}, ${n}, this.checked)">`
           ).join('')}</span>
-        </div>`).join('')}
+        </div>`;
+        }).join('')}
       ${c.type === 'Timed' && c.timerMode === 'turns' ? `
         <div class="challenge-path-row"><span>Turns remaining</span>
           <span class="counter-row">

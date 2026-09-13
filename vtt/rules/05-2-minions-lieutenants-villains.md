@@ -62,28 +62,50 @@ Between heroes & minions in complexity. Base stats + optional upgrades.
 11. Calculate health: **(Ⓗ × 5) + approach bonus + archetype bonus + upgrades**
 
 ### Villain Approaches (18 types)
-Each has base health + suggested powers/qualities + abilities:
+Each has base health, suggested archetype pairings, and a set of abilities to pick from
+(picks column below). Full ability data lives in `builder/catalog/villain_approach_abilities.csv`
+(what the Villain Builder actually uses) — names only here, open the builder for full game text.
 
-| # | Name | Base Health |
-|---|---|---|
-| 1 | Adaptive | 15 |
-| 2 | Ancient | 30 |
-| 3 | Bully | 25 |
-| 4 | Creator | 15 |
-| 5 | Dampening | 25 |
-| 6 | Disruptive | 20 |
-| 7 | Focused | 15 |
-| 8 | Generalist | 25 |
-| 9 | Leech | 15 |
-| 10 | Mastermind | 20 |
-| 11 | Ninja | 20 |
-| 12 | Overpowered | 35 |
-| 13 | Prideful | 25 |
-| 14 | Relentless | 20 |
-| 15 | Skilled | 15 |
-| 16 | Specialized | 20 |
-| 17 | Tactician | 20 |
-| 18 | Underpowered | 10 |
+| # | Name | Base Health | Suggested Pairings | Picks |
+|---|---|---|---|---|
+| 1 | Adaptive | 15 | Legion, Tactician | 3 |
+| 2 | Ancient | 30 | Formidable, Overpowered | 2 |
+| 3 | Bully | 25 | Bruiser, Prideful | 2 |
+| 4 | Creator | 15 | Legion | 2 |
+| 5 | Dampening | 25 | Domain, Inhibitor | 2 |
+| 6 | Disruptive | 20 | Bruiser, Formidable | 2 |
+| 7 | Focused | 15 | Fragile, Inhibitor | 2 |
+| 8 | Generalist | 25 | Bruiser, Indomitable | 2 |
+| 9 | Leech | 15 | Loner | 2 |
+| 10 | Mastermind | 20 | Inventor | 2 |
+| 11 | Ninja | 20 | Guerrilla | 2 |
+| 12 | Overpowered | 35 | Domain, Formidable | 2 |
+| 13 | Prideful | 25 | Bruiser, Guerrilla | 2 |
+| 14 | Relentless | 20 | Indomitable, Loner | 2 |
+| 15 | Skilled | 15 | — | 2 |
+| 16 | Specialized | 20 | — | 3 (two same quality, one different) |
+| 17 | Tactician | 20 | Legion | 2 |
+| 18 | Underpowered | 10 | Fragile, Inventor | 2 |
+
+**Approach abilities (names — see the builder catalog for full text):**
+- **Adaptive** (choose 3): Adapt and Thrive, Diversity through Adversity, Efficient Reconfiguration, Initiate Upgrade Procedure, Powerful Imitation, The Pain of Perfection
+- **Ancient** (choose 2): Behold My Immortal Glory, From Before Space and Time, Immortal Vitality, Ideal Action, Out of Time, Unknowable Pain
+- **Bully** (choose 2): Bust Their Heads, Cruel and Unusual, Crush the Small, Injured Tantrum, Punish Weakness, Thick
+- **Creator** (choose 2): Harvest their Power, Retributive Lash, Powerful Ally, Shared Power, Summon Mob, Swarm Attack
+- **Dampening** (choose 2): Capitalize on their Failure, Curse of Weakness, Field of Woe, Nullifying Backlash, Scrambling Strike, Terror of Inadequacy
+- **Disruptive** (choose 2): Beneficial Chaos, Covering Fire, Enraging Touch, Heedless Explosion, Painful Disruption, Taste the Madness
+- **Focused** (choose 2): Elemental Absorption, Defensive Charging, Perfect Alignment, Pour it On, Sympathetic Shield, Vicious Entanglement
+- **Generalist** (choose 2): Bodyguard, Dependable, Heavy Hitter, Stalwart Combatant, Tough Customer, Wracking Aura
+- **Leech** (choose 2): Hypnotic Gaze, Life Drain, Power Consumption, Siphoning Wither, Unnerving Whispers, Violent Vitality
+- **Mastermind** (choose 2): Exploit Weakness, Reversal of Fortune, Prepared for Anything, Villainous Monologue
+- **Ninja** (choose 2): Deadly Blink, Defensive Dash, Fade From Sight, Sever the Tendons
+- **Overpowered** (choose 2): Do Not Dare to Touch Me, Face My Full Might, Fear My Overwhelming Power, Raw Power, My Power
+- **Prideful** (choose 2): Later, Be Denied, Sustained Mockery, Unquestionable Might, You Cannot Survive
+- **Relentless** (choose 2): Dogged Pursuit, Prey on the Weak, Repeated Punishment, Too Close for Comfort, Twist the Knife, Up in Your Face
+- **Skilled** (choose 2): Best in the Biz, Dodge and Weave, Consistently Capable, Flexible Expertise, Incomparable Inequity, Misdirection
+- **Specialized** (choose 3): Active Cover, Cleaving Slash, Focused Attack, Known Target, Neutralizing Strike, Tangled Torment
+- **Tactician** (choose 2): Group Up, Joint Action, Organized March, Try Again, Working Together
+- **Underpowered** (choose 2): Avoid the Inevitable, Do Not Underestimate Me, Last Ditch Effort, Still a Threat
 
 ### Villain Archetypes (14 types)
 Choose how villain reacts & what they care about:
@@ -110,10 +132,10 @@ Choose how villain reacts & what they care about:
 **Full villains:** Base + upgrades.
 
 ## Villain Upgrades & Masteries
-Upgrades increase effectiveness; each counts as extra moderate scene element. Masteries are unique passive abilities.
-
-**Health Formula:**
-(Ⓗ × 5) + approach base + archetype bonus + upgrade bonuses = total health
+Upgrades increase effectiveness; each counts as extra moderate scene element. Masteries are unique
+passive abilities (one per villain maximum). Full Health Formula, a worked example, and per-archetype
+detail live in `05-3-villain-archetypes-upgrades-health.md` — not repeated here to avoid the two files
+drifting out of sync.
 
 ---
 

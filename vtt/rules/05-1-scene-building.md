@@ -39,9 +39,14 @@ Scene contains **Ⓗ** scene elements (where Ⓗ = number of heroes).
 **Environments:** Standard = moderate; all-hostile = difficult; max 1 per scene usually.
 
 ### Scene Trackers
-- **Standard:** 1 Green, 4 Yellow, 3 Red (most common)
-- **Prolonged:** More Green & Yellow for longer scenes
-- **Epic:** Minimal Green, moderate Yellow, several Red (final confrontations)
+**Confirmed counts (not what the book's text implies at a glance — see CLAUDE.md, this was already
+checked against the physical book once; don't "correct" these back):**
+- **Standard:** 2 Green, 4 Yellow, 2 Red (most common)
+- **Prolonged:** 3 Green, 5 Yellow, 3 Red (longer scenes)
+- **Epic:** 1 Green, 3 Yellow, 4 Red (final confrontations — minimal Green, several Red)
+
+These match `TRACKER_PRESETS` in `app.js` exactly. This section previously said "Standard: 1 Green, 4
+Yellow, 3 Red," which was wrong on all three counts — fixed here after cross-checking the live code.
 
 ## Challenges
 Simple: Describe obstacle, note on card. Don't detail solution paths — let players choose.
