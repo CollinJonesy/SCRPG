@@ -973,9 +973,14 @@ def main():
     ensure_campaign(campaign)
     if args.obsidian:
         obsidian_heroes = Path(args.obsidian).expanduser().resolve()
-    else:
+    elif campaign == (APP_DIR / 'campaign').resolve():
+        # Only auto-guess the Obsidian vault for the real Occidia campaign folder —
+        # otherwise a test/scratch --campaign run would silently write real hero
+        # notes into the live vault (see docs/OVERNIGHT_REVIEW.md Cycle 5).
         guessed = Path.home() / 'Obsidian' / 'Occidia' / 'Occidia' / '1. Player Characters'
         obsidian_heroes = guessed if guessed.is_dir() else None
+    else:
+        obsidian_heroes = None
 
     server = ThreadingHTTPServer(('0.0.0.0', args.port), make_handler(campaign, obsidian_heroes))
     ip = local_ip()

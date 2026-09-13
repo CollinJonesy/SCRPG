@@ -1,13 +1,15 @@
 parent,slug,name,type,icons,bind,engine,game_text
+bruiser,bruiser-bring-it-on,Bring It On!,R,Boost,none,,"When Attacked, use the amount of damage taken by the Attack to Boost yourself."
 bruiser,bruiser-feel-no-pain,Feel No Pain,I,,none,,"Reduce damage taken by physical and energy sources by 1 while in the Green zone, 2 in the Yellow zone, and 3 in the Red zone."
 bruiser,bruiser-grin-and-bear-it,Grin and Bear It,A,Defend/Recover,quality,,Defend using [quality] and use your Mid+Min dice. Recover Health equal to your Max die.
 bruiser,bruiser-lash-out,Lash Out,A,Attack,power,,"Attack using [power]. If you are Green status, use your Max die. If you are Yellow status, use the Max+Min dice. If you are Red status, use Max+Min against one target and Mid against another."
 bruiser,bruiser-living-wall,Living Wall,R,Attack,none,,"When a nearby ally would be Attacked, you may become the target of that Attack instead. You may use this reaction any number of times in a round by taking 1 irreducible damage for each time past the first."
-bruiser,bruiser-toss-hero,Toss Hero,A,Attack/Hinder,power,,"Attack using [power] and use your Max die. Either Hinder that target with your Mid die or Attack another nearby target with your Mid die. The first question to answer is how a villain reacts in certain situations, and what they care about as a villain. Some are their most powerful when they’re surrounded by inventions of their own devising. Others work well in groups. Some care about how hurt they are, just like heroes. Choose an archetype from the following list. Fill the status dice in the appropriate section of the villain sheet."
+bruiser,bruiser-toss-hero,Toss Hero,A,Attack/Hinder,power,,Attack using [power] and use your Max die. Either Hinder that target with your Mid die or Attack another nearby target with your Mid die.
 domain,domain-ascend-from-my-realm,Ascend From My Realm,I,,none,,Ignore damage from an environment source during the environment’s turn.
-domain,domain-the-earth-trembles-around-you,The Earth Trembles Around You,A,Attack,none,,Roll any number of environment minion dice. Attack every target in the scene (other than yourself) with those dice. Remove those minions. Power Heeds My Call in
-domain,domain-all-forms,All Forms,A,Attack,none,,"Remove any number of environment-created bonuses. For each bonus removed, you may Attack one target using your Mid die, using a different bonus against each."
+domain,domain-the-earth-trembles-around-you,The Earth Trembles Around You,A,Attack,none,,Roll any number of environment minion dice. Attack every target in the scene (other than yourself) with those dice. Remove those minions.
+domain,domain-power-heeds-my-call-in-all-forms,Power Heeds My Call in All Forms,A,Attack,none,,"Remove any number of environment-created bonuses. For each bonus removed, you may Attack one target using your Mid die, using a different bonus against each."
 domain,domain-this-place-is-mine-to-command,This Place is Mine to Command,A,,none,,Activate one of the environment’s twists in its current zone or one zone closer to red.
+domain,domain-to-me-my-minions,"To Me, My Minions",A,Recover,none,,Roll any number of environment minion dice and Recover that much Health. Remove those minions.
 domain,domain-the-world-moves-to-defend-me,The World Moves to Defend Me,R,Attack,none,,"When Attacked, redirect the Attack to an environment minion."
 formidable,formidable-channel-greatness,Channel Greatness,A,Attack/Boost,power,,Boost using [power] and use your Max die. That bonus is persistent and exclusive. Also Attack with your Mid die.
 formidable,formidable-cleansing-elevation,Cleansing Elevation,A,Boost,power,,Boost using [power] and use your Max+Min dice. Remove all penalties on yourself.
@@ -16,6 +18,7 @@ formidable,formidable-share-in-your-glory,Share in your Glory,A,Boost,power,,Boo
 formidable,formidable-unrivalled-paragon,Unrivalled Paragon,A,,none,,Take any basic action and use your Max die.
 formidable,formidable-untempered-grit,Untempered Grit,R,,none,,Ignore all penalties on you for your action. Take irreducible damage equal to the total of those penalties.
 fragile,fragile-careless-smash,Careless Smash,A,Attack/Hinder,power,,Attack using [power] and use your Max+Mid dice. Hinder yourself with your Min die.
+fragile,fragile-cheese-it,Cheese It!,R,Defend,none,,"When Attacked, Defend yourself by rolling your single status die. If the damage is reduced to 0, you may move to anywhere else in the scene."
 fragile,fragile-dismantling-jab,Dismantling Jab,A,Attack,quality,,Attack using [quality]. Then remove all bonuses from the target.
 fragile,fragile-escape-plan,Escape Plan,I,,none,,"Whenever your personal zone changes, you may immediately move elsewhere in the scene."
 fragile,fragile-shrouded-attack,Shrouded Attack,A,Attack/Defend,quality,,Attack using [quality] and use your Max die. Defend against all Attacks against you with your Min die until the start of your next turn.
@@ -58,7 +61,9 @@ loner,loner-singular-strength,Singular Strength,I,,none,singular-strength,"As lo
 loner,loner-thin-the-herd,Thin the Herd,A,Attack/Hinder,power,,Attack multiple targets using [power]. Hinder each target with your Max die.
 loner,loner-worst-case-response,Worst Case Response,R,Attack,none,,"When you would be Hindered or when an Attack would reduce you to 0 Health, reduce the penalty to -1 or reduce that damage to 1."
 overlord,overlord-by-my-command,By My Command,A,Boost,quality,,Boost using [quality] for all your minions until the start of your next turn.
-overlord,overlord-give-me-your-strength,Give Me Your Strength,A,Attack/Boost,power,,"Roll all your minion dice and combine the result to Boost. Attack using [power] and use that bonus. “Look Out, Boss!” R Redirect an Attack to one of your minions."
+overlord,overlord-get-back-in-there,Get Back in There!,R,,none,,Reroll any number of minion saves against the same Attack.
+overlord,overlord-give-me-your-strength,Give Me Your Strength,A,Attack/Boost,power,,Roll all your minion dice and combine the result to Boost. Attack using [power] and use that bonus.
+overlord,overlord-look-out-boss,"“Look Out, Boss!”",R,Attack,none,,Redirect an Attack to one of your minions.
 overlord,overlord-rapid-deployment,Rapid Deployment,A,,quality,,Use [quality] to create a number of minions equal to the value of your Max die. The starting die size for those minions is the same as the size of your Min die.
 overlord,overlord-form-up,Form Up,A,Attack/Defend,power,,Attack using [power] and use your Max die. Defend against all Attacks against you until the start of your next turn using the number of your minions.
 predator,predator-surprise-trap,Surprise Trap,R,Attack/Hinder,none,,"When Attacked, roll your single status die. Hinder the Attack using that result, and deal damage to the attacker equal to that penalty."
@@ -71,10 +76,11 @@ squad,squad-on-my-mark,On My Mark,A,,none,,"One ally makes a basic action now, u
 squad,squad-my-allies-are-my-strength,My Allies are my Strength,I,,none,,Increase damage you deal by the number of nearby non-minion allies.
 squad,squad-press-the-advantage,Press the Advantage,A,Attack,quality,,"Attack using [quality] and use your Max die. If you choose that target to go next, they must Attack you on their turn if possible."
 squad,squad-protect-my-allies,Protect My Allies,R,Attack/Defend/Boost,none,,"When another villain is Attacked, Defend against the Attack by rolling your single status die. Boost yourself using the amount of damage reduced."
+squad,squad-stay-in-formation,Stay in Formation!,A,Boost/Defend,quality,,"Boost using [quality]. Boost another target using your Max die, and use your Min die to Defend against all Attacks against you until your next turn."
 squad,squad-take-point,Take Point,A,Attack/Defend,quality,,Attack using [quality]. Use your Max die. Defend all nearby allies with your Mid+Min dice until the start of your next turn.
 titan,titan-crush-all-underfoot,Crush All Underfoot,A,Attack/Hinder,power,,Attack using [power] against multiple targets. Hinder those targets with your Min die.
 titan,titan-down-the-hatch,Down the Hatch,A,Attack/Overcome,power,,"Attack using [power] and use your Max die. The target can either be Hindered equal to your Max+Mid+Min dice, or be unable to take any other actions other than using an Overcome to attempt to escape."
 titan,titan-foolish-insect,Foolish Insect,R,,none,,"When a hero takes a minor twist in the Titan’s challenge, in addition to the chosen twist, also roll your status die and deal that much damage to that hero."
-titan,titan-you-are-but-gnats-to-me,You Are But Gnats to Me,I,,none,,"Reduce all damage taken by 6 (if you have a status die), 4 (if you have a status die) or 2 (if you have a or lower status die). I Will Not be Defeated"
-titan,titan-so-easily,So Easily,R,,none,,"When Attacked by a roll that includes doubles, remove one of the successes from the Titan’s challenge."
+titan,titan-you-are-but-gnats-to-me,You Are But Gnats to Me,I,,none,,"Reduce all damage taken by 6 (if you have a status die), 4 (if you have a status die) or 2 (if you have a or lower status die)."
+titan,titan-i-will-not-be-defeated-so-easily,I Will Not be Defeated So Easily,R,,none,,"When Attacked by a roll that includes doubles, remove one of the successes from the Titan’s challenge."
 titan,titan-the-land-quakes-underfoot,The Land Quakes Underfoot,A,,none,,Activate one of the environment’s twists in its current zone.
