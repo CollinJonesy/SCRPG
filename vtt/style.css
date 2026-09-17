@@ -523,6 +523,9 @@ button, select, input, textarea {
 .board-ability-zone.yellow { color: var(--yellow); }
 .board-ability-zone.red { color: var(--red); }
 .board-ability-zone.out { color: var(--text-lo); }
+/* Legacy "Green/Yellow" zone values (book shorthand for "can be picked Green or Yellow"):
+   normalize to the Green zone color so the badge is never unstyled. */
+.board-ability-zone.green/yellow { color: var(--green); }
 .board-ability-name { color: var(--text-hi); }
 .board-ability.minion-ab { display: block; font-size: 11px; line-height: 1.25; }
 .board-ability.minion-ab b { color: var(--text-hi); }

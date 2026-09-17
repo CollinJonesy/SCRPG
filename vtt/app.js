@@ -76,8 +76,8 @@ function findApproach(name) { return VILLAIN_APPROACHES.find(a => a.name.toLower
 function findArchetype(name) { return VILLAIN_ARCHETYPES.find(a => a.name.toLowerCase() === (name || '').trim().toLowerCase()); }
 
 const HEROES_HEADERS = ['Slug','Name','Alias','Player',
-  'Power1','PowerDie1','Power2','PowerDie2','Power3','PowerDie3','Power4','PowerDie4','Power5','PowerDie5','Power6','PowerDie6',
-  'Quality1','QualityDie1','Quality2','QualityDie2','Quality3','QualityDie3','Quality4','QualityDie4','Quality5','QualityDie5','Quality6','QualityDie6',
+  'Power1','PowerDie1','Power1DisplayName','Power2','PowerDie2','Power2DisplayName','Power3','PowerDie3','Power3DisplayName','Power4','PowerDie4','Power4DisplayName','Power5','PowerDie5','Power5DisplayName','Power6','PowerDie6','Power6DisplayName',
+  'Quality1','QualityDie1','Quality1DisplayName','Quality2','QualityDie2','Quality2DisplayName','Quality3','QualityDie3','Quality3DisplayName','Quality4','QualityDie4','Quality4DisplayName','Quality5','QualityDie5','Quality5DisplayName','Quality6','QualityDie6','Quality6DisplayName',
   'MaxHealth','GreenStatusDie','YellowStatusDie','RedStatusDie','GMControlled',
   'Principle1Name','Principle1Roleplay','Principle1MinorTwist','Principle1MajorTwist',
   'Principle2Name','Principle2Roleplay','Principle2MinorTwist','Principle2MajorTwist'];
@@ -90,7 +90,7 @@ const MINIONS_HEADERS = ['Slug','Name','Type','Die','Faction','PerHero'];
 const ENVIRONMENTS_HEADERS = ['Slug','Name','Trait1','TraitDie1','Trait2','TraitDie2','Trait3','TraitDie3'];
 const LOCATIONS_HEADERS = ['Slug','Name','EnvironmentSlug'];
 const TWISTS_HEADERS = ['Slug','Name','EffectType','Severity','Formula','Description'];
-const ABILITIES_HEADERS = ['HeroSlug','Zone','Name','Type','GameText','RollType','DieSource','EffectDieHint'];
+const ABILITIES_HEADERS = ['HeroSlug','Zone','Name','DisplayName','Type','GameText','RollType','DieSource','EffectDieHint'];
 const TWIST_EFFECT_TYPES = [
   'Story Consequence', 'Story Complication (Later)', 'Hinder', 'Boost (Enemies)',
   'Damage (Allies)', 'Defend (Enemies)', 'Add Threats', 'Create Challenge',
@@ -562,7 +562,7 @@ function renderLibraryTable(kind) {
   } else if (kind === 'twists') {
     theadCols = ['Name','Effect Type','Severity','Formula','Description',''];
   } else {
-    theadCols = ['Hero Slug','Zone','Name','Type','Game Text','Roll Type','Die Source','Effect Die Hint',''];
+    theadCols = ['Hero Slug','Zone','Name','Display Name','Type','Game Text','Roll Type','Die Source','Effect Die Hint',''];
     const dl = document.getElementById('heroSlugsList');
     if (dl) dl.innerHTML = state.heroes.map(h => `<option value="${escAttr(h.Slug)}">`).join('');
   }
@@ -640,6 +640,7 @@ function renderLibraryTable(kind) {
         ${['Green','Yellow','Red','Out'].map(z => `<option value="${z}" ${row.Zone === z ? 'selected' : ''}>${z}</option>`).join('')}
       </select></td>`;
       html += tdText(kind, idx, 'Name', row.Name, 'name-field');
+      html += tdText(kind, idx, 'DisplayName', row.DisplayName);
       html += `<td><select onchange="onCellChange('${kind}',${idx},'Type',this.value)">
         <option value="">-</option>
         <option value="A" ${row.Type === 'A' ? 'selected' : ''}>Action</option>
@@ -878,11 +879,33 @@ function gyroAbilityZones(band) {
   if (band === 'yellow') return ['Green', 'Yellow'];
   return ['Green'];
 }
+const GYRO_ZONE_ORDER = { Green: 0, Yellow: 1, Red: 2, Out: 3 };
+function heroAbilityShownName(a) {
+  const d = String((a && a.DisplayName) || '').trim();
+  return d || String((a && a.Name) || '');
+}
+function sortHeroAbilitiesGyroAlpha(list) {
+  return (list || []).slice().sort((a, b) => {
+    const za = GYRO_ZONE_ORDER[a.Zone] ?? 9;
+    const zb = GYRO_ZONE_ORDER[b.Zone] ?? 9;
+    if (za !== zb) return za - zb;
+    return String(heroAbilityShownName(a)).localeCompare(String(heroAbilityShownName(b)), undefined, { sensitivity: 'base' });
+  });
+}
 function heroAbilitiesForToken(t) {
   const row = state.heroes.find(h => h.Slug === t.slug) || {};
   const band = computeHeroStatus(Number(row.MaxHealth) || t.maxHealth || 20, t.currentHealth, state.scene).band;
   const zones = gyroAbilityZones(band);
-  return (state.abilities || []).filter(a => a.HeroSlug === t.slug && zones.includes(a.Zone));
+  // Normalize legacy "Green/Yellow" zone values to Green (they are Green-by-default
+  // abilities whose book shorthand said "can be chosen Green or Yellow"; the zone field
+  // must be a real gyro zone for filtering + CSS to work).
+  // HeroSlug guard: only abilities actually chosen for this hero during Hero Builder.
+  return sortHeroAbilitiesGyroAlpha((state.abilities || []).filter(a => {
+    if ((a.HeroSlug || '').trim() !== (t.slug || '').trim()) return false;
+    let z = (a.Zone || '').trim();
+    if (z === 'Green/Yellow') { z = 'Green'; a.Zone = 'Green'; }
+    return zones.includes(z);
+  }));
 }
 function villainAbilitiesForToken(t) {
   const key = (t.kind || '') + ':' + (t.slug || '');
@@ -915,7 +938,7 @@ function boardAbilityListHtml(t) {
     if (!abs.length) return '<div class="board-ability-list"><div class="mvc-empty" style="padding:8px;">No abilities in this zone.</div></div>';
     return '<div class="board-ability-list">' + abs.map((a, i) => {
       const z = (a.Zone || '').toLowerCase();
-      return `<div class="board-ability" onclick="openHeroAbility('${t.id}',${i})"><span class="board-ability-zone ${escAttr(z)}">${escHtml(a.Zone || '')}</span><span class="board-ability-name">${escHtml(a.Name)}</span></div>`;
+      return `<div class="board-ability" onclick="openHeroAbility('${t.id}',${i})"><span class="board-ability-zone ${escAttr(z)}">${escHtml(a.Zone || 'Green')}</span><span class="board-ability-name">${escHtml(heroAbilityShownName(a))}</span></div>`;
     }).join('') + '</div>';
   }
   if (t.kind === 'minion' || t.kind === 'lieutenant') {
@@ -2626,26 +2649,23 @@ async function initRules() {
   renderRulesList('');
 }
 
-const RULES_CHAPTERS = [
-  { title: 'Chapter 1: Introduction', slugs: [] },
-  { title: 'Chapter 2: Playing the Game', slugs: ['02-1-playing-the-game'] },
-  { title: 'Chapter 3: Creating Heroes', slugs: [
-    '03-1-backgrounds','03-2-power-sources','03-3-archetypes','03-4-personality',
-    '03-5-red-abilities','03-6-principles','03-7-powers-and-qualities',
-    '03-8-hero-creation-process','03-9-hero-advancement'] },
-  { title: 'Chapter 4: Moderating the Game', slugs: ['04-1-moderating-the-game'] },
-  { title: 'Chapter 5: The Bullpen', slugs: [
-    '05-1-scene-building','05-2-minions-lieutenants-villains',
-    '05-3-villain-archetypes-upgrades-health','05-4-environments-issue-structure',
-    '05-5-alternate-rewards-collections'] },
-  { title: 'Chapter 8: Appendices', slugs: ['08-1-index-and-glossary'] },
-];
+const RULES_CHAPTERS = [];
 let rulesOpenChapter = null;
+
+function rulesChapterGroups() {
+  const order = [];
+  const map = new Map();
+  (state.rulesList || []).forEach(r => {
+    const ch = r.chapter || r.slug.split('--')[0] || 'Other';
+    if (!map.has(ch)) { map.set(ch, []); order.push(ch); }
+    map.get(ch).push(r);
+  });
+  return order.map(title => ({ title, files: map.get(title) }));
+}
 
 function renderRulesList(filter) {
   const el = document.getElementById('rulesList');
   const q = (filter || '').trim().toLowerCase();
-  const bySlug = Object.fromEntries((state.rulesList || []).map(r => [r.slug, r]));
   if (q) {
     const hits = [];
     state.rulesList.forEach(r => {
@@ -2662,19 +2682,19 @@ function renderRulesList(filter) {
     });
     el.innerHTML = hits.length
       ? hits.map(h => `
-      <button class="rules-list-item" onclick="openRuleDoc('${h.slug}')">
+      <button class="rules-list-item" onclick="openRuleDoc('${escAttr(h.slug)}')">
         <div class="rules-hit-title">${escHtml(h.title)}</div>
         ${h.snippet ? `<div class="rules-hit-snippet">${escHtml(h.snippet)}</div>` : ''}
       </button>`).join('')
       : '<p class="empty-hint" style="padding:10px;">No matches.</p>';
     return;
   }
-  el.innerHTML = RULES_CHAPTERS.map((ch, i) => {
+  const chapters = rulesChapterGroups();
+  el.innerHTML = chapters.map((ch, i) => {
     const open = rulesOpenChapter === i;
-    const files = ch.slugs.map(slug => bySlug[slug]).filter(Boolean);
     const body = open
-      ? (files.length
-          ? files.map(r => `<button class="rules-list-item" onclick="openRuleDoc('${r.slug}')">${escHtml(r.title)}</button>`).join('')
+      ? (ch.files.length
+          ? ch.files.map(r => `<button class="rules-list-item" onclick="openRuleDoc('${escAttr(r.slug)}')">${escHtml(r.title)}</button>`).join('')
           : '<p class="empty-hint" style="padding:8px;">No source file ingested for this chapter yet.</p>')
       : '';
     return `<button class="rules-list-item rules-chapter" onclick="toggleRulesChapter(${i})">${escHtml(ch.title)}</button>${body}`;
@@ -2938,9 +2958,15 @@ function openDiceRoller(tokenId) {
   const powers = [];
   const qCount = 6;
   const pCount = t.kind === 'hero' ? 6 : 5;
-  for (let i = 1; i <= pCount; i++) if (libRow['Power' + i] && libRow['PowerDie' + i]) powers.push({ name: libRow['Power' + i], die: libRow['PowerDie' + i] });
+  for (let i = 1; i <= pCount; i++) if (libRow['Power' + i] && libRow['PowerDie' + i]) {
+    const dn = String(libRow['Power' + i + 'DisplayName'] || '').trim();
+    powers.push({ name: libRow['Power' + i], die: libRow['PowerDie' + i], displayName: dn });
+  }
   const qualities = [];
-  for (let i = 1; i <= qCount; i++) if (libRow['Quality' + i] && libRow['QualityDie' + i]) qualities.push({ name: libRow['Quality' + i], die: libRow['QualityDie' + i] });
+  for (let i = 1; i <= qCount; i++) if (libRow['Quality' + i] && libRow['QualityDie' + i]) {
+    const dn = String(libRow['Quality' + i + 'DisplayName'] || '').trim();
+    qualities.push({ name: libRow['Quality' + i], die: libRow['QualityDie' + i], displayName: dn });
+  }
 
   let statusDie = '', statusLabel = '';
   if (t.kind === 'hero') {
@@ -2953,7 +2979,7 @@ function openDiceRoller(tokenId) {
     statusLabel = status.source;
   }
 
-  const abilities = t.kind === 'hero' ? state.abilities.filter(a => a.HeroSlug === t.slug) : [];
+  const abilities = t.kind === 'hero' ? sortHeroAbilitiesGyroAlpha(state.abilities.filter(a => a.HeroSlug === t.slug)) : [];
   rollerState = { tokenId, kind: t.kind, libRow, powers, qualities, pIdx: 0, qIdx: 0, statusDie, statusLabel, lastRoll: null, abilities, abilityIdx: '', pendingEffectKey: 'mid' };
   document.getElementById('diceRollerTitle').textContent = 'Dice Pool — ' + t.name;
   renderDiceRollerBody();
@@ -2975,20 +3001,20 @@ function renderDiceRollerBody() {
     <label class="field-label" style="margin-top:0;">Ability (optional — fully resolves the ability)</label>
     <select id="rollerAbilitySelect" onchange="onAbilitySelected(this.value)">
       <option value="">— none, roll freeform —</option>
-      ${rs.abilities.map((a, i) => `<option value="${i}" ${String(i) === String(rs.abilityIdx) ? 'selected' : ''}>${escHtml(a.Zone || '')} — ${escHtml(a.Name)}</option>`).join('')}
+      ${rs.abilities.map((a, i) => `<option value="${i}" ${String(i) === String(rs.abilityIdx) ? 'selected' : ''}>${escHtml(a.Zone || '')} — ${escHtml(heroAbilityShownName(a))}</option>`).join('')}
     </select>`;
     if (selected) {
-      html += `<div class="ability-card" style="margin:8px 0;"><div class="ability-card-name">[${escHtml(selected.Type)}] "${escHtml(selected.Name)}"</div><p class="ability-card-body">${escHtml(selected.GameText)}</p></div>`;
+      html += `<div class="ability-card" style="margin:8px 0;"><div class="ability-card-name">[${escHtml(selected.Type)}] "${escHtml(heroAbilityShownName(selected))}"</div><p class="ability-card-body">${escHtml(selected.GameText)}</p></div>`;
     }
   }
   html += `
     <label class="field-label" style="margin-top:0;">Power</label>
     <select id="rollerPowerSelect" onchange="rollerState.pIdx=Number(this.value)">
-      ${rs.powers.map((p, i) => `<option value="${i}" ${i === rs.pIdx ? 'selected' : ''}>${escHtml(p.name)} (${p.die})</option>`).join('')}
+      ${rs.powers.map((p, i) => `<option value="${i}" ${i === rs.pIdx ? 'selected' : ''}>${escHtml(p.displayName || p.name)} (${p.die})</option>`).join('')}
     </select>
     <label class="field-label">Quality</label>
     <select id="rollerQualitySelect" onchange="rollerState.qIdx=Number(this.value)">
-      ${rs.qualities.map((q, i) => `<option value="${i}" ${i === rs.qIdx ? 'selected' : ''}>${escHtml(q.name)} (${q.die})</option>`).join('')}
+      ${rs.qualities.map((q, i) => `<option value="${i}" ${i === rs.qIdx ? 'selected' : ''}>${escHtml(q.displayName || q.name)} (${q.die})</option>`).join('')}
     </select>
     <label class="field-label">Status Die</label>`;
   if (rs.kind === 'villain') {

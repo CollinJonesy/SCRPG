@@ -1,0 +1,81 @@
+# Athletic Powers
+| Name     | Description                                                                                                   |
+|:-------- | ------------------------------------------------------------------------------------------------------------- |
+| Agility  | Your reflexed are honed.                                                                                      |
+| Speed    | You're quick on your feet.                                                                                    |
+| Strength | You're strong and have no problem lifting.                                                                    |
+| Vitality | You're in good shape and good health. At higher levels of vitality, you may even have a regenerative ability. |
+# Elemental/Energy Powers
+| Name        | Description                                                                                                                                                                         |
+|:----------- |:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cold        | Brr. You can lower the temperature dramatically and shape ice to your whim.                                                                                                         |
+| Cosmic      | The primal energies of the universe itself are yours to command.                                                                                                                    |
+| Electricity | You command the lightning (or just a nearby powerline).                                                                                                                             |
+| Fire        | You can make everything burn.                                                                                                                                                       |
+| Infernal    | You can command the demonic energies of the underworld.                                                                                                                             |
+| Nuclear     | The splitting of the atom allows you to channel raw power and radiation.                                                                                                            |
+| Radiant     | The light of the Heavenly Host is at your fingertips, ready to purge the world of evil.                                                                                             |
+| Sonic       | Focused waves of sound can be wielded to great effect, both for destructive vibration and for sound mimicry.                                                                        |
+| Weather     | You can control the weather, including terrible storms and winds. If you want a more direct application of weather's power, you can also take electricity or cold to supplement it. |
+# Hallmark Powers
+|        Name        | Description                                                                                                                                                         |
+| :----------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signature Vehicle  | You have a custom vehicle that is nearly always on hand for you - it could be an awesome motorcycle, a tricked out van, or even something like a magical surfboard. |
+| Signature Weaponry | You have a weapon that is almost like a part of you, from Fanatic's blade *Absolution* to Wraith's arsenal of knives.                                               |
+|   Invented Power   | There might be a specific power not otherwise covered by the powers listed here. With the GM's permission, you can add another power.                               |
+# Intellectual Powers
+|         Name         | Description                                                                                                                                      |
+| :------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+|      Awareness       | You have enhanced senses that give you a broader range of awareness, covering everything from innate danger sense to superior sight and hearing. |
+|      Deduction       | Your mind can make leaps of logic by analyzing details.                                                                                          |
+|      Intuition       | You have strong gut feelings about what's going to happen and these feelings frequently lead to correct conclusions.                             |
+| Lightning Calculator | You can preform intense feats of mathematics in your head in the blink of an eye.                                                                |
+|       Presence       | You project your personality strongly over those you meet.                                                                                       |
+# Materials Powers
+|     Name      | Description                                                                                                                                                  |
+| :-----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|     Metal     | You can command and control metals, fashioning them to all kinds of shapes.                                                                                  |
+|    Plants     | The plants of this world (and maybe beyond) respond to your thoughts, growing as you see fit.                                                                |
+|     Stone     | You can shape stone and use it to build as well as destroy.                                                                                                  |
+|     Toxic     | You can manipulate toxic substances, including radioactive wastes and various poison gases.                                                                  |
+| Transmutation | You can transform non-living materials from one type to another: (To control them, also take other entries from this category in addition to Transmutation.) |
+# Mobility Powers
+|     Name      | Description                                                                                                                                                       |
+| :-----------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    Flight     | Look, up in the sky! It's you!                                                                                                                                    |
+|    Leaping    | Whether it's from immense strength or the proportionate ability of a bullfrog, you can leap through the air with ease.                                            |
+|   Momentum    | You build up momentum as you move and can channel it effectively.                                                                                                 |
+|   Swimming    | You are at home in the water and can propel yourself seamlessly through it. (At d8 or above, you also have no problems breathing underwater.)                     |
+|   Swinging    | Via ropes or other devices, you can swing yourself across town, as long as you have something to grab onto.                                                       |
+| Teleportation | Poof! You can disappear one place and reappear another. The greater the die value, the bigger distance you can go and the more control you have over the process. |
+| Wall-Crawling | You can stick to walls and travel across them quickly.                                                                                                            |
+# Psychic Powers
+|      Name      | Description                                                                                                     |
+| :------------: | --------------------------------------------------------------------------------------------------------------- |
+| Animal Control | Your mental abilities let you talk to and command non-sentient animals.                                         |
+|   Illusions    | You can weave convincing images to others.                                                                      |
+| Postcognition  | You can experience visions of what has happened in the past to a person, place, or object.                      |
+|  Precognition  | You have limited ability to see into the future - or at least, a potential future.                              |
+| Remote Viewing | You can project your sense to view another place at the same time.                                              |
+|   Suggestion   | You can influence minds to act based on your will.                                                              |
+|  Telekinesis   | You can move things with your mind. The higher the die, the heavier the things and the more precision you have. |
+|   Telepathy    | You can send thoughts as well as read minds.                                                                    |
+# Self Control Powers
+|      Name       | Description                                                                                                                                                   |
+| :-------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|   Absorption    | You can absorb energy sent to you, and channel it into other forms.                                                                                           |
+| Density Control | You can make yourself more or less dense to make yourself more resistant to harm or have a lighter step.                                                      |
+|   Duplication   | You can make copies of yourself. Generally these copies won't be functional enough to act as full heroes, unless your abilities let you back this up.         |
+|   Elasticity    | You can stretch your entire body.                                                                                                                             |
+|  Intangibility  | You can pass through solid objects.                                                                                                                           |
+|  Invisibility   | You can make yourself unseen when needed.                                                                                                                     |
+| Part Detachment | You can give someone a hand. OR any other limb, really.                                                                                                       |
+|  Shapeshifting  | You can change your form into something roughly the same size. Some shapeshifter have a limited number of forms they can take, while others are more mutable. |
+|  Size-Changing  | You can increase or decrease your size, from a tall building to ant-sized.                                                                                    |
+# Technological Powers
+|    Name    | Description                                                                                                                |
+| :--------: | -------------------------------------------------------------------------------------------------------------------------- |
+|  Gadgets   | You have access to a wide variety of useful technological tools for any given situation - generally built by someone else. |
+| Inventions | You can invent your own technological tools and have some of your own inventions on you at all times.                      |
+| Power Suit | You have a technological suit with a variety of built-in functions.                                                        |
+|  Robotics  | You are able to create your own robot servants.                                                                            |

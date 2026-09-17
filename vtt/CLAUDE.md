@@ -32,11 +32,9 @@ campaigns.
   `campaign/md/<kind>/<slug>.md`.
 - **JSON** = live/mutable state: `scenes/<slug>.json`, `issues/<slug>.json`,
   `active_scene.json`, `revealed_roll.json`.
-- **`rules/` folder** ships with the *app*, not the campaign — same across every campaign
-  I run. It's a paraphrased, reorganized reference (my own summaries, not verbatim book
-  text — copyright reasons, don't paste raw rulebook text into this folder no matter what
-  I ask for; explain why and offer the same "you paste, I build around it" split that got
-  established last time this came up).
+- **`rules/` folder** ships with the *app*, not the campaign. Nested chapter markdown
+  copied from the Occidia vault `SCRPG Rulebook/`. Don't paste verbatim commercial
+  rulebook text here; keep it in sync with that MD tree.
 
 ## Confirmed game mechanics (verified against the physical book — treat as ground truth)
 

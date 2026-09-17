@@ -2,11 +2,12 @@
 Automated API tests for server.py. Uses Python's stdlib unittest + http.client
 against a real ThreadingHTTPServer instance, per CLAUDE.md's stdlib-only
 philosophy (no pytest, no new dependencies). Every test runs against a fresh
-tempfile.mkdtemp() campaign folder -- never the real campaign/ or Volume1/.
+tempfile.mkdtemp() campaign folder -- never the live campaign/.
 
 Run with:
     python3 -m unittest discover tests
 """
+import csv
 import http.client
 import json
 import shutil
@@ -267,16 +268,20 @@ class TestRulesApi(ServerTestCase):
         status, data = self.request('GET', '/api/rules')
         self.assertEqual(status, 200)
         items = json.loads(data)
-        expected_count = len(list(srv.RULES_DIR.glob('*.md')))
+        expected_count = len(list(srv.iter_rule_files()))
         self.assertEqual(len(items), expected_count)
         self.assertGreater(expected_count, 0)
 
     def test_title_extracted_from_first_heading(self):
         status, data = self.request('GET', '/api/rules')
         items = json.loads(data)
-        villain_entry = next(i for i in items if i['slug'] == '05-2-minions-lieutenants-villains')
-        self.assertTrue(len(villain_entry['title']) > 0)
-        self.assertNotEqual(villain_entry['title'], villain_entry['slug'])
+        self.assertTrue(items)
+        first = items[0]
+        self.assertTrue(len(first['title']) > 0)
+        from urllib.parse import quote
+        body_status, body = self.request('GET', '/api/rules/' + quote(first['slug'], safe=''))
+        self.assertEqual(body_status, 200)
+        self.assertTrue(len(body) > 0)
 
 
 class TestHeroBuilder(ServerTestCase):
@@ -307,8 +312,8 @@ class TestHeroBuilder(ServerTestCase):
             'redStatusDie': 'd8',
             'maxHealth': 28,
             'out': 'Out: Hinder an opponent by rolling your single [quality] die.',
-            'powers': [{'name': 'Radiant', 'die': 'd10'}],
-            'qualities': [{'name': 'Creativity', 'die': 'd8'}],
+            'powers': [{'name': 'Radiant', 'die': 'd10', 'displayName': 'Starburst'}],
+            'qualities': [{'name': 'Creativity', 'die': 'd8', 'displayName': 'Vision'}],
             'abilities': [{'zone': 'Red', 'name': 'Powerful Strike', 'type': 'A',
                            'text': 'Attack using [power]. Use your Max+Mid dice.'}],
         })
@@ -321,6 +326,8 @@ class TestHeroBuilder(ServerTestCase):
         csv_text = (self.campaign / 'heroes.csv').read_text(encoding='utf-8')
         self.assertIn('Lumen', csv_text)
         self.assertIn('Radiant', csv_text)
+        self.assertIn('Starburst', csv_text)
+        self.assertIn('Vision', csv_text)
         md = (self.campaign / 'md' / 'heroes' / 'lumen.md').read_text(encoding='utf-8')
         self.assertIn('Powerful Strike', md)
         self.assertIn('Sarcastic', md)
@@ -328,6 +335,28 @@ class TestHeroBuilder(ServerTestCase):
         note = vault / 'Lumen.md'
         self.assertTrue(note.exists())
         self.assertIn('player: Cherise', note.read_text(encoding='utf-8'))
+
+    def test_save_hero_keeps_discrete_yellow_zone(self):
+        payload = json.dumps({
+            'name': 'Mover',
+            'powers': [{'name': 'Speed', 'die': 'd10'}],
+            'qualities': [{'name': 'Fitness', 'die': 'd8'}],
+            'abilities': [
+                {'zone': 'Green', 'name': 'Hit & Run', 'type': 'A', 'text': 'Attack using Speed.'},
+                {'zone': 'Yellow', 'name': 'Run Down', 'type': 'A', 'text': 'Attack multiple targets using Speed.'},
+                {'zone': 'Green/Yellow', 'name': 'Legacy Shorthand', 'type': 'A', 'text': 'Attack using Speed.'},
+            ],
+        })
+        status, data = self.request(
+            'POST', '/api/builder/hero', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        with (self.campaign / 'abilities.csv').open(encoding='utf-8') as f:
+            rows = list(csv.DictReader(f))
+        zones = {r['Name']: r['Zone'] for r in rows if r['HeroSlug'] == 'mover'}
+        self.assertEqual(zones['Hit & Run'], 'Green')
+        self.assertEqual(zones['Run Down'], 'Yellow')
+        self.assertEqual(zones['Legacy Shorthand'], 'Green')
 
     def test_save_hero_requires_name(self):
         status, data = self.request(

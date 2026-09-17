@@ -31,11 +31,32 @@ from urllib.parse import urlparse, unquote
 APP_DIR = Path(__file__).parent
 RULES_DIR = APP_DIR / 'rules'
 
+
+def iter_rule_files():
+    """Nested markdown under rules/. Slug is relative path with / → --."""
+    if not RULES_DIR.exists():
+        return
+    for f in sorted(RULES_DIR.rglob('*.md')):
+        if not f.is_file():
+            continue
+        rel = f.relative_to(RULES_DIR).as_posix()
+        if not rel.endswith('.md'):
+            continue
+        yield f, rel[:-3].replace('/', '--')
+
+
+def rule_file_for_slug(slug: str):
+    rel = slug.replace('--', '/') + '.md'
+    p = (RULES_DIR / rel).resolve()
+    try:
+        p.relative_to(RULES_DIR.resolve())
+    except ValueError:
+        return None
+    return p if p.is_file() else None
+
 HEROES_HEADERS = ['Slug', 'Name', 'Alias', 'Player',
-    'Power1', 'PowerDie1', 'Power2', 'PowerDie2', 'Power3', 'PowerDie3',
-    'Power4', 'PowerDie4', 'Power5', 'PowerDie5', 'Power6', 'PowerDie6',
-    'Quality1', 'QualityDie1', 'Quality2', 'QualityDie2', 'Quality3', 'QualityDie3',
-    'Quality4', 'QualityDie4', 'Quality5', 'QualityDie5', 'Quality6', 'QualityDie6',
+    'Power1', 'PowerDie1', 'Power1DisplayName', 'Power2', 'PowerDie2', 'Power2DisplayName', 'Power3', 'PowerDie3', 'Power3DisplayName', 'Power4', 'PowerDie4', 'Power4DisplayName', 'Power5', 'PowerDie5', 'Power5DisplayName', 'Power6', 'PowerDie6', 'Power6DisplayName',
+    'Quality1', 'QualityDie1', 'Quality1DisplayName', 'Quality2', 'QualityDie2', 'Quality2DisplayName', 'Quality3', 'QualityDie3', 'Quality3DisplayName', 'Quality4', 'QualityDie4', 'Quality4DisplayName', 'Quality5', 'QualityDie5', 'Quality5DisplayName', 'Quality6', 'QualityDie6', 'Quality6DisplayName',
     'MaxHealth', 'GreenStatusDie', 'YellowStatusDie', 'RedStatusDie', 'GMControlled',
     'Principle1Name', 'Principle1Roleplay', 'Principle1MinorTwist', 'Principle1MajorTwist',
     'Principle2Name', 'Principle2Roleplay', 'Principle2MinorTwist', 'Principle2MajorTwist']
@@ -107,7 +128,7 @@ DEFAULT_TWISTS = [
     ('meanwhile-vehicle-sabotaged', 'Vehicle Sabotaged', 'Story Complication (Later)', 'Any', '', 'Meanwhile: someone sabotages your vehicle.'),
 ]
 
-ABILITIES_HEADERS = ['HeroSlug', 'Zone', 'Name', 'Type', 'GameText', 'RollType', 'DieSource', 'EffectDieHint']
+ABILITIES_HEADERS = ['HeroSlug', 'Zone', 'Name', 'DisplayName', 'Type', 'GameText', 'RollType', 'DieSource', 'EffectDieHint']
 
 CSV_FILES = {'heroes': ('heroes.csv', HEROES_HEADERS),
              'villains': ('villains.csv', VILLAINS_HEADERS),
@@ -248,7 +269,15 @@ def _csv_rows(path: Path, headers):
     if not path.exists() or not path.read_text(encoding='utf-8').strip():
         return []
     with path.open(newline='', encoding='utf-8') as f:
-        return list(csv.DictReader(f))
+        rows = list(csv.DictReader(f))
+    # Clean up legacy "Green/Yellow" zone values in abilities (book shorthand for
+    # "this ability's zone is chosen between Green and Yellow at build time" — the
+    # actual zone is Green; the app's gyro filter + CSS can only handle real zones).
+    if path.name == 'abilities.csv' and 'Zone' in (headers or []):
+        for r in rows:
+            if (r.get('Zone') or '') == 'Green/Yellow':
+                r['Zone'] = 'Green'
+    return rows
 
 
 def _write_csv(path: Path, headers, rows):
@@ -293,16 +322,20 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
         for i in range(1, 7):
             row[f'Power{i}'] = ''
             row[f'PowerDie{i}'] = ''
+            row[f'Power{i}DisplayName'] = ''
         for i, p in enumerate(powers, 1):
             row[f'Power{i}'] = p.get('name') or ''
             row[f'PowerDie{i}'] = p.get('die') or ''
+            row[f'Power{i}DisplayName'] = p.get('displayName') or ''
     if qualities:
         for i in range(1, 7):
             row[f'Quality{i}'] = ''
             row[f'QualityDie{i}'] = ''
+            row[f'Quality{i}DisplayName'] = ''
         for i, q in enumerate(qualities, 1):
             row[f'Quality{i}'] = q.get('name') or ''
             row[f'QualityDie{i}'] = q.get('die') or ''
+            row[f'Quality{i}DisplayName'] = q.get('displayName') or ''
     princ = list(payload.get('principles') or [])
     if princ:
         for i, pr in enumerate(princ[:2], 1):
@@ -322,8 +355,9 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
         for a in abilities:
             ab_rows.append({
                 'HeroSlug': slug,
-                'Zone': a.get('zone') or '',
+                'Zone': (a.get('zone') or '').replace('Green/Yellow', 'Green'),
                 'Name': a.get('name') or '',
+                'DisplayName': a.get('displayName') or a.get('DisplayName') or '',
                 'Type': a.get('type') or '',
                 'GameText': a.get('text') or a.get('gameText') or '',
                 'RollType': a.get('rollType') or '',
@@ -780,19 +814,20 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
 
             if path == '/api/rules':
                 items = []
-                for f in sorted(RULES_DIR.glob('*.md')):
+                for f, slug in iter_rule_files():
                     try:
                         text = f.read_text(encoding='utf-8')
                         first_line = next((l.strip('# ').strip() for l in text.splitlines() if l.strip().startswith('#')), f.stem)
-                        items.append({'slug': f.stem, 'title': first_line, 'chars': len(text)})
+                        chapter = slug.split('--', 1)[0] if '--' in slug else ''
+                        items.append({'slug': slug, 'title': first_line, 'chapter': chapter, 'chars': len(text)})
                     except Exception:
                         continue
                 return self._send_text(json.dumps(items), 200, 'application/json')
 
             if path.startswith('/api/rules/'):
-                slug = path.rsplit('/', 1)[-1]
-                p = RULES_DIR / (slug + '.md')
-                if not p.exists():
+                slug = unquote(path[len('/api/rules/'):])
+                p = rule_file_for_slug(slug)
+                if not p:
                     return self._send_text('not found', 404)
                 return self._send_text(p.read_text(encoding='utf-8'), 200, 'text/markdown; charset=utf-8')
 
@@ -963,7 +998,8 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--campaign', default='campaign', help='Path to campaign folder (default: ./campaign)')
+    ap.add_argument('--campaign', default=str(APP_DIR / 'campaign'),
+                    help='Path to campaign folder (default: the campaign/ next to server.py)')
     ap.add_argument('--port', type=int, default=8420)
     ap.add_argument('--obsidian', default='',
                     help='Occidia PC notes folder. Empty = ~/Obsidian/Occidia/Occidia/1. Player Characters if it exists.')
