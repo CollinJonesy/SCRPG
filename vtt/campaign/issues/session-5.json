@@ -3,6 +3,12 @@
   "notes": "",
   "sceneSlugs": [],
   "villainSlugs": [],
-  "heroSlugs": [],
+  "heroSlugs": [
+    "handyman",
+    "pink-panther",
+    "titus-andromeda",
+    "masquerade",
+    "lumen"
+  ],
   "minionSlugs": []
 }

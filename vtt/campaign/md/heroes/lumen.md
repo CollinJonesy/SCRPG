@@ -23,11 +23,11 @@ Attack using [Flight]. Defend against all Attacks against you using your Min die
 ### [R] "Mobile Dodge"
 When you are hit with an Attack, you may take 1 irreducible damage to have the attacker reroll their dice pool.
 
-### [R] "Heroic Sacrifice"
-When an opponent Attacks, you may become the target of that Attack and Defend by rolling your single Red zone die.
-
 ### [I] "Inspiring Totem"
 When you use an ability action, you may also perform any one basic action using your Mid die on the same roll.
+
+### [R] "Heroic Sacrifice"
+When an opponent Attacks, you may become the target of that Attack and Defend by rolling your single Red zone die.
 
 ### [I] "Out"
 Boost an ally by rolling your single Creativity die.
@@ -111,19 +111,37 @@ Boost an ally by rolling your single Creativity die.
     "I've Got You": "d6"
   },
   "reds": [
-    "r61",
-    "r62"
+    "r62",
+    "r61"
   ],
-  "retcon": 5,
-  "retconSpec": {
-    "prFrom": "principle-of-the-loner",
-    "prTo": "principle-of-the-everyman"
-  },
+  "retcon": null,
+  "retconSpec": {},
   "abBinds": {
     "supernatural-mass-modification": "Telekinesis",
     "supernatural-personal-upgrade": "Flight",
     "transporter-displacement-assault": "Telekinesis",
     "transporter-hit-run": "Flight"
+  },
+  "abNames": {
+    "supernatural-mass-modification": "Gravity Well",
+    "transporter-displacement-assault": "Redirect Gravity",
+    "transporter-hit-run": "Fly By",
+    "supernatural-personal-upgrade": "Full Lashing"
+  },
+  "powNames": {
+    "Telekinesis": "",
+    "Flight": "",
+    "Density Control": "",
+    "Agility": "",
+    "Strength": ""
+  },
+  "qualNames": {
+    "Creativity": "",
+    "Insight": "",
+    "Acrobatics": "",
+    "I've Got You": "",
+    "Fitness": "",
+    "Persuasion": ""
   },
   "health": [
     32,
@@ -131,6 +149,26 @@ Boost an ally by rolling your single Creativity die.
     "24-12",
     "11-1"
   ],
+  "method": "Free",
+  "freePow": {
+    "Telekinesis": "d10",
+    "Flight": "d8",
+    "Density Control": "d6",
+    "Agility": "d10",
+    "Strength": "d6"
+  },
+  "freeQual": {
+    "Creativity": "d10",
+    "Insight": "d8",
+    "Fitness": "d10",
+    "Persuasion": "d10"
+  },
+  "guidedRolls": {
+    "bg": null,
+    "ps": null,
+    "ar": null,
+    "pe": null
+  },
   "f": {
     "name": "Lumen",
     "alias": "Nora Quinn (Quinn)",

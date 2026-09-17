@@ -12,7 +12,7 @@
       "red",
       "red"
     ],
-    "position": 0
+    "position": 2
   },
   "locations": [
     {
@@ -131,7 +131,7 @@
       "slug": "plus",
       "name": "Plus",
       "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
+      "currentDie": 8,
       "ko": false
     },
     {
@@ -139,7 +139,7 @@
       "kind": "lieutenant",
       "slug": "bunsen-burner",
       "name": "Bunsen Burner",
-      "locationId": "loc-dgjwqvjv",
+      "locationId": "loc-4ph2y7cy",
       "currentDie": 10,
       "ko": false
     },
@@ -182,56 +182,7 @@
   ],
   "gmNotes": "",
   "__slug": "session-1-scene-1",
-  "activityLog": [
-    {
-      "id": "log-wr47ds74",
-      "timestamp": 1789164362.521,
-      "round": 1,
-      "actor": {
-        "id": "tok-empth790",
-        "name": "Masquerade",
-        "kind": "hero"
-      },
-      "action": "Attack",
-      "target": {
-        "id": "tok-sh21wh3c",
-        "name": "Plus",
-        "kind": "lieutenant"
-      },
-      "result": "Basic Attack: save 4 vs 6 — d6",
-      "details": {
-        "effect": 6,
-        "dmg": 6,
-        "roll": 4,
-        "ability": "Basic Attack",
-        "turnNumber": 1
-      }
-    },
-    {
-      "id": "log-0220hh0x",
-      "timestamp": 1789164384.257,
-      "round": 1,
-      "actor": {
-        "id": "tok-sk72mla9",
-        "name": "Lumen",
-        "kind": "hero"
-      },
-      "action": "Attack",
-      "target": {
-        "id": "tok-sh21wh3c",
-        "name": "Plus",
-        "kind": "lieutenant"
-      },
-      "result": "Basic Attack: save 2 vs 1 — held",
-      "details": {
-        "effect": 1,
-        "dmg": 1,
-        "roll": 2,
-        "ability": "Basic Attack",
-        "turnNumber": 2
-      }
-    }
-  ],
+  "activityLog": [],
   "mods": [
     {
       "id": "mod-0h7bc3ez",

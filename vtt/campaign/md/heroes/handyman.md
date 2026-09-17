@@ -9,13 +9,13 @@ Hinder an opponent by rolling your single Finesse die.
 ## Abilities
 
 ### [A] "Organi-Hack"
-Attack a target using [A]. Hinder that target with your Min die.
-
-### [A] "Recharge"
-Boost yourself using [A]. Then, either remove a penalty on yourself or Recover using your Min die.
+Attack a target using [Signature Weaponry]. Hinder that target with your Min die.
 
 ### [A] "Energy Burst"
-Attack multiple targets using [A], using your Min die against each.
+Attack multiple targets using [Signature Weaponry], using your Min die against each.
+
+### [I] "Techno-Absorb"
+When you would take damage from [element/energy], you may Recover that amount of Health instead.
 
 ### [A] "Switch"
 Boost yourself using [Part Detachment]. Then change modes.
@@ -79,8 +79,8 @@ Hinder an opponent by rolling your single Finesse die.
   },
   "psAbilities": [
     "tech-upgrades-organi-hack",
-    "tech-upgrades-recharge",
-    "tech-upgrades-energy-burst"
+    "tech-upgrades-energy-burst",
+    "tech-upgrades-techno-absorb"
   ],
   "psReq": {
     "mode": "",
@@ -137,9 +137,9 @@ Hinder an opponent by rolling your single Finesse die.
   "retcon": null,
   "retconSpec": {},
   "abBinds": {
-    "tech-upgrades-organi-hack": "A",
+    "tech-upgrades-organi-hack": "Signature Weaponry",
     "tech-upgrades-recharge": "A",
-    "tech-upgrades-energy-burst": "A",
+    "tech-upgrades-energy-burst": "Signature Weaponry",
     "modular-switch": "Part Detachment",
     "modular-quick-switch": "A",
     "modular-emergency-switch": "R",
@@ -148,12 +148,51 @@ Hinder an opponent by rolling your single Finesse die.
     "modular-stalwart": "Signature Weaponry",
     "red-9": "Part Detachment"
   },
+  "abNames": {},
+  "powNames": {
+    "Signature Weaponry": "",
+    "Deduction": "",
+    "Nuclear": "",
+    "Strength": "",
+    "Wall-Crawling": "",
+    "Part Detachment": ""
+  },
+  "qualNames": {
+    "Close Combat": "",
+    "Alertness": "",
+    "Finesse": "",
+    "Investigation": "",
+    "Technology": "",
+    "Multiple AI Personalities": ""
+  },
   "health": [
     30,
     "30-23",
     "22-12",
     "11-1"
   ],
+  "method": "Free",
+  "freePow": {
+    "Strength": "d8",
+    "Nuclear": "d6",
+    "Deduction": "d8",
+    "Wall-Crawling": "d6",
+    "Signature Weaponry": "d10",
+    "Part Detachment": "d6"
+  },
+  "freeQual": {
+    "Close Combat": "d10",
+    "Alertness": "d8",
+    "Finesse": "d10",
+    "Investigation": "d6",
+    "Technology": "d6"
+  },
+  "guidedRolls": {
+    "bg": null,
+    "ps": null,
+    "ar": null,
+    "pe": null
+  },
   "f": {
     "name": "Handyman",
     "alias": "Derek Stevens",

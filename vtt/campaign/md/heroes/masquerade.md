@@ -9,10 +9,10 @@ Hinder an opponent by rolling your single Persuasion die.
 ## Abilities
 
 ### [A] "Mass Effect"
-Boost or Hinder using [A] and apply that mod to multiple close targets.
+Boost or Hinder using [Signature Weaponry] and apply that mod to multiple close targets.
 
 ### [A] "Encourage"
-Attack using [power]. Boost all nearby heroes taking Attack or Overcome actions using your Min die until your next turn.
+Attack using [Shapeshifting]. Boost all nearby heroes taking Attack or Overcome actions using your Min die until your next turn.
 
 ### [A] "Change Forms"
 Take a basic action using [Shapeshifting], then switch to any available form.
@@ -24,7 +24,10 @@ Attack using [Shapeshifting] and Recover Health equal to your Min die. Return to
 When hit with an Attack, change to any form before resolving the Attack. Take a minor twist.
 
 ### [A] "Powerful Strike (SC)"
-Attack using [Signature Weaponry]. Use your Max+Mid dice.
+Attack using [Shapeshifting]. Use your Max+Mid dice.
+
+### [A] "Mutable Form"
+Choose three basic actions. Use [Signature Weaponry] in your pool and take one action with your Max die, a different action with your Mid die, and a third action with your Min die.
 
 ### [I] "Out"
 Hinder an opponent by rolling your single Persuasion die.
@@ -83,7 +86,7 @@ Hinder an opponent by rolling your single Persuasion die.
   "arQual": {
     "Ranged Combat": "d8"
   },
-  "arPrinciple": "principle-of-destiny",
+  "arPrinciple": "principle-of-self-preservation",
   "arAbilities": [
     "form-changer-change-forms",
     "form-changer-form-recovery",
@@ -104,20 +107,57 @@ Hinder an opponent by rolling your single Persuasion die.
   "peOutBind": "Persuasion",
   "peQual": {},
   "reds": [
-    "r39"
+    "r39",
+    "r38"
   ],
-  "retcon": 5,
-  "retconSpec": {
-    "prFrom": "principle-of-destiny",
-    "prTo": "principle-of-self-preservation"
-  },
+  "retcon": null,
+  "retconSpec": {},
   "abBinds": {
-    "cosmos-mass-effect": "A",
+    "cosmos-mass-effect": "Signature Weaponry",
     "form-changer-change-forms": "Shapeshifting",
     "form-changer-form-recovery": "Shapeshifting",
-    "red-39": "Signature Weaponry"
+    "red-39": "Shapeshifting",
+    "cosmos-encourage": "Shapeshifting",
+    "red-38": "Signature Weaponry"
   },
-  "health": null,
+  "abNames": {},
+  "powNames": {
+    "Signature Weaponry": "",
+    "Size-Changing": "",
+    "Suggestion": "",
+    "Shapeshifting": "",
+    "Swimming": ""
+  },
+  "qualNames": {
+    "Persuasion": "",
+    "Creativity": "",
+    "Ranged Combat": ""
+  },
+  "health": [
+    30,
+    "30-23",
+    "22-12",
+    "11-1"
+  ],
+  "method": "Free",
+  "freePow": {
+    "Shapeshifting": "d10",
+    "Signature Weaponry": "d10",
+    "Swimming": "d8",
+    "Size-Changing": "d8",
+    "Suggestion": "d6"
+  },
+  "freeQual": {
+    "Persuasion": "d10",
+    "Creativity": "d8",
+    "Ranged Combat": "d8"
+  },
+  "guidedRolls": {
+    "bg": null,
+    "ps": null,
+    "ar": null,
+    "pe": null
+  },
   "f": {
     "name": "Masquerade",
     "alias": "Chris Westwood",
