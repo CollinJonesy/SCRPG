@@ -39,6 +39,8 @@ def iter_rule_files():
     for f in sorted(RULES_DIR.rglob('*.md')):
         if not f.is_file():
             continue
+        if f.name.lower() == 'readme.md':
+            continue
         rel = f.relative_to(RULES_DIR).as_posix()
         if not rel.endswith('.md'):
             continue
