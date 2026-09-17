@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=SCRPG Scene Board — Volume1
-Comment=Launch the SCRPG VTT local server (Volume1 campaign) and open the Scene Board
-Exec="__REPO_DIR__/desktop-launchers/launch-volume1.sh"
-Terminal=true
-Icon=applications-games
-Categories=Game;

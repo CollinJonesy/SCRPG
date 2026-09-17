@@ -24,7 +24,7 @@ SCRPG/
 
 When a second campaign starts, add a sibling folder under `campaign/` (e.g. `campaign/<new-name>/`) rather than restructuring this one.
 
-Note: the VTT app also keeps its own mechanical campaign data (`vtt/campaign/`, `vtt/Volume1/` — CSV/JSON heroes, villains, scenes) separate from the narrative notes under `campaign/occidia/` here. The app data is what `server.py` reads to run a live session; `campaign/occidia/` is where the story/world content lives (authored in Obsidian). See `vtt/README.md` and `vtt/CLAUDE.md` for that split in detail.
+Note: the VTT app keeps mechanical campaign data in `vtt/campaign/` (CSV/JSON heroes, villains, scenes) separate from the narrative notes under `campaign/occidia/`. `server.py` reads `vtt/campaign/` to run a live session. See `vtt/README.md` and `vtt/CLAUDE.md` for that split in detail.
 
 ## Adding campaign notes/assets
 
@@ -69,5 +69,5 @@ folder. `campaign/occidia/*` is written and edited directly in Obsidian (Templat
 templates for consistent NPC/PC/session structure); the Obsidian Git plugin handles
 commit/push for you here. Player-facing lore gets published separately via the Digital
 Garden plugin (tag a note `dg-publish: true`) — that never touches this private repo, so
-GM-only content (this repo's `vtt/campaign/`, `vtt/Volume1/`, and anything under
+GM-only content (this repo's `vtt/campaign/`, and anything under
 `campaign/occidia/` you haven't tagged) never leaks to players by accident.

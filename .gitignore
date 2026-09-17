@@ -8,6 +8,7 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+.claude/
 
 # Common project tooling
 node_modules/
@@ -26,3 +27,7 @@ __pycache__/
 
 # Large reference PDFs (split rulebook pages) — not versioned
 /Rules (PDF)/
+
+# Import leftovers / sheet photos (archived off-repo)
+*.zip
+vtt/docs/sheet-photos/

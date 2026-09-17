@@ -43,15 +43,14 @@ before or during a session.
 
 ## Desktop launchers (no terminal needed)
 
-`desktop-launchers/` ships one `.sh` launch script and one `.desktop` template per
-campaign folder (`campaign/` and `Volume1/`). To install both as clickable app-menu
-entries (works under GNOME, KDE, XFCE, etc.):
+`desktop-launchers/` ships a `.sh` launch script and `.desktop` template for
+`campaign/`. To install as a clickable app-menu entry (GNOME, KDE, XFCE, etc.):
 ```bash
 bash desktop-launchers/install.sh
 ```
 This fills in the actual repo path automatically (no manual editing) and installs to
-`~/.local/share/applications/`. Each launcher starts the server for its campaign on its
-own port (Volume1 → 8420, campaign → 8421) and opens a browser to it.
+`~/.local/share/applications/`. The launcher starts the server on port 8421 and opens
+a browser to it.
 
 ## Moving this to another machine
 
