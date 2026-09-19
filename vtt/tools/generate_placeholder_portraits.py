@@ -77,7 +77,7 @@ def main():
 
     campaign = Path(args.campaign)
     jobs = []  # (portrait_kind, slug, name)
-    for csv_name, portrait_kind in [('heroes.csv', 'hero'), ('villains.csv', 'villain'), ('minions.csv', 'minion')]:
+    for csv_name, portrait_kind in [('players.csv', 'hero'), ('villains.csv', 'villain'), ('minions.csv', 'minion')]:
         p = campaign / csv_name
         if not p.exists():
             continue

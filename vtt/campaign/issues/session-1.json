@@ -2,9 +2,9 @@
   "name": "Session 1",
   "notes": "",
   "sceneSlugs": [
-    "session-1-scene-1",
     "the-cozy-thimble",
-    "police-station"
+    "session-1-scene-1",
+    "hub-police-arrive"
   ],
   "villainSlugs": [
     "stunt-double",
@@ -21,7 +21,15 @@
     "bunsen-burner",
     "minus",
     "plus",
-    "shocker-initiate"
+    "shocker-initiate",
+    "bank-teller",
+    "new-entry",
+    "bank-teller-2",
+    "bank-supervisor",
+    "diesel",
+    "marguerite",
+    "mr-chan",
+    "super-fan"
   ],
   "locationSlugs": [
     "bank-lobby-offices",

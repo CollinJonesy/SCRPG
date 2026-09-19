@@ -12,7 +12,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: var(--ink);
+    background: #4f4f4f;
   }
   .display-header { display:none; }
   #displayFrame {
@@ -81,39 +81,62 @@
   }
   .location-name-display { font-size: clamp(22px, 3.4vh, 48px); letter-spacing: 0.06em; }
   .empty-display { padding: 8vh 2vw; text-align: center; font-family: var(--font-display); font-size: 3vh; color: var(--text-lo); }
+  #displayStage.scene-bg-host {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #1a1a1a;
+  }
+  #displayStage.scene-bg-host::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(15, 17, 24, 0.55);
+    pointer-events: none;
+    z-index: 0;
+  }
+  #displayFrame, #displayStage { position: relative; }
+  #displayStage > * { position: relative; z-index: 1; }
   .mvc-stage {
+    /* Always a 10-column stage. Sides span 3/2/5 (or 5/5 / full). */
     display: grid;
-    grid-template-columns: repeat(11, minmax(0, 1fr));
+    grid-template-columns: repeat(10, minmax(0, 1fr));
     gap: 0.7vw;
     align-items: start;
     min-height: 0;
   }
   .mvc-side { min-width: 0; margin: 0; padding: 0; }
-  .mvc-side.heroes { grid-column: 1 / span 5; }
-  .mvc-side.villains { grid-column: 6 / span 6; }
+  .mvc-blank {
+    /* Whole empty separator column — stage column 6 in layout-hero-sep. */
+    min-width: 0;
+    grid-column: span 1;
+    pointer-events: none;
+  }
   .mvc-side-label {
     font-family: var(--font-display);
     font-size: clamp(16px, 2.4vh, 28px);
     letter-spacing: 0.08em;
     margin-bottom: 0.5vh;
+    text-align: center;
   }
-  .mvc-side.heroes .mvc-side-label { color: #7eb6ff; text-align: left; }
-  .mvc-side.villains .mvc-side-label { color: #ff8a7a; text-align: left; }
+  .mvc-side.allies .mvc-side-label { color: #7eb6ff; }
+  .mvc-side.neutral .mvc-side-label { color: #c8c8d0; }
+  .mvc-side.enemies .mvc-side-label { color: #ff8a7a; }
   .mvc-row {
+    /* --mvc-count = side width (≤10), never token count. Extras wrap. */
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--mvc-count, 5), minmax(0, 1fr));
     gap: 0.7vw;
     align-items: stretch;
     width: 100%;
   }
-  .mvc-side.villains .mvc-row {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-  .mvc-card {
-    box-sizing: border-box;
+  .mvc-side .mvc-card {
     width: 100%;
     max-width: none;
     min-width: 0;
+  }
+  .mvc-card {
+    box-sizing: border-box;
+    position: relative;
     overflow: hidden;
     background: linear-gradient(180deg, #1a1e2a 0%, #0b0d12 100%);
     border: 0.28vh solid #f5c518;
@@ -123,16 +146,28 @@
     flex-direction: column;
   }
   .mvc-card.hero { border-color: #2454E8; }
-  .mvc-card.villain { border-color: #ff8a8a; }
-  .mvc-card.lieutenant { border-color: #b45309; width: 100%; }
-  .mvc-card.minion { border-color: #e6ff00; width: 100%; }
-  .mvc-art { height: 16vh; flex: 1 1 auto; min-height: 9vh; background: #000; overflow: hidden; border: 0.15vh solid #000; }
-  .mvc-side.villains .mvc-art { height: 16vh; min-height: 9vh; }
+  .mvc-card.villain { border-color: #6e0b0b; }
+  .mvc-card.minion { border-color: #e6ff00; }
+  .mvc-card.lieutenant { border-color: #b45309; }
+  .mvc-card .npc-badge {
+    position: absolute; top: 0.4vh; left: 0.4vh; z-index: 2;
+    font-size: 1.2vh; font-weight: 700; letter-spacing: 0.08em;
+    background: #111; color: #e6ff00; padding: 0.2vh 0.5vh;
+  }
+  .mvc-art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    height: auto;
+    flex: 0 0 auto;
+    background: #000;
+    overflow: hidden;
+    border: 0.15vh solid #000;
+  }
   .mvc-art img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
   .mvc-plate {
     font-family: var(--font-body);
     font-weight: 700;
-    font-size: clamp(14px, 2.2vh, 26px);
+    font-size: clamp(13px, 2.1vh, 24px);
     letter-spacing: 0;
     text-align: center;
     padding: 0.5vh 0.3vw 0.3vh;
@@ -143,13 +178,14 @@
     word-break: normal;
     text-overflow: clip;
   }
-  .mvc-card.hero .mvc-plate,
-  .mvc-card.villain .mvc-plate,
-  .mvc-card.minion .mvc-plate,
-  .mvc-card.lieutenant .mvc-plate {
-    font-size: clamp(13px, 2.1vh, 24px);
-  }
-  .mvc-card .health-bar-track { height: 1vh; margin: 0.35vh 0 0.45vh; }
+  .mvc-card .health-bar-track { height: 1vh; margin: 0.35vh 0 0.45vh; background:#222; border-radius:2px; overflow:hidden; }
+  .health-bar-fill { height:100%; transition:width .3s ease; }
+  .health-bar-fill.green { background:#0a0; }
+  .health-bar-fill.yellow { background:#cc0; }
+  .health-bar-fill.red { background:#c00; }
+  .health-bar-fill.out { background:#555; }
+  .mvc-card.lieutenant .health-bar-track,
+  .mvc-card.minion .health-bar-track { margin-top: 0.6vh; }
   .mvc-card .bhd-row { margin-top: 0; gap: 0.25vw; min-width: 0; }
   .mvc-card .bhd-stat {
     cursor: default;
@@ -157,15 +193,26 @@
     min-width: 0;
     overflow: hidden;
   }
+  /* Numbers = token name size; labels shrink to fit cell (≤ numbers − 2px). */
+  /* Numbers and labels now use the same base size (name size). fitHeroNamePlates() shrinks labels further if needed to prevent clipping. */
+  .mvc-card .bhd-stat b,
   .mvc-card .bhd-stat span {
-    font-size: clamp(6px, 0.85vh, 10px);
+    font-size: clamp(13px, 2.1vh, 24px);
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .mvc-card .bhd-stat span {
+    font-size: clamp(11px, 1.7vh, 18px);
     font-weight: 800;
     letter-spacing: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: clip;
+    max-width: 100%;
   }
-  .mvc-card .bhd-stat b { font-size: clamp(14px, 2vh, 22px); }
+  .mvc-card.villain .bhd-stat,
+  .mvc-card.minion .bhd-stat,
+  .mvc-card.lieutenant .bhd-stat { padding: 0.7vh 0.1vw; }
   .mvc-empty { color: var(--text-lo); font-style: italic; padding: 2vh; font-size: 1.6vh; }
   .mvc-ko { text-align: center; color: var(--text-lo); margin-top: 0.6vh; font-size: 1.4vh; }
   #displayChallenges {

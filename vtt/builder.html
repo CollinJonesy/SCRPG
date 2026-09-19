@@ -49,7 +49,7 @@
   .rollbtn{background:var(--accent);color:#fff;border:none;padding:9px 15px;border-radius:8px;cursor:pointer;font-size:.9rem;margin-top:6px}
   label{font-size:.83rem;display:block;margin:9px 0 3px;font-weight:600}
   input[type=text],textarea,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:.88rem;font-family:inherit}
-  textarea{resize:vertical;min-height:50px}
+  textarea{resize:none;min-height:50px;overflow-y:hidden;field-sizing:content}
   .zone{display:inline-block;padding:1px 7px;border-radius:5px;color:#fff;font-size:.72rem;font-weight:700}
   .zG{background:var(--green)}.zY{background:var(--yellow);color:#222}.zR{background:var(--red)}
   .summary{font-size:.86rem;line-height:1.5}
@@ -125,6 +125,7 @@
       <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setHeroOrigin('all')">All</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setHeroOrigin('custom')">Custom</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setHeroOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="heroActiveOnlyBtn" onclick="setHeroActiveOnly(!heroActiveOnly)">Active Only</button>
     </div>
     <p class="muted" id="landEmpty">Loading…</p>
     <table class="land hidden" id="landTable">
@@ -226,6 +227,13 @@
     <h2>8 · Finishing Touches <span class="muted">(p114 / p122)</span></h2>
     <div class="hint">Verbatim (p122): "All of these details go at the top of your hero's sheet: there's space for your Hero Name and Alias, as well as a Physical Attributes section. There, you fill in your Gender, Age, and Height, as well as notes about your Eyes, Hair, Skin, and Build. Finally, briefly detail the Costume/Equipment… If you haven't renamed your abilities yet, go over them and come up with some snappy names that fit your hero."</div>
     <label>Hero Name</label><input type="text" id="heroName" placeholder="e.g. Nightfall">
+    <label><input type="checkbox" id="heroActive" checked> Active in Library</label>
+    <label>Affiliation</label>
+    <select id="heroAffiliation">
+      <option value="Ally" selected>Ally</option>
+      <option value="Enemy">Enemy</option>
+      <option value="Neutral">Neutral</option>
+    </select>
     <label>Alias</label><input type="text" id="alias" placeholder="e.g. Jordan Veil">
     <label>Player</label><input type="text" id="player" placeholder="e.g. Cherise">
     <label>Gender / Age / Height</label>
@@ -253,6 +261,23 @@
 
 <script src="/collection-picker.js"></script>
 <script>
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
 /* ============ VERIFIED BOOK DATA (verbatim where quoted; data from PDF text layer) ============ */
 const DICE=["d4","d6","d8","d10","d12"];
 const dm=x=>parseInt(x.replace("d",""))||0;
@@ -2070,6 +2095,9 @@ function saveToVtt(){
     out: pe?(state.peOutBind?(pe.out_ability||'').replace(/\[quality\]/ig,state.peOutBind).replace(/\[power\]/ig,state.peOutBind):(pe.out_ability||'')):"",
     maxHealth: state.health?state.health[0]:"",
     powers, qualities, abilities, principles: princ,
+    active: document.getElementById('heroActive') ? document.getElementById('heroActive').checked : true,
+    affiliation: (document.getElementById('heroAffiliation')||{}).value || 'Ally',
+    origin: (heroLand.find(x=>x.Slug===(state.f && state.f.slug))||heroLand.find(x=>x.Name===state.f.name)||{}).origin || (BOOK_HERO_SLUGS.has(slugify(state.f.name||'')) ? 'premade' : 'custom'),
     builderState: snapshotBuilder()
   };
   const msg=document.getElementById("saveMsg");
@@ -2143,7 +2171,13 @@ function loadLS(){ const s=localStorage.getItem("scrpg_hero"); if(!s){alert("No 
 /* ============ INIT ============ */
 onPick(); setMethod("Constructed"); showHeroLanding(); bootCatalogs();
 
-let heroLand=[], heroOrigin='all';
+let heroLand=[], heroOrigin='all', heroActiveOnly=true;
+function setHeroActiveOnly(v){
+  heroActiveOnly=!!v;
+  const btn=document.getElementById('heroActiveOnlyBtn');
+  if(btn) btn.classList.toggle('sel', heroActiveOnly);
+  renderHeroLanding();
+}
 const BOOK_HERO_SLUGS = new Set(['absolute-zero','aeon-girl','bunker','heritage','legacy','muerto','muse','rockstar','tachyon','headlong','wraith','time-slinger']);
 function parseCsvRow(line){
   const cells=[], cur={v:'',q:false};
@@ -2173,7 +2207,7 @@ async function loadHeroLanding(){
   heroLand=await Promise.all(rows.map(async r=>{
     const md=await fetch('/api/md/heroes/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
     const book = BOOK_HERO_SLUGS.has(r.Slug);
-    const origin = (book && !(md||'').includes('## Builder')) ? 'premade' : 'custom';
+    const origin = (r.Origin==='premade'||r.Origin==='custom') ? r.Origin : (book ? 'premade' : 'custom');
     return {...r, origin};
   }));
   renderHeroLanding();
@@ -2182,6 +2216,10 @@ function renderHeroLanding(){
   const empty=document.getElementById('landEmpty'), table=document.getElementById('landTable'), body=document.getElementById('landBody');
   let rows=heroLand.slice();
   if (heroOrigin!=='all') rows=rows.filter(r=>r.origin===heroOrigin);
+  if (heroActiveOnly) rows=rows.filter(r=>{
+    const v=r.Active; if(v===''||v==null) return true;
+    const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+  });
   rows.sort((a,b)=>(a.Name||'').localeCompare(b.Name||'','en',{sensitivity:'base'}));
   if (!heroLand.length){ empty.classList.remove('hidden'); empty.textContent='No heroes in this campaign yet.'; table.classList.add('hidden'); return; }
   if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No heroes match this filter.'; table.classList.add('hidden'); return; }
@@ -2239,6 +2277,8 @@ function resetHeroForm(){
   ['heroName','alias','player','gender','age','height','eyes','hair','skin','build','costume','notes'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
+  const ac=document.getElementById('heroActive'); if(ac) ac.checked=true;
+  const aff=document.getElementById('heroAffiliation'); if(aff) aff.value='Ally';
 }
 function applyBuilderState(st){
   if(!st||typeof st!=='object') return;
@@ -2387,6 +2427,8 @@ async function editHeroRow(slug){
   }
   if(!restored) reconstructHero(r, md);
   const n=document.getElementById('heroName'); if(n) n.value=r.Name||'';
+  const ac=document.getElementById('heroActive'); if(ac) ac.checked=!['false','0','no'].includes(String(r.Active||'true').toLowerCase());
+  const aff=document.getElementById('heroAffiliation'); if(aff) aff.value=(['Ally','Enemy','Neutral'].includes(r.Affiliation)?r.Affiliation:'Ally');
   const a=document.getElementById('alias'); if(a) a.value=r.Alias||'';
   const p=document.getElementById('player'); if(p) p.value=r.Player||'';
   state.f.name=r.Name||''; state.f.alias=r.Alias||''; state.f.player=r.Player||'';
@@ -2459,6 +2501,8 @@ async function syncHeroIssues(hslug, selected){
     await fetch('/api/issues/'+encodeURIComponent(i.slug),{method:'PUT', body:JSON.stringify(full,null,2)});
   }
 }
+document.addEventListener("input",e=>{if(e.target&&e.target.tagName==="TEXTAREA")bindAutoGrow(document);});
+bindAutoGrow();
 </script>
 </body>
 </html>

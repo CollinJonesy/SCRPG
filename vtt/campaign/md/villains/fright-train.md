@@ -1,25 +1,77 @@
 # Fright Train
 
+## Overview
+
+- **Alias:** —
+- **Approach:** Disruptive
+- **Archetype:** Bruiser
+- **Health:** 85
+
+## Physical Attributes
+
+- **Gender:** —
+- **Age:** —
+- **Height:** —
+- **Eyes:** —
+- **Hair:** —
+- **Skin:** —
+- **Build:** —
+- **Costume/Equipment:** —
+
+## Look
+
+_No look notes._
+
+## References
+
+_None yet._
+
+## Biography
+
+_None yet._
+
+## Capabilities and Motivations
+
+_None yet._
+
+## Upgrade Summary
+
+_None yet._
+
 ## Abilities
 
-### [A] [Attack] "All Aboard!"
-Attack using Strength. If you are Green status, use your Max die. If you are Yellow status, use the Max+Min dice. If you are Red status, use Max+Min against one target and Mid against another.
-
-### [I] [Other] "Engine of Destruction"
+### [I] [None] "Engine of Destruction"
 Reduce damage taken by physical and energy sources by 1 while in the Green zone, 2 in the Yellow zone, and 3 in the Red zone.
-
-### [R] [Hinder] "Locomotivation"
-Whenever a target takes a Hinder action against you, you may first roll your Momentum die as a Hinder on them.
-
-### [A] [Defend] "Plow Through"
-Hinder multiple targets using Imposing. You and any nearby allies Defend using your Max die.
 
 ## Upgrades
 
 ### [I] [Attack] "Trained Sights"
-When you take an action that lets you make an Attack, also make an Attack using your Mid die. (When using this upgrade, Fright Train has 20 additional Health.)
+When you take an action that lets you make an Attack, also make an Attack using your Mid die.
 
 ## Mastery
 
 ### [I] [Overcome] "Master of Annihilation"
 If you can cause massive collateral damage without regard for casualties, automatically succeed at an Overcome where a show of overwhelming force can solve the problem.
+
+## Builder
+
+```json
+{
+  "ap": "disruptive",
+  "ar": "bruiser",
+  "pickedAp": [],
+  "pickedAr": [
+    "bruiser-feel-no-pain"
+  ],
+  "binds": {},
+  "displayNames": {
+    "bruiser-feel-no-pain": "Engine of Destruction",
+    "group-fighter": "Trained Sights"
+  },
+  "up": "group-fighter",
+  "ma": "master-of-annihilation",
+  "heroCount": 5,
+  "origin": "custom",
+  "issues": []
+}
+```

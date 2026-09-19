@@ -2,10 +2,6 @@
 
 ## Description
 
-# Plus
-
-## Description
-
 The Pairing of Plus & Minus really powers up the criminal activity of the Shockers. They are wearing their blue colors, with "Plus and Minus" cutouts (holes in their shirts).
 
 ## Abilities
@@ -29,21 +25,5 @@ Plus is the brother of Minus. Plus always tries to be Positive around his brothe
       "text": "Plus gets a +2 to Boost Actions."
     }
   ]
-}
-```
-
-## Abilities
-
-## Tactics
-
-_None yet._
-
-## Builder
-
-```json
-{
-  "origin": "custom",
-  "perHero": "",
-  "abilities": []
 }
 ```

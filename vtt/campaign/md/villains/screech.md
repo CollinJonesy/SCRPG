@@ -1,25 +1,76 @@
 # Screech
 
+## Overview
+
+- **Alias:** —
+- **Approach:** Disruptive
+- **Archetype:** Inhibitor
+- **Health:** 75
+
+## Physical Attributes
+
+- **Gender:** —
+- **Age:** —
+- **Height:** —
+- **Eyes:** —
+- **Hair:** —
+- **Skin:** —
+- **Build:** —
+- **Costume/Equipment:** —
+
+## Look
+
+_No look notes._
+
+## References
+
+_None yet._
+
+## Biography
+
+_None yet._
+
+## Capabilities and Motivations
+
+_None yet._
+
+## Upgrade Summary
+
+_None yet._
+
 ## Abilities
 
 ### [R] [Defend] "Earworm"
 When Attacked by someone with a penalty you created, Defend by rolling your single status die, and the attacker also suffers that much damage.
 
-### [A] [Attack] "Ring their Ears"
-Attack using Sonic. Use your Max die. A target dealt damage this way Attacks an ally by rolling their single largest power die.
-
-### [A] [Hinder] "Scream of Anger"
-Hinder using Sonic and use your Max+Mid dice, or use your Max die and make it persistent and exclusive.
-
-### [A] [Defend] "Shout it Out Loud"
-Hinder multiple targets using Banter. Use your Mid die. You and any nearby allies Defend using your Max die.
-
 ## Upgrades
 
-### [?] [Other] "Power Upgrade"
-Increase all of Screech’s Powers by one die size. (When using this upgrade, Screech has 20 additional Health.)
+### [I] [None] "Power Upgrade"
+Increase all power dice by one size. If any power would increase above d12, instead add another ability from the villain's archetype.
 
 ## Mastery
 
-### [I] [Other] "Master of Total Chaos"
-If you are in a situation where everything is spiraling out of control, automatically succeed to accomplish a task by throwing out the rules.
+### [I] [Overcome] "Master of Total Chaos"
+If you are in a situation where everything is spiraling out of control, automatically succeed in an Overcome to accomplish a task by throwing out the rules.
+
+## Builder
+
+```json
+{
+  "ap": "disruptive",
+  "ar": "inhibitor",
+  "pickedAp": [],
+  "pickedAr": [
+    "inhibitor-upper-handed-strike"
+  ],
+  "binds": {},
+  "displayNames": {
+    "inhibitor-upper-handed-strike": "Earworm"
+  },
+  "up": "power-upgrade",
+  "ma": "master-of-total-chaos",
+  "heroCount": 5,
+  "origin": "custom",
+  "issues": []
+}
+```

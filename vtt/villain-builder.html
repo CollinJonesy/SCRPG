@@ -37,7 +37,7 @@
   .ab .gt{color:#444;margin-top:4px;font-size:.8rem}
   label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
   input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
-  textarea{min-height:64px;resize:vertical}
+  textarea{min-height:64px;resize:none;overflow-y:hidden;field-sizing:content}
   .demo{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
   .row{display:grid;grid-template-columns:1fr 90px 36px;gap:6px;align-items:end;margin-bottom:6px}
   .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.9rem}
@@ -73,6 +73,7 @@
       <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="activeOnlyBtn" onclick="setActiveOnly(!activeOnly)">Active Only</button>
       <select id="issueFilter" onchange="renderLanding()" style="max-width:220px"><option value="">All issues</option></select>
     </div>
     <p class="muted" id="landEmpty">Loading…</p>
@@ -93,6 +94,13 @@
     <summary><h2>1 · Concept &amp; demographics</h2></summary>
     <div class="hint">Archives villain page: Name, Alias, physical attributes. Biography and Capabilities come in Finishing Touches.</div>
     <label>Villain Name *</label><input id="name">
+    <label><input type="checkbox" id="villainActive" checked> Active in Library</label>
+    <label>Affiliation</label>
+    <select id="villainAffiliation">
+      <option value="Ally">Ally</option>
+      <option value="Enemy" selected>Enemy</option>
+      <option value="Neutral">Neutral</option>
+    </select>
     <label>Alias</label><input id="alias">
     <label>Slug</label><input id="slug" placeholder="auto from name">
     <div class="demo">
@@ -191,6 +199,23 @@
 
 <script src="/collection-picker.js"></script>
 <script>
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
 const ICONS = ['Attack','Defend','Boost','Hinder','Overcome','Recover'];
 const DICE = ['d4','d6','d8','d10','d12'];
 const V_GYRO = {100:[25,26,1],95:[70,25,1],90:[66,23,1],85:[60,22,1],80:[55,21,1],75:[50,20,1],70:[50,18,1],65:[45,18,1],60:[41,17,1],55:[38,17,1],50:[35,16,1],45:[32,16,1],40:[30,15,1],35:[27,13,1],30:[23,12,1],25:[20,10,1],20:[16,8,1],15:[11,6,1]};
@@ -203,7 +228,17 @@ let pickedAp=new Set(), pickedAr=new Set();
 let binds={}, displayNames={}, iconPicks={};
 let editingSlug=null;
 let pendingPortrait=null, pendingRefs=[];
-let landMeta=[], issueIndex=[], originFilter='all';
+let landMeta=[], issueIndex=[], originFilter='all', activeOnly=true;
+function isActiveRow(r){
+  const v=r && r.Active; if(v===''||v==null) return true;
+  const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+}
+function setActiveOnly(v){
+  activeOnly=!!v;
+  const btn=document.getElementById('activeOnlyBtn');
+  if(btn) btn.classList.toggle('sel', activeOnly);
+  renderLanding();
+}
 
 function setOpen(on){ document.querySelectorAll('#wizard details.panel').forEach(d=>d.open=!!on); }
 function setOrigin(o){
@@ -314,7 +349,7 @@ async function loadLanding(){
   const rows=lines.slice(1).map(l=>{const c=parseRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).filter(r=>r.Slug);
   landMeta = await Promise.all(rows.map(async r=>{
     const md=await fetch('/api/md/villains/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
-    const origin = (md.includes('## Builder') || md.includes('## Overview')) ? 'custom' : 'premade';
+    const origin = (r.Origin==='premade'||r.Origin==='custom') ? r.Origin : ((md.includes('## Builder') || md.includes('## Overview')) ? 'custom' : 'premade');
     let issues=[];
     try {
       const st=(md.match(/## Builder[\s\S]*?```json\s*([\s\S]*?)```/)||[])[1];
@@ -340,6 +375,7 @@ function renderLanding(){
   const want=document.getElementById('issueFilter').value;
   let rows=landMeta;
   if (originFilter!=='all') rows=rows.filter(r=>r.origin===originFilter);
+  if (activeOnly) rows=rows.filter(isActiveRow);
   if (want) rows=rows.filter(r=>(r.issues||[]).includes(want));
   if (!landMeta.length){ empty.classList.remove('hidden'); empty.textContent='No villains in this campaign yet.'; table.classList.add('hidden'); return; }
   if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No villains match this filter.'; table.classList.add('hidden'); return; }
@@ -354,6 +390,8 @@ function startNew(){
 function resetForm(){
   ['name','alias','slug','gender','age','height','eyes','hair','skin','build','costume','bio','caps','lookNotes','refsNotes','upgradeNotes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('heroCount').value='5';
+  const ac=document.getElementById('villainActive'); if(ac) ac.checked=true;
+  const aff=document.getElementById('villainAffiliation'); if(aff) aff.value='Enemy';
   selAp=selAr=selUp=selMa=null; pickedAp=new Set(); pickedAr=new Set();
   binds={}; displayNames={}; iconPicks={};
   pq={pow:[{name:'',die:'d8'}], qual:[{name:'',die:'d8'}]};
@@ -571,6 +609,9 @@ function payload(){
     powers: pow, qualities: qual,
     abilities: selectedAbs(),
     upgrade, mastery,
+    active: document.getElementById('villainActive') ? document.getElementById('villainActive').checked : true,
+    affiliation: (document.getElementById('villainAffiliation')||{}).value || 'Enemy',
+    origin: (landMeta.find(x=>x.Slug===editingSlug)||{}).origin || 'custom',
     builderState: {
       ap: selAp?selAp.slug:null,
       ar: selAr?selAr.slug:null,
@@ -580,7 +621,7 @@ function payload(){
       up: selUp?selUp.slug:null,
       ma: selMa?selMa.slug:null,
       heroCount: p.H,
-      origin: 'custom',
+      origin: (landMeta.find(x=>x.Slug===editingSlug)||{}).origin || 'custom',
       issues: selectedIssues()
     }
   };
@@ -698,6 +739,8 @@ async function editVillain(slug){
   const row=lines.slice(1).map(l=>{const c=parseRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).find(r=>r.Slug===slug);
   if (!row) return;
   document.getElementById('name').value=row.Name||'';
+  const ac=document.getElementById('villainActive'); if(ac) ac.checked=isActiveRow(row);
+  const aff=document.getElementById('villainAffiliation'); if(aff) aff.value=(['Ally','Enemy','Neutral'].includes(row.Affiliation)?row.Affiliation:'Enemy');
   document.getElementById('slug').value=row.Slug||'';
   selAp=approaches.find(a=>a.name===row.Approach)||null;
   selAr=archetypes.find(a=>a.name===row.Archetype)||null;
@@ -746,6 +789,7 @@ async function editVillain(slug){
   document.body.appendChild(dl);
   await loadLanding();
 })();
+bindAutoGrow();
 </script>
 </body>
 </html>

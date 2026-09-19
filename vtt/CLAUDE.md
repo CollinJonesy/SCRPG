@@ -23,7 +23,7 @@ campaigns.
 ## Data model — don't violate this split
 
 - **CSV** = structured mechanical facts (Powers, Qualities, dice sizes, Health, Status Dice).
-  One file per Library "kind": `heroes.csv`, `villains.csv`, `minions.csv`,
+  One file per Library "kind": `players.csv`, `villains.csv`, `minions.csv`,
   `environments.csv`, `twists.csv`, `abilities.csv` (Dice Roller ability layer, keyed by
   `HeroSlug`, not a per-character Slug of its own). Each has a `HEADERS` constant duplicated
   in **both** `server.py` and `app.js` — if you add a column, update both and re-migrate
@@ -104,7 +104,7 @@ same bug** — it usually does.
   material I had~~ — **fixed 2026-08-29.** The user supplied the actual SCRPG rulebook PDF
   (`~/Downloads/SCRPG_compressed.pdf`, also pre-split into `~/Downloads/SCRPG_compressed-pages/`),
   which has both heroes' full Principle text (Chapter 7: The Archives). Both are now filled
-  in for real in `Volume1/heroes.csv`. If a similar gap turns up elsewhere, that PDF is the
+  in for real in `Volume1/players.csv`. If a similar gap turns up elsewhere, that PDF is the
   first place to check before asking the user to re-supply anything — see the note below on
   how to navigate it.
 - **Alternate Rewards' "Contact Die Pool" table** (`rules/05-5-alternate-rewards-collections.md`):

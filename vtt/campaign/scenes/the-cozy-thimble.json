@@ -17,21 +17,172 @@
   "locations": [
     {
       "id": "loc-485z84df",
-      "name": "Location 1",
-      "background": null
-    },
-    {
-      "id": "loc-nz0rlk1c",
-      "name": "Location 2",
-      "background": null
+      "name": "The Cozy Thimble",
+      "locationSlug": "the-cozy-thimble-main"
     }
   ],
   "environment": null,
-  "challenges": [],
-  "tokens": [],
+  "challenges": [
+    {
+      "id": "chal-ooi0v1na",
+      "title": "The Public Eyes",
+      "type": "Simple",
+      "paths": [
+        {
+          "label": "Distract the crowd, blend in, or slip out cleanly",
+          "successesNeeded": 1,
+          "successesMarked": 0,
+          "hidden": true,
+          "failed": false
+        }
+      ],
+      "timerMode": "turns",
+      "timerTurnsRemaining": 2,
+      "timerTriggerZone": "red",
+      "consequence": "",
+      "doomsdaySpeed": "1",
+      "outcome": "",
+      "impactScale": "",
+      "solution": "",
+      "hidden": true
+    }
+  ],
+  "tokens": [
+    {
+      "id": "tok-hnygt0ch",
+      "kind": "hero",
+      "slug": "titus-andromeda",
+      "name": "Titus Andromeda",
+      "locationId": "loc-485z84df",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-m2z8h1s3",
+      "kind": "hero",
+      "slug": "masquerade",
+      "name": "Masquerade",
+      "locationId": "loc-485z84df",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-634a7fu4",
+      "kind": "hero",
+      "slug": "pink-panther",
+      "name": "Pink Panther",
+      "locationId": "loc-485z84df",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-pvecdb9n",
+      "kind": "hero",
+      "slug": "lumen",
+      "name": "Lumen",
+      "locationId": "loc-485z84df",
+      "currentHealth": 32,
+      "maxHealth": 32
+    },
+    {
+      "id": "tok-5pzfv69h",
+      "kind": "hero",
+      "slug": "handyman",
+      "name": "Handyman",
+      "locationId": "loc-485z84df",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-5wphtglx",
+      "kind": "minion",
+      "slug": "marguerite",
+      "name": "Marguerite",
+      "locationId": "loc-485z84df",
+      "currentDie": 4,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Ally"
+    },
+    {
+      "id": "tok-mo2lit00",
+      "kind": "minion",
+      "slug": "super-fan",
+      "name": "Super Fan",
+      "locationId": null,
+      "currentDie": 4,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Neutral"
+    },
+    {
+      "id": "tok-vszrbk3a",
+      "kind": "minion",
+      "slug": "super-fan",
+      "name": "Super Fan",
+      "locationId": null,
+      "currentDie": 4,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Neutral"
+    },
+    {
+      "id": "tok-bm0kgvz0",
+      "kind": "minion",
+      "slug": "super-fan",
+      "name": "Super Fan",
+      "locationId": null,
+      "currentDie": 4,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Neutral"
+    },
+    {
+      "id": "tok-sns9csll",
+      "kind": "minion",
+      "slug": "super-fan",
+      "name": "Super Fan",
+      "locationId": null,
+      "currentDie": 4,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Neutral"
+    },
+    {
+      "id": "tok-p1wbo9zq",
+      "kind": "minion",
+      "slug": "super-fan",
+      "name": "Super Fan",
+      "locationId": null,
+      "currentDie": 4,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Neutral"
+    },
+    {
+      "id": "tok-hv585ouj",
+      "kind": "minion",
+      "slug": "mr-chan",
+      "name": "Mr. Chan",
+      "locationId": "loc-485z84df",
+      "currentDie": 4,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Ally"
+    }
+  ],
   "mods": [],
-  "gmNotes": "",
+  "gmNotes": "Random Note",
   "activityLog": [],
   "__slug": "the-cozy-thimble",
-  "sceneType": "Social"
+  "sceneType": "Social",
+  "background": "the-cozy-thimble-bg",
+  "round": 1
 }

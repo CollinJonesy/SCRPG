@@ -62,7 +62,7 @@ Each ask has:
 - Roll button: gate on `GMControlled` (see data below)
 
 **Data:**
-- New column `GMControlled` in `heroes.csv` (default `false` for player characters)
+- New column `GMControlled` in `players.csv` (default `false` for player characters)
 - The CSV reader loop in `app.js` (`HEROES_HEADERS`, line ~78-83) needs `GMControlled` added
 - The roll button already lives in `renderToken()` line 1018; change the condition to:
   ```

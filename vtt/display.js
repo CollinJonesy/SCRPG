@@ -18,9 +18,23 @@ const HERO_GYRO_CHART = {
   18:{green:[15,18],yellow:[8,14],red:[1,7]},   17:{green:[14,17],yellow:[7,13],red:[1,6]},
 };
 
-let libHeroes = [], libVillains = [], libEnvironments = [];
+let libHeroes = [], libVillains = [], libEnvironments = [], libNpcs = [], libMinions = [];
 
 function escHtml(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+function isPcHeroToken(t) {
+  // Only players.csv PCs unlock a location on Player Display — not NPC Type=Hero.
+  if (!t || t.kind !== 'hero' || t.npc) return false;
+  if (!t.slug) return false;
+  if (!(libHeroes || []).length) return true; // library not loaded yet — treat kind=hero as PC
+  return !!(libHeroes || []).find(h => h.Slug === t.slug);
+}
+function isNonCombatToken(t) {
+  if (!t) return false;
+  if (t.nonCombat) return true;
+  const row = (libNpcs || []).find(m => m.Slug === t.slug);
+  return !!row && /^non[-\s]?combat$/i.test(String(row.Type || ''));
+}
 
 function ensureMods(scene) {
   if (!scene) return [];
@@ -50,17 +64,13 @@ function locName(scene, locId) {
   return loc ? loc.name : '';
 }
 function bhdRowHtml(t, scene) {
+  // Match GM board: NPCs (especially Non-Combat) have no Boost/Hinder/Defend boxes.
+  if (t && t.npc) return '';
   const n = bhdTotals(scene, t);
-  // Hero Health numbers show on Player Display; Villain Health numbers stay hidden
-  // (bar only, via renderFighterCard's meter) — asymmetric on purpose, see CLAUDE.md.
-  const healthCell = t.kind === 'hero'
-    ? `<div class="bhd-stat health"><span>HEALTH</span><b>${Number(t.currentHealth) || 0}</b></div>`
-    : '';
   return `<div class="bhd-row">
     <div class="bhd-stat boost"><span>BOOST</span><b>${n.boost}</b></div>
     <div class="bhd-stat hinder"><span>HINDER</span><b>${n.hinder}</b></div>
     <div class="bhd-stat defend"><span>DEFEND</span><b>${n.defend}</b></div>
-    ${healthCell}
   </div>`;
 }
 
@@ -86,15 +96,188 @@ function villainBand(v, current) {
 
 async function fetchLibrary() {
   try {
-    const [h, v, e] = await Promise.all([
+    const [h, v, e, n, m] = await Promise.all([
       fetch('/api/csv/heroes').then(r => r.text()),
       fetch('/api/csv/villains').then(r => r.text()),
       fetch('/api/csv/environments').then(r => r.text()),
+      fetch('/api/csv/npcs').then(r => r.text()),
+      fetch('/api/csv/minions').then(r => r.text()),
     ]);
     libHeroes = h.trim() ? Papa.parse(h.trim(), { header: true, skipEmptyLines: true }).data : [];
     libVillains = v.trim() ? Papa.parse(v.trim(), { header: true, skipEmptyLines: true }).data : [];
     libEnvironments = e.trim() ? Papa.parse(e.trim(), { header: true, skipEmptyLines: true }).data : [];
+    libNpcs = n.trim() ? Papa.parse(n.trim(), { header: true, skipEmptyLines: true }).data : [];
+    libMinions = m.trim() ? Papa.parse(m.trim(), { header: true, skipEmptyLines: true }).data : [];
   } catch (e) { /* keep last known library on transient errors */ }
+}
+function libRowForToken(t) {
+  if (!t) return null;
+  if (t.kind === 'hero') return (libHeroes || []).find(h => h.Slug === t.slug) || null;
+  if (t.kind === 'villain') return (libVillains || []).find(v => v.Slug === t.slug) || null;
+  return (libNpcs || []).find(m => m.Slug === t.slug)
+    || (libMinions || []).find(m => m.Slug === t.slug) || null;
+}
+function tokenAffiliation(t) {
+  if (!t) return 'Neutral';
+  if (t.affiliation && ['Ally', 'Enemy', 'Neutral'].includes(t.affiliation)) return t.affiliation;
+  const row = libRowForToken(t) || {};
+  const a = String(row.Affiliation || '').trim();
+  if (['Ally', 'Enemy', 'Neutral'].includes(a)) return a;
+  if (t.kind === 'hero') return 'Ally';
+  if (t.kind === 'villain' || t.kind === 'minion' || t.kind === 'lieutenant') return 'Enemy';
+  return 'Neutral';
+}
+function npcTypeOfPd(t) {
+  const row = libRowForToken(t) || {};
+  const ty = String(row.Type || '').trim();
+  if (ty) return ty;
+  if (t.kind === 'lieutenant') return 'Lieutenant';
+  if (t.kind === 'hero') return 'Hero';
+  if (t.kind === 'villain') return 'Villain';
+  return 'Minion';
+}
+function tokenTypeSortRank(t) {
+  if (isNonCombatToken(t)) return 4;
+  if (t.kind === 'hero' || npcTypeOfPd(t) === 'Hero') return 0;
+  if (t.kind === 'villain' || npcTypeOfPd(t) === 'Villain') return 1;
+  if (t.kind === 'lieutenant' || npcTypeOfPd(t) === 'Lieutenant') return 2;
+  if (t.kind === 'minion') return 3;
+  return 5;
+}
+function sortAllyTokens(tokens) {
+  const list = (tokens || []).slice();
+  const pcs = list.filter(isPcHeroToken).sort(byName);
+  const rest = list.filter(t => !isPcHeroToken(t))
+    .sort((a, b) => tokenTypeSortRank(a) - tokenTypeSortRank(b) || byName(a, b));
+  return pcs.concat(rest);
+}
+/**
+ * Build the PD mvc-stage for one location.
+ *
+ * HARD RULE: never more than 10 token columns in any row (stage is max 10 cols;
+ * each side's mvc-row uses the side's span as column count so extras WRAP).
+ *
+ * Default: classic 10-col Ally 3 / Neutral 2 / Enemy 5 (empty sides expand
+ * 5/5 or full-width). Tokens wrap inside their side at that side's width.
+ *
+ * Special (total tokens < 10 AND ≥1 PC hero AND ≥1 other token):
+ *   5-slot PC hero bank | blank at column 6 | remaining width (4 cols) for others.
+ * Still exactly 10 stage columns — never expands past 10.
+ */
+function pdMvcSideHtml(label, cls, tokens, scene, span, count) {
+  const n = tokens.length;
+  // Side width on the 10-col stage (capped).
+  const colSpan = Math.max(1, Math.min(10, span != null ? span : Math.min(Math.max(n, 1), 10)));
+  // Row capacity = side width, NOT token count — extras wrap to the next row.
+  const colCount = Math.max(1, Math.min(10, count != null ? count : colSpan));
+  // Player Display: no Allies / Neutral / Enemies section headers on locations.
+  return `
+    <div class="mvc-side ${cls}" style="--mvc-count:${colCount};grid-column:span ${colSpan}">
+      <div class="mvc-row">${tokens.map(t => renderFighterCard(t, scene)).join('')}</div>
+    </div>`;
+}
+/** Split a column budget across present groups (proportional, each ≥1). */
+function pdAllocateSpans(groups, budget) {
+  const present = groups.filter(g => g.tokens && g.tokens.length);
+  if (!present.length) return [];
+  const b = Math.max(1, Math.min(10, budget));
+  if (present.length === 1) {
+    present[0].span = b;
+    return present;
+  }
+  const total = present.reduce((s, g) => s + g.tokens.length, 0);
+  let used = 0;
+  present.forEach((g, i) => {
+    if (i === present.length - 1) {
+      g.span = Math.max(1, b - used);
+    } else {
+      g.span = Math.max(1, Math.round((b * g.tokens.length) / total));
+      used += g.span;
+    }
+  });
+  // If rounding overflowed, shrink from the largest until sum === b
+  let sum = present.reduce((s, g) => s + g.span, 0);
+  while (sum > b) {
+    const biggest = present.slice().sort((x, y) => y.span - x.span)[0];
+    if (biggest.span <= 1) break;
+    biggest.span -= 1;
+    sum -= 1;
+  }
+  while (sum < b) {
+    const biggest = present.slice().sort((x, y) => y.tokens.length - x.tokens.length)[0];
+    biggest.span += 1;
+    sum += 1;
+  }
+  return present;
+}
+function pdMvcStageHtml(allies, neutrals, enemies, scene) {
+  const a = allies || [];
+  const n = neutrals || [];
+  const e = enemies || [];
+  const all = a.concat(n, e);
+  if (!all.length) return '<div class="mvc-stage" style="--mvc-cols:10"></div>';
+
+  const pcs = all.filter(isPcHeroToken);
+  const others = all.filter(t => !isPcHeroToken(t));
+  const totalTokens = all.length;
+  const useHeroSep = totalTokens < 10 && pcs.length > 0 && others.length > 0;
+
+  if (useHeroSep) {
+    // Always 10 cols: [PC bank ×5][blank ×1][others ×4]
+    const pcsFront = pcs.slice(0, 5);
+    const pcsOverflow = pcs.slice(5);
+    const rightTokens = pcsOverflow.concat(others);
+    const rightGroups = pdAllocateSpans([
+      { label: 'ALLIES', cls: 'allies', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Ally') },
+      { label: 'NEUTRAL', cls: 'neutral', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Neutral') },
+      { label: 'ENEMIES', cls: 'enemies', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Enemy') },
+    ], 4);
+    const parts = [
+      pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5),
+      '<div class="mvc-blank" aria-hidden="true"></div>',
+    ];
+    rightGroups.forEach(g => {
+      parts.push(pdMvcSideHtml(g.label, g.cls, g.tokens, scene, g.span, g.span));
+    });
+    return `<div class="mvc-stage layout-hero-sep" style="--mvc-cols:10">${parts.join('')}</div>`;
+  }
+
+  // Default assortment: always 10-col Ally3 / Neutral2 / Enemy5
+  const hasA = a.length > 0, hasN = n.length > 0, hasE = e.length > 0;
+  let layoutClass = 'layout-ane';
+  const parts = [];
+  if (hasA && hasN && hasE) {
+    layoutClass = 'layout-ane';
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 3, 3));
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 2, 2));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5));
+  } else if (hasA && hasN && !hasE) {
+    layoutClass = 'layout-an';
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5));
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5));
+  } else if (hasA && !hasN && hasE) {
+    layoutClass = 'layout-ae';
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5));
+  } else if (!hasA && hasN && hasE) {
+    layoutClass = 'layout-ne';
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5));
+  } else if (hasA) {
+    layoutClass = 'layout-a';
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 10, 10));
+  } else if (hasN) {
+    layoutClass = 'layout-n';
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 10, 10));
+  } else {
+    layoutClass = 'layout-e';
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 10, 10));
+  }
+  return `<div class="mvc-stage ${layoutClass}" style="--mvc-cols:10">${parts.join('')}</div>`;
+}
+function sortNeutralTokens(tokens) {
+  return (tokens || []).slice()
+    .sort((a, b) => tokenTypeSortRank(a) - tokenTypeSortRank(b) || byName(a, b));
 }
 
 function trackerStarsHtml(tracker) {
@@ -105,13 +288,13 @@ function trackerStarsHtml(tracker) {
 function sceneVisualSig(scene) {
   if (!scene) return 'null';
   return JSON.stringify({
-    name: scene.name, difficulty: scene.difficulty, tracker: scene.tracker,
+    name: scene.name, difficulty: scene.difficulty, sceneType: scene.sceneType, tracker: scene.tracker,
     locations: scene.locations, tokens: scene.tokens, mods: scene.mods,
-    environment: scene.environment, challenges: scene.challenges
+    environment: scene.environment, challenges: scene.challenges, background: scene.background
   });
 }
 
-function fitNameSize(el, ctx, hi) {
+function fitNameSize(el, ctx, hi, loMin) {
   const text = (el.textContent || '').trim();
   if (!text) return hi;
   const cs = getComputedStyle(el);
@@ -120,7 +303,8 @@ function fitNameSize(el, ctx, hi) {
   if (maxW <= 1) return hi;
   const family = cs.fontFamily;
   const weight = cs.fontWeight;
-  let lo = 10, best = 10, top = hi;
+  const floor = loMin != null ? loMin : 10;
+  let lo = floor, best = floor, top = hi;
   while (top - lo > 0.2) {
     const mid = (lo + top) / 2;
     ctx.font = weight + ' ' + mid + 'px ' + family;
@@ -135,11 +319,22 @@ function fitHeroNamePlates() {
   document.querySelectorAll('.mvc-row').forEach(row => {
     const plates = [...row.querySelectorAll('.mvc-card .mvc-plate')];
     if (!plates.length) return;
-    let shared = 26;
-    plates.forEach(el => { shared = Math.min(shared, fitNameSize(el, ctx, 26)); });
+    let shared = 24;
+    plates.forEach(el => { shared = Math.min(shared, fitNameSize(el, ctx, 24)); });
+    // Numbers match token name. Labels: at most name−2, and shrink further to fit cell width (no clip).
+    const labelCap = Math.max(7, shared - 2);
     plates.forEach(el => {
       el.style.fontSize = shared + 'px';
       el.style.textOverflow = 'clip';
+      const card = el.closest('.mvc-card');
+      if (!card) return;
+      card.querySelectorAll('.bhd-stat b').forEach(b => { b.style.fontSize = shared + 'px'; });
+      card.querySelectorAll('.bhd-stat span').forEach(s => {
+        s.style.fontSize = labelCap + 'px'; // start at cap so measure uses right box
+        const fitted = fitNameSize(s, ctx, labelCap, 6);
+        s.style.fontSize = fitted + 'px';
+        s.style.textOverflow = 'clip';
+      });
     });
   });
 }
@@ -161,6 +356,8 @@ function renderScene(scene) {
     document.getElementById('displayChallenges').innerHTML = '';
     const envEl = document.getElementById('displayEnvironment');
     if (envEl) envEl.innerHTML = '';
+    const stage = document.getElementById('displayStage');
+    if (stage) { stage.classList.remove('scene-bg-host'); stage.style.backgroundImage = ''; }
     return;
   }
   document.getElementById('displaySceneName').textContent = scene.name;
@@ -174,25 +371,40 @@ function renderScene(scene) {
     envEl.innerHTML = env ? `<span class="env-name">${escHtml(env.Name)}</span>` : '';
   }
 
+  // Scene-level background covers the whole Player Display (not per-location).
+  const stage = document.getElementById('displayStage');
+  if (stage) {
+    const sceneBg = scene.background || ((scene.locations || []).map(l => l && l.background).find(Boolean) || '');
+    if (sceneBg) {
+      stage.classList.add('scene-bg-host');
+      stage.style.backgroundImage = `url('${backgroundUrl(sceneBg)}')`;
+    } else {
+      stage.classList.remove('scene-bg-host');
+      stage.style.backgroundImage = '';
+    }
+  }
+
   const row = document.getElementById('locationsRow');
   const locs = scene.locations || [];
   const ko = scene.tokens.filter(t => t.ko);
   const at = (locId) => scene.tokens.filter(t => !t.ko && (t.locationId || '') === (locId || ''));
-  const side = (label, cls, tokens) => `
-    <div class="mvc-side ${cls}">
-      <div class="mvc-side-label">${label}</div>
-      <div class="mvc-row">${tokens.map(t => renderFighterCard(t, scene)).join('') || '<div class="mvc-empty">—</div>'}</div>
-    </div>`;
   row.innerHTML = locs.map(loc => {
     const here = at(loc.id);
-    const heroes = here.filter(t => t.kind === 'hero');
-    const enemies = sortEnemyTokens(here.filter(t => t.kind === 'villain' || t.kind === 'lieutenant' || t.kind === 'minion'));
+    // PC heroes only (players.csv) unlock a location — NPC Type=Hero does not.
+    const pcsHere = here.filter(t => isPcHeroToken(t));
+    let allies = sortAllyTokens(here.filter(t => tokenAffiliation(t) === 'Ally'));
+    let neutrals = sortNeutralTokens(here.filter(t => tokenAffiliation(t) === 'Neutral'));
+    let enemies = sortEnemyTokens(here.filter(t => tokenAffiliation(t) === 'Enemy'));
+    // Hide all non-PC tokens until a players.csv PC is present.
+    if (!pcsHere.length) {
+      allies = allies.filter(isPcHeroToken); // empty
+      neutrals = [];
+      enemies = [];
+    }
+
     return `<section class="location-block">
       <div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
-      <div class="mvc-stage">
-        ${side('HEROES', 'heroes', heroes)}
-        ${side('VILLAINS', 'villains', enemies)}
-      </div>
+      ${pdMvcStageHtml(allies, neutrals, enemies, scene)}
     </section>`;
   }).join('') + (ko.length ? `<div class="mvc-ko">Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');
   scheduleFitHeroNames();
@@ -357,13 +569,11 @@ function villainMaxHealth(t) {
   return Number(row.MaxHealth) || Number(t.maxHealth) || 0;
 }
 function sortEnemyTokens(tokens) {
-  const villains = tokens.filter(t => t.kind === 'villain')
-    .sort((a, b) => villainMaxHealth(b) - villainMaxHealth(a) || byName(a, b));
-  const lieutenants = tokens.filter(t => t.kind === 'lieutenant')
-    .sort((a, b) => dieSize(b) - dieSize(a) || byName(a, b));
-  const minions = tokens.filter(t => t.kind === 'minion')
-    .sort((a, b) => dieSize(b) - dieSize(a) || byName(a, b));
-  return villains.concat(lieutenants, minions);
+  // Non-Combat last. Others by Type then name (list already affiliation-filtered).
+  const combat = (tokens || []).filter(t => !isNonCombatToken(t));
+  const nonCombat = (tokens || []).filter(t => isNonCombatToken(t)).sort(byName);
+  const ranked = combat.slice().sort((a, b) => tokenTypeSortRank(a) - tokenTypeSortRank(b) || byName(a, b));
+  return ranked.concat(nonCombat);
 }
 
 function backgroundUrl(key) {
@@ -374,19 +584,49 @@ function portraitKey(kind, slug) {
   return `portrait-${pk}-${slug}`;
 }
 
+function parseDieSize(val) {
+  const m = String(val == null ? '' : val).match(/(\d+)/);
+  return m ? Number(m[1]) : 0;
+}
+function villainHealthBar(current, max) {
+  const maxH = Number(max) || 0;
+  const cur = Number(current);
+  const health = (current === '' || current == null || isNaN(cur)) ? maxH : Math.max(0, cur);
+  if (!maxH || health <= 0) return { pct: 0, band: 'out' };
+  const pct = Math.max(0, Math.min(100, (health / maxH) * 100));
+  let band = 'red';
+  if (pct >= 51) band = 'green';
+  else if (pct >= 11) band = 'yellow';
+  return { pct, band };
+}
+function lieutenantHealthBar(startingDie, currentDie) {
+  const start = parseDieSize(startingDie);
+  const missing = currentDie == null || currentDie === '';
+  const cur = missing ? start : parseDieSize(currentDie);
+  const ladders = {
+    12: { 12: [100, 'green'], 10: [80, 'green'], 8: [60, 'green'], 6: [40, 'yellow'], 4: [20, 'red'] },
+    10: { 10: [100, 'green'], 8: [75, 'green'], 6: [50, 'yellow'], 4: [25, 'red'] },
+    8: { 8: [100, 'green'], 6: [66, 'yellow'], 4: [33, 'red'] },
+    6: { 6: [66, 'yellow'], 4: [33, 'red'] },
+  };
+  const ladder = ladders[start];
+  if (!ladder || cur < 4) return { pct: 0, band: 'out' };
+  const key = cur >= start ? start : cur;
+  const hit = ladder[key];
+  if (!hit) return { pct: 0, band: 'out' };
+  return { pct: hit[0], band: hit[1] };
+}
 function renderFighterCard(t, scene) {
   let meter = '';
-  if (t.kind === 'hero') {
-    const row = libHeroes.find(h => h.Slug === t.slug) || {};
-    const maxHealth = Number(row.MaxHealth) || t.maxHealth || 20;
-    const bandInfo = computeHeroStatus(maxHealth, t.currentHealth, scene);
-    const pct = Math.max(0, Math.min(100, (t.currentHealth / maxHealth) * 100));
-    meter = `<div class="health-bar-track"><div class="health-bar-fill ${bandInfo.band}" style="width:${pct}%"></div></div>`;
-  } else if (t.kind === 'villain') {
+  if (t.kind === 'villain') {
     const row = libVillains.find(v => v.Slug === t.slug) || {};
-    const maxHealth = Number(row.MaxHealth) || t.maxHealth || 20;
-    const band = villainBand(row, t.currentHealth);
-    const pct = Math.max(0, Math.min(100, (t.currentHealth / maxHealth) * 100));
+    const maxHealth = Number(row.MaxHealth) || Number(t.maxHealth) || 20;
+    const currentHealth = Number(t.currentHealth) || maxHealth;
+    const { pct, band } = villainHealthBar(currentHealth, maxHealth);
+    meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
+  } else if (t.kind === 'lieutenant') {
+    const row = libRowForToken(t) || {};
+    const { pct, band } = lieutenantHealthBar(row.Die, t.currentDie);
     meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
   }
   return `<div class="mvc-card ${t.kind}">

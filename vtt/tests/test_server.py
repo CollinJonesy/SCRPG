@@ -224,6 +224,19 @@ class TestActiveSceneAndRevealedRoll(ServerTestCase):
         self.assertEqual(json.loads(data)['tokenName'], 'Test')
 
 
+class TestSceneNotesApi(ServerTestCase):
+    def test_scene_notes_returns_md_files_only(self):
+        scenes = self.campaign / 'scenes'
+        scenes.mkdir(exist_ok=True)
+        (scenes / 'The_Cozy_Thimble.md').write_text('# Cozy\nHello', encoding='utf-8')
+        (scenes / 'ignore-me.json').write_text('{}', encoding='utf-8')
+        status, data = self.request('GET', '/api/scene-notes')
+        self.assertEqual(status, 200)
+        notes = json.loads(data)
+        self.assertEqual(notes.get('The_Cozy_Thimble.md'), '# Cozy\nHello')
+        self.assertNotIn('ignore-me.json', notes)
+
+
 class TestBackgroundsApi(ServerTestCase):
     def test_unsupported_content_type_rejected(self):
         status, data = self.request('PUT', '/api/backgrounds/test-key', body=b'not an image',
@@ -323,7 +336,7 @@ class TestHeroBuilder(ServerTestCase):
         self.assertEqual(status, 200, data)
         result = json.loads(data)
         self.assertEqual(result['slug'], 'lumen')
-        csv_text = (self.campaign / 'heroes.csv').read_text(encoding='utf-8')
+        csv_text = (self.campaign / 'players.csv').read_text(encoding='utf-8')
         self.assertIn('Lumen', csv_text)
         self.assertIn('Radiant', csv_text)
         self.assertIn('Starburst', csv_text)
@@ -353,7 +366,7 @@ class TestHeroBuilder(ServerTestCase):
         self.assertEqual(status, 200, data)
         with (self.campaign / 'abilities.csv').open(encoding='utf-8') as f:
             rows = list(csv.DictReader(f))
-        zones = {r['Name']: r['Zone'] for r in rows if r['HeroSlug'] == 'mover'}
+        zones = {r['Name']: r['Zone'] for r in rows if r.get('Slug') == 'mover' or r.get('HeroSlug') == 'mover'}
         self.assertEqual(zones['Hit & Run'], 'Green')
         self.assertEqual(zones['Run Down'], 'Yellow')
         self.assertEqual(zones['Legacy Shorthand'], 'Green')
@@ -386,6 +399,38 @@ class TestVillainBuilder(ServerTestCase):
         self.assertIn(b'Finishing Touches', data)
         self.assertIn(b'Look &amp; references', data)
         self.assertIn(b'Collapse all', data)
+
+
+    def test_save_villain_writes_abilities_csv(self):
+        import csv
+        payload = json.dumps({
+            'name': 'Test Blade',
+            'slug': 'test-blade',
+            'approach': 'Mastermind',
+            'archetype': 'Inventor',
+            'maxHealth': 40,
+            'abilities': [
+                {'name': 'Clever Strike', 'type': 'A', 'text': 'Attack using [quality]. Defend using your Min die.', 'icons': 'Attack, Defend'},
+                {'name': 'Passive Trait', 'type': 'I', 'text': 'Increase all bonuses you create by 1.'},
+            ],
+            'upgrades': [{'name': 'Quality Upgrade', 'type': 'I', 'text': 'Increase all quality dice by one size.'}],
+            'masteries': [{'name': 'Master of Stuff', 'type': 'I', 'text': 'Automatically succeed at an Overcome involving gadgets.'}],
+        })
+        status, data = self.request(
+            'POST', '/api/builder/villain', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        with (self.campaign / 'abilities.csv').open(encoding='utf-8') as f:
+            rows = list(csv.DictReader(f))
+        own = [r for r in rows if r.get('Slug') == 'test-blade']
+        by_name = {r['Name']: r for r in own}
+        self.assertIn('Clever Strike', by_name)
+        self.assertEqual(by_name['Clever Strike']['RollType'], 'Attack, Defend')
+        self.assertEqual(by_name['Passive Trait']['RollType'], '')
+        self.assertEqual(by_name['Quality Upgrade']['Zone'], 'Upgrade')
+        self.assertEqual(by_name['Master of Stuff']['Zone'], 'Mastery')
+        self.assertIn('Overcome', by_name['Master of Stuff']['RollType'])
+
 
     def test_issue_builder_html_served(self):
         status, data = self.request('GET', '/issue-builder.html')
@@ -420,6 +465,93 @@ class TestVillainBuilder(ServerTestCase):
             'POST', '/api/builder/environment', body='{}',
             headers={'Content-Type': 'application/json'})
         self.assertEqual(status, 400)
+
+    def test_md_rejects_unsafe_slug(self):
+        from urllib.parse import quote
+        bad = quote('A few screaming citizens are hanging on for dear life', safe='')
+        status, data = self.request('PUT', f'/api/md/environments/{bad}', body=b'x')
+        self.assertEqual(status, 400)
+        status, data = self.request('GET', f'/api/md/environments/{bad}')
+        self.assertEqual(status, 400)
+        status, _ = self.request('PUT', '/api/md/environments/ok-env-slug', body=b'# ok\n')
+        self.assertEqual(status, 200)
+
+    def test_save_environment_twists_minions_locations(self):
+        import csv
+        # seed a location + minion
+        loc_path = self.campaign / 'locations.csv'
+        loc_path.write_text('Slug,Name,EnvironmentSlug\nlab-floor,Lab Floor,\n', encoding='utf-8')
+        min_path = self.campaign / 'minions.csv'
+        min_path.write_text(
+            'Slug,Name,Type,Die,Faction,PerHero,Active,Origin,Affiliation\n'
+            'imp,Imp,Minion,d6,,,true,custom,Enemy\n'
+            'boss-imp,Boss Imp,Lieutenant,d10,,,true,custom,Enemy\n',
+            encoding='utf-8')
+        payload = json.dumps({
+            'name': 'Haunted Lab',
+            'slug': 'haunted-lab',
+            'active': True,
+            'origin': 'custom',
+            'traits': [
+                {'name': 'TOXIC FUMES', 'die': 'd8'},
+                {'name': 'UNSTABLE GEAR', 'die': 'd8'},
+                {'name': 'GHOST CURRENTS', 'die': 'd10'},
+            ],
+            'twists': {
+                'green': {
+                    'minor1': {'name': 'Leak', 'description': 'Hinder with Min'},
+                    'minor2': {'name': '', 'description': ''},
+                    'major': {'name': 'Sirens', 'description': 'Advance tracker'},
+                },
+                'yellow': {
+                    'minor1': {'name': 'Spark', 'description': 'Damage Mid'},
+                    'minor2': {'name': '', 'description': ''},
+                    'major': {'name': '', 'description': ''},
+                },
+                'red': {
+                    'minor1': {'name': '', 'description': ''},
+                    'minor2': {'name': '', 'description': ''},
+                    'major': {'name': 'Collapse', 'description': 'Scene-wide damage'},
+                },
+            },
+            'minionSlugs': ['imp'],
+            'lieutenantSlugs': ['boss-imp'],
+            'locationSlugs': ['lab-floor'],
+            'notes': 'Lab notes',
+        })
+        status, data = self.request(
+            'POST', '/api/builder/environment', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        self.assertEqual(json.loads(data)['slug'], 'haunted-lab')
+        with (self.campaign / 'environments.csv').open(encoding='utf-8') as fh:
+            row = next(r for r in csv.DictReader(fh) if r['Slug'] == 'haunted-lab')
+        self.assertEqual(row.get('Trait1'), 'TOXIC FUMES')
+        self.assertEqual(row.get('GreenMinorTwist1'), 'Leak')
+        self.assertEqual(row.get('GreenMinorTwist1Description'), 'Hinder with Min')
+        self.assertEqual(row.get('GreenMajorTwist'), 'Sirens')
+        self.assertEqual(row.get('YellowMinorTwist1'), 'Spark')
+        self.assertEqual(row.get('RedMajorTwist'), 'Collapse')
+        self.assertEqual(row.get('MinionSlugs'), 'imp')
+        self.assertEqual(row.get('LieutenantSlugs'), 'boss-imp')
+        with loc_path.open(encoding='utf-8') as fh:
+            loc = next(r for r in csv.DictReader(fh) if r['Slug'] == 'lab-floor')
+        self.assertEqual(loc.get('EnvironmentSlug'), 'haunted-lab')
+        md = (self.campaign / 'md' / 'environments' / 'haunted-lab.md').read_text(encoding='utf-8')
+        self.assertIn('Lab notes', md)
+        # unlinking locations on next save
+        payload2 = json.dumps({
+            'name': 'Haunted Lab', 'slug': 'haunted-lab',
+            'traits': [{'name': 'TOXIC FUMES', 'die': 'd8'}, {'name': 'x', 'die': 'd8'}, {'name': 'y', 'die': 'd8'}],
+            'twists': {}, 'minionSlugs': [], 'lieutenantSlugs': [], 'locationSlugs': [],
+        })
+        status, _ = self.request(
+            'POST', '/api/builder/environment', body=payload2,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200)
+        with loc_path.open(encoding='utf-8') as fh:
+            loc = next(r for r in csv.DictReader(fh) if r['Slug'] == 'lab-floor')
+        self.assertEqual(loc.get('EnvironmentSlug') or '', '')
 
     def test_catalog_csv_served(self):
         status, data = self.request('GET', '/builder/catalog/villain_approaches.csv')
@@ -498,6 +630,136 @@ class TestVillainBuilder(ServerTestCase):
         self.assertIn('## Upgrade Summary', md)
         self.assertIn('## References', md)
         self.assertIn('## Builder', md)
+
+
+class TestActiveFlagAndMinionNotes(ServerTestCase):
+    def test_csv_headers_include_active(self):
+        for headers in (srv.HEROES_HEADERS, srv.VILLAINS_HEADERS, srv.MINIONS_HEADERS, srv.ENVIRONMENTS_HEADERS):
+            self.assertIn('Active', headers)
+
+    def test_minion_description_stays_separate_from_abilities(self):
+        payload = json.dumps({
+            'name': 'Hostage',
+            'type': 'Minion',
+            'die': 'd8',
+            'description': 'A civilian tied to a chair.',
+            'tactics': 'Does not fight.',
+            'abilities': [{'name': 'Pile On', 'text': 'Attack using the minion die.'}],
+            'active': True,
+        })
+        status, data = self.request(
+            'POST', '/api/builder/minion', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        md = (self.campaign / 'md' / 'minions' / 'hostage.md').read_text(encoding='utf-8')
+        desc = md.split('## Description', 1)[1].split('## Abilities', 1)[0]
+        self.assertIn('civilian tied to a chair', desc)
+        self.assertNotIn('Pile On', desc)
+        self.assertIn('### [A] [None] "Pile On"', md)
+        csv_text = (self.campaign / 'minions.csv').read_text(encoding='utf-8')
+        self.assertIn('Active', csv_text.splitlines()[0])
+        self.assertIn('true', csv_text.lower())
+
+    def test_inactive_villain_writes_false(self):
+        payload = json.dumps({
+            'name': 'Retired Threat',
+            'approach': 'Focused',
+            'archetype': 'Fragile',
+            'active': False,
+        })
+        status, data = self.request(
+            'POST', '/api/builder/villain', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        rows = list(csv.DictReader((self.campaign / 'villains.csv').open(encoding='utf-8')))
+        hit = next(r for r in rows if r['Slug'] == 'retired-threat')
+        self.assertEqual(hit.get('Active'), 'false')
+
+    def test_active_save_does_not_overwrite_origin(self):
+        first = json.dumps({'name': 'Book Brute', 'approach': 'Focused', 'active': True, 'origin': 'premade'})
+        status, data = self.request('POST', '/api/builder/villain', body=first,
+                                   headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        second = json.dumps({'name': 'Book Brute', 'approach': 'Focused', 'active': False, 'origin': 'premade'})
+        status, data = self.request('POST', '/api/builder/villain', body=second,
+                                   headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        with (self.campaign / 'villains.csv').open(encoding='utf-8') as fh:
+            hit = next(r for r in csv.DictReader(fh) if r['Slug'] == 'book-brute')
+        self.assertEqual(hit.get('Active'), 'false')
+        self.assertEqual(hit.get('Origin'), 'premade')
+
+    def test_minion_abilities_extracted_from_description(self):
+        payload = json.dumps({
+            'name': 'Thug',
+            'type': 'Minion',
+            'die': 'd8',
+            'description': 'A hired goon.\n\n### [A] [None] "Pile On"\nAttack using the minion die.',
+            'tactics': 'Rush.',
+            'abilities': [],
+            'npc': True,
+        })
+        status, data = self.request('POST', '/api/builder/minion', body=payload,
+                                   headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        md = (self.campaign / 'md' / 'minions' / 'thug.md').read_text(encoding='utf-8')
+        desc = md.split('## Description', 1)[1].split('## Abilities', 1)[0]
+        self.assertIn('hired goon', desc)
+        self.assertNotIn('Pile On', desc)
+        self.assertIn('### [A] [None] "Pile On"', md)
+        with (self.campaign / 'npcs.csv').open(encoding='utf-8') as fh:
+            hit = next(r for r in csv.DictReader(fh) if r['Slug'] == 'thug')
+        self.assertEqual(hit.get('Name'), 'Thug')
+        with (self.campaign / 'minions.csv').open(encoding='utf-8') as fh:
+            slugs = [r['Slug'] for r in csv.DictReader(fh)]
+        self.assertNotIn('thug', slugs)
+
+    def test_minion_save_does_not_wipe_npcs(self):
+        npc = json.dumps({'name': 'Hostage', 'type': 'Minion', 'die': 'd8', 'npc': True, 'active': True})
+        minion = json.dumps({'name': 'Street Thug', 'type': 'Minion', 'die': 'd6', 'npc': False, 'active': True})
+        self.assertEqual(self.request('POST', '/api/builder/minion', body=npc,
+                                     headers={'Content-Type': 'application/json'})[0], 200)
+        self.assertEqual(self.request('POST', '/api/builder/minion', body=minion,
+                                     headers={'Content-Type': 'application/json'})[0], 200)
+        with (self.campaign / 'npcs.csv').open(encoding='utf-8') as fh:
+            npc_slugs = [r['Slug'] for r in csv.DictReader(fh)]
+        with (self.campaign / 'minions.csv').open(encoding='utf-8') as fh:
+            min_slugs = [r['Slug'] for r in csv.DictReader(fh)]
+        self.assertIn('hostage', npc_slugs)
+        self.assertNotIn('hostage', min_slugs)
+        self.assertIn('street-thug', min_slugs)
+        self.assertNotIn('street-thug', npc_slugs)
+
+    def test_headers_include_origin_and_npcs_file(self):
+        self.assertIn('Origin', srv.HEROES_HEADERS)
+        self.assertIn('Origin', srv.VILLAINS_HEADERS)
+        self.assertNotIn('NPC', srv.MINIONS_HEADERS)
+        self.assertIn('npcs', srv.CSV_FILES)
+
+    def test_npc_non_combat_and_hero_types_save(self):
+        non = json.dumps({
+            'name': 'Shopkeep', 'type': 'Non-Combat', 'die': 'd8',
+            'npc': True, 'active': True, 'affiliation': 'Neutral',
+        })
+        hero = json.dumps({
+            'name': 'Ally Cape', 'type': 'Hero', 'die': 'd10',
+            'npc': True, 'active': True, 'affiliation': 'Ally',
+        })
+        self.assertEqual(self.request('POST', '/api/builder/minion', body=non,
+                                     headers={'Content-Type': 'application/json'})[0], 200)
+        self.assertEqual(self.request('POST', '/api/builder/minion', body=hero,
+                                     headers={'Content-Type': 'application/json'})[0], 200)
+        with (self.campaign / 'npcs.csv').open(encoding='utf-8') as fh:
+            rows = {r['Slug']: r for r in csv.DictReader(fh)}
+        self.assertEqual(rows['shopkeep']['Type'], 'Non-Combat')
+        self.assertEqual(rows['shopkeep'].get('Die') or '', '')
+        self.assertEqual(rows['ally-cape']['Type'], 'Hero')
+        self.assertEqual(rows['ally-cape']['Die'], 'd10')
+        self.assertEqual(rows['ally-cape'].get('PerHero') or '', '')
+        with (self.campaign / 'minions.csv').open(encoding='utf-8') as fh:
+            min_slugs = [r['Slug'] for r in csv.DictReader(fh)]
+        self.assertNotIn('shopkeep', min_slugs)
+        self.assertNotIn('ally-cape', min_slugs)
 
 
 if __name__ == '__main__':

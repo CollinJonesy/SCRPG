@@ -1,0 +1,92 @@
+{
+  "name": "Hub Police Arrive",
+  "difficulty": "Moderate",
+  "sceneType": "Social",
+  "tracker": {
+    "stars": [
+      "green",
+      "green",
+      "yellow",
+      "yellow",
+      "yellow",
+      "yellow",
+      "red",
+      "red"
+    ],
+    "position": 0
+  },
+  "locations": [
+    {
+      "id": "loc-57p3x1z7",
+      "name": "First Occidia Bank",
+      "locationSlug": ""
+    }
+  ],
+  "environment": null,
+  "challenges": [],
+  "tokens": [
+    {
+      "id": "tok-5zpgw21w",
+      "kind": "hero",
+      "slug": "titus-andromeda",
+      "name": "Titus Andromeda",
+      "locationId": "loc-57p3x1z7",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-f8ry4g1w",
+      "kind": "hero",
+      "slug": "masquerade",
+      "name": "Masquerade",
+      "locationId": "loc-57p3x1z7",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-8zspxxk5",
+      "kind": "hero",
+      "slug": "pink-panther",
+      "name": "Pink Panther",
+      "locationId": "loc-57p3x1z7",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-0g8m3if0",
+      "kind": "hero",
+      "slug": "lumen",
+      "name": "Lumen",
+      "locationId": "loc-57p3x1z7",
+      "currentHealth": 32,
+      "maxHealth": 32
+    },
+    {
+      "id": "tok-kjoxo9q0",
+      "kind": "hero",
+      "slug": "handyman",
+      "name": "Handyman",
+      "locationId": "loc-57p3x1z7",
+      "currentHealth": 30,
+      "maxHealth": 30
+    },
+    {
+      "id": "tok-o0ulojiy",
+      "kind": "minion",
+      "slug": "bank-teller-2",
+      "name": "Bank Teller",
+      "locationId": null,
+      "currentDie": 6,
+      "ko": false,
+      "npc": true,
+      "nonCombat": true,
+      "affiliation": "Neutral"
+    }
+  ],
+  "mods": [],
+  "gmNotes": "",
+  "activityLog": [],
+  "round": 1,
+  "__slug": "hub-police-arrive",
+  "background": "hub-police-arrive-bg"
+}

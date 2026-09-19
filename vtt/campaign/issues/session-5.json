@@ -10,5 +10,8 @@
     "masquerade",
     "lumen"
   ],
-  "minionSlugs": []
+  "minionSlugs": [
+    "bank-teller",
+    "diesel"
+  ]
 }

@@ -15,7 +15,7 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
   label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
   input,textarea,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
-  textarea{min-height:80px}
+  textarea{min-height:64px;resize:none;overflow-y:hidden;field-sizing:content}
   .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer}
   .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
   .ghost.sel{background:var(--accent);color:#fff}
@@ -44,6 +44,7 @@
       <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="activeOnlyBtn" onclick="setActiveOnly(!activeOnly)">Active Only</button>
       <select id="collFilter" onchange="renderList()" style="max-width:220px"><option value="">All collections</option></select>
     </div>
     <p class="muted" id="empty">Loading…</p>
@@ -53,6 +54,7 @@
     <label>Collection</label>
     <select id="collPick" onchange="onCollPick()"></select>
     <label>Name</label><input id="name">
+    <label><input type="checkbox" id="rowActive" checked> Active</label>
     <label>Slug</label><input id="slug" placeholder="auto from name">
     <label>Notes</label><textarea id="notes" placeholder="Social beats, connecting narration, prep."></textarea>
     <label>Heroes in this Issue</label>
@@ -76,7 +78,34 @@
 </div>
 <script src="/collection-picker.js"></script>
 <script>
-let issues=[], villains=[], heroes=[], minions=[], scenes=[], sceneSlugs=[], editing=null, originFilter='all', collections=[];
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
+let issues=[], villains=[], heroes=[], minions=[], scenes=[], sceneSlugs=[], editing=null, originFilter='all', collections=[], activeOnly=true;
+function isActiveRow(r){
+  const v=r && (r.active!=null?r.active:r.Active); if(v===''||v==null) return true;
+  const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+}
+function setActiveOnly(v){
+  activeOnly=!!v;
+  const btn=document.getElementById('activeOnlyBtn');
+  if(btn) btn.classList.toggle('sel', activeOnly);
+  renderList();
+}
 let selH=[], selV=[], selM=[];
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function slugify(n){return (n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'issue';}
@@ -104,11 +133,12 @@ function collectionNameForIssue(issueSlug){
   return collectionForIssue(issueSlug).map(c=>c.name||c.slug).join(', ') || '—';
 }
 async function boot(){
-  const [il, vcsv, hcsv, mcsv, sl, cl] = await Promise.all([
+  const [il, vcsv, hcsv, mcsv, ncsv, sl, cl] = await Promise.all([
     fetch('/api/issues').then(r=>r.json()),
     fetch('/api/csv/villains').then(r=>r.text()),
     fetch('/api/csv/heroes').then(r=>r.text()),
     fetch('/api/csv/minions').then(r=>r.text()),
+    fetch('/api/csv/npcs').then(r=>r.text()).catch(()=>''),
     fetch('/api/scenes').then(r=>r.json()),
     fetch('/api/collections').then(r=>r.json()).catch(()=>[])
   ]);
@@ -116,7 +146,7 @@ async function boot(){
   collections=cl||[];
   villains=parseCsv(vcsv);
   heroes=parseCsv(hcsv);
-  minions=parseCsv(mcsv);
+  minions=parseCsv(mcsv).concat(parseCsv(ncsv).map(r=>({...r, Name:(r.Name||'')+' (NPC)'})));
   issues=await Promise.all((il||[]).map(async i=>{
     const full=await fetch('/api/issues/'+i.slug).then(r=>r.json());
     return {slug:i.slug, name:i.name, ...full,
@@ -143,6 +173,7 @@ function renderList(){
   const want=document.getElementById('collFilter').value;
   let rows=issues;
   if (originFilter!=='all') rows=rows.filter(i=>i.origin===originFilter);
+  if (activeOnly) rows=rows.filter(isActiveRow);
   if (want){
     const coll=collections.find(c=>c.slug===want);
     const set=new Set((coll&&coll.issueSlugs)||[]);
@@ -217,6 +248,7 @@ async function edit(slug){
   const i=issues.find(x=>x.slug===slug); if(!i) return;
   editing=slug;
   document.getElementById('name').value=i.name||'';
+  const ac=document.getElementById('rowActive'); if(ac) ac.checked=isActiveRow(i);
   document.getElementById('slug').value=slug;
   document.getElementById('notes').value=i.notes||'';
   const home=collectionForIssue(slug)[0];
@@ -235,7 +267,7 @@ async function saveIssue(){
   const villainSlugs=[...document.querySelectorAll('#vilBox input:checked')].map(c=>c.value);
   const heroSlugs=[...document.querySelectorAll('#heroBox input:checked')].map(c=>c.value);
   const minionSlugs=[...document.querySelectorAll('#minBox input:checked')].map(c=>c.value);
-  const body={name, notes:document.getElementById('notes').value, sceneSlugs, villainSlugs, heroSlugs, minionSlugs};
+  const body={name, notes:document.getElementById('notes').value, sceneSlugs, villainSlugs, heroSlugs, minionSlugs, active:document.getElementById('rowActive')?document.getElementById('rowActive').checked:true};
   await fetch('/api/issues/'+encodeURIComponent(slug),{method:'PUT', body:JSON.stringify(body,null,2)});
   for (const c of collections){
     const full=await fetch('/api/collections/'+encodeURIComponent(c.slug)).then(r=>r.json()).catch(()=>null);
@@ -250,6 +282,7 @@ async function saveIssue(){
   showList();
 }
 boot();
+bindAutoGrow();
 </script>
 </body>
 </html>

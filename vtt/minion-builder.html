@@ -15,7 +15,7 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
   label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
   input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
-  textarea{min-height:80px}
+  textarea{min-height:64px;resize:none;overflow-y:hidden;field-sizing:content}
   .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer}
   .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
   .ghost.sel{background:var(--accent);color:#fff}
@@ -39,8 +39,8 @@
 <body>
 <header>
   <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#e9d5ff;font-size:.8rem;text-decoration:none">← All builders</a></p>
-  <h1>Minion / Lieutenant Builder</h1>
-  <p>Same landing table as Villains: All / Custom / Premade, then edit the row.</p>
+  <h1 id="builderTitle">Minion / Lieutenant Builder</h1>
+  <p id="builderBlurb">Same landing table as Villains: All / Custom / Premade, then edit the row.</p>
 </header>
 <div class="wrap">
   <div id="landing" class="panel">
@@ -49,6 +49,7 @@
       <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
       <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="activeOnlyBtn" onclick="setActiveOnly(!activeOnly)">Active Only</button>
     </div>
     <p class="muted" id="landEmpty">Loading…</p>
     <table class="land hidden" id="landTable">
@@ -59,11 +60,21 @@
   <div id="form" class="panel hidden">
     <div class="actions" style="margin-top:0"><button class="ghost tiny" type="button" onclick="showLanding()">← List</button></div>
     <label>Name</label><input id="name">
+    <label><input type="checkbox" id="rowActive" checked> Active in Library</label>
+    <label>Affiliation</label>
+    <select id="rowAffiliation">
+      <option value="Ally">Ally</option>
+      <option value="Enemy" selected>Enemy</option>
+      <option value="Neutral">Neutral</option>
+    </select>
+    <label id="npcFlagWrap" class="hidden"><input type="checkbox" id="rowNpc"> NPC</label>
     <label>Slug</label><input id="slug" placeholder="auto from name">
     <label>Type</label>
     <select id="type" onchange="onTypeChange()"><option>Minion</option><option>Lieutenant</option></select>
+    <div id="dieWrap">
     <label>Die</label>
     <select id="die"></select>
+    </div>
     <div id="perHeroWrap">
       <label>Per Hero Ⓗ</label>
       <div class="perhero-row">
@@ -72,6 +83,7 @@
         <label><input type="checkbox" class="perhero" value="2" onchange="setPerHero('2')"> 2 Ⓗ</label>
       </div>
     </div>
+    <div id="combatChromeNote" class="muted hidden">Non-Combat NPCs have no Boost, Hinder, Defend, Attack, or Overcome boxes on the board.</div>
     <label>Faction</label><input id="faction" placeholder="Aliens, Citizens, etc.">
     <label>Description</label><textarea id="description"></textarea>
     <label>Abilities</label>
@@ -90,7 +102,36 @@
 </div>
 <script src="/collection-picker.js"></script>
 <script>
-let landMeta=[], originFilter='all', editing=null, headers=[], issueIndex=[], collections=[], pickedIssues=[], abilities=[];
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
+let landMeta=[], originFilter='all', editing=null, headers=[], issueIndex=[], collections=[], pickedIssues=[], abilities=[], activeOnly=true;
+const NPC_MODE = new URLSearchParams(location.search).get('npc') === '1';
+function isNpcFlag(v){ const s=String(v||'').toLowerCase(); return s==='true'||s==='1'||s==='yes'; }
+function isActiveRow(r){
+  const v=r && r.Active; if(v===''||v==null) return true;
+  const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+}
+function setActiveOnly(v){
+  activeOnly=!!v;
+  const btn=document.getElementById('activeOnlyBtn');
+  if(btn) btn.classList.toggle('sel', activeOnly);
+  renderLanding();
+}
 const MINION_DICE=['d4','d6','d8','d10','d12'];
 const LT_DICE=['d6','d8','d10','d12'];
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -146,13 +187,21 @@ async function loadAppears(){
 function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }
 function onTypeChange(){
   const type=document.getElementById('type').value;
-  const dice=type==='Lieutenant'?LT_DICE:MINION_DICE;
+  const nonCombat=type==='Non-Combat';
+  const isLt=type==='Lieutenant';
+  const isHero=type==='Hero';
+  const dice=isLt?LT_DICE:MINION_DICE;
   const dieEl=document.getElementById('die');
   const cur=dieEl.value;
   dieEl.innerHTML=dice.map(d=>`<option ${d===cur?'selected':''}>${d}</option>`).join('');
-  if (![...dieEl.options].some(o=>o.value===cur)) dieEl.value=type==='Lieutenant'?'d8':'d8';
-  document.getElementById('perHeroWrap').classList.toggle('hidden', type==='Lieutenant');
-  if (type==='Lieutenant') setPerHero('');
+  if (![...dieEl.options].some(o=>o.value===cur)) dieEl.value=isLt?'d8':'d8';
+  document.getElementById('perHeroWrap').classList.toggle('hidden', isLt || isHero || nonCombat);
+  const dieWrap=document.getElementById('dieWrap');
+  if (dieWrap) dieWrap.classList.toggle('hidden', nonCombat);
+  const note=document.getElementById('combatChromeNote');
+  if (note) note.classList.toggle('hidden', !nonCombat);
+  if (isLt || isHero || nonCombat) setPerHero('');
+  if (nonCombat) dieEl.value='';
 }
 function setPerHero(v){
   document.querySelectorAll('.perhero').forEach(c=>{ c.checked = v!=='' && c.value===v; });
@@ -171,18 +220,20 @@ function renderAbilities(){
   if (!abilities.length){ el.innerHTML='<p class="muted">No abilities yet.</p>'; return; }
   el.innerHTML=abilities.map((a,i)=>`<div class="ab-card">
     <label>Ability Name</label><input value="${esc(a.name)}" oninput="abilities[${i}].name=this.value">
-    <label>Description</label><textarea oninput="abilities[${i}].text=this.value">${esc(a.text)}</textarea>
+    <label>Game Text</label><textarea oninput="abilities[${i}].text=this.value;autoGrowTextarea(this)">${esc(a.text)}</textarea>
     <button class="ghost tiny" type="button" onclick="removeAbility(${i})">Remove</button>
   </div>`).join('');
+  bindAutoGrow(el);
 }
 async function loadLanding(){
-  const csvText=await fetch('/api/csv/minions').then(r=>r.text());
+  const csvKind = NPC_MODE ? 'npcs' : 'minions';
+  const csvText=await fetch('/api/csv/'+csvKind).then(r=>r.text());
   const lines=csvText.trim().split(/\r?\n/);
   headers=parseRow(lines[0]||'');
   const rows=lines.slice(1).map(l=>{const c=parseRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).filter(r=>r.Slug);
   landMeta=await Promise.all(rows.map(async r=>{
   const md=await fetch('/api/md/minions/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
-  return {...r, origin: (md||'').includes('## Builder') ? 'custom' : 'premade', md};
+  return {...r, origin: (r.Origin==='premade'||r.Origin==='custom') ? r.Origin : 'custom', md};
   }));
   renderLanding();
 }
@@ -190,7 +241,8 @@ function renderLanding(){
   const empty=document.getElementById('landEmpty'), table=document.getElementById('landTable'), body=document.getElementById('landBody');
   let rows=landMeta;
   if (originFilter!=='all') rows=rows.filter(r=>r.origin===originFilter);
-  if (!landMeta.length){ empty.classList.remove('hidden'); empty.textContent='No minions or lieutenants in this campaign yet.'; table.classList.add('hidden'); return; }
+  if (activeOnly) rows=rows.filter(isActiveRow);
+  if (!landMeta.length){ empty.classList.remove('hidden'); empty.textContent=NPC_MODE?'No NPCs in this campaign yet.':'No minions or lieutenants in this campaign yet.'; table.classList.add('hidden'); return; }
   if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No rows match this filter.'; table.classList.add('hidden'); return; }
   empty.classList.add('hidden'); table.classList.remove('hidden');
   body.innerHTML=rows.map(r=>`<tr onclick="editRow('${esc(r.Slug)}')"><td>${esc(r.Name)}</td><td>${esc(r.Type)}</td><td>${esc(r.Die)}</td><td>${esc(r.Faction)}</td><td>${esc(r.origin)}</td></tr>`).join('');
@@ -199,49 +251,73 @@ function startNew(){
   editing=null;
   document.getElementById('name').value='';
   document.getElementById('slug').value='';
-  document.getElementById('type').value='Minion';
+  document.getElementById('type').value=NPC_MODE?'Hero':'Minion';
   document.getElementById('faction').value='';
   document.getElementById('description').value='';
   document.getElementById('tactics').value='';
+  const npcEl=document.getElementById('rowNpc'); if(npcEl) npcEl.checked=NPC_MODE;
+  const ac=document.getElementById('rowActive'); if(ac) ac.checked=true;
+  const aff=document.getElementById('rowAffiliation'); if(aff) aff.value=NPC_MODE?'Neutral':'Enemy';
   document.getElementById('msg').textContent='';
   abilities=[]; renderAbilities();
   pickedIssues=[];
   document.getElementById('collPick').value='';
-  setPerHero('1');
+  setPerHero(NPC_MODE?'':'1');
   onTypeChange();
   fillAppearsBox();
   showForm();
 }
 function sectionText(md, heading){
-  const re=new RegExp('##\\\\s+'+heading+'\\\\s*\\n([\\s\\S]*?)(?=\\n##\\\\s+|$)','i');
-  const m=md.match(re);
-  return m?m[1].replace(/^_None yet\\._\\s*/,'').trim():'';
+  const parts=(md||'').split(/^## /m);
+  for (const part of parts){
+    const nl=part.indexOf('\n');
+    const title=(nl===-1?part:part.slice(0,nl)).trim();
+    if (title.toLowerCase()===heading.toLowerCase()){
+      let body=(nl===-1?'':part.slice(nl+1));
+      body=body.replace(/^_None yet\._\s*/,'').trim();
+      return body;
+    }
+  }
+  return '';
+}
+function parseAbilityCards(md){
+  const abs=[];
+  const re=/###\s*\[([ARI?])\]\s*(?:\[[^\]]*\]\s*)?"([^"]+)"\s*\n([\s\S]*?)(?=\n###|\n##\s+|$)/g;
+  let m; while((m=re.exec(md||''))) abs.push({name:m[2].trim(), text:m[3].trim()});
+  return abs;
+}
+function parseBuilderJson(md){
+  const idx=(md||'').indexOf('## Builder');
+  if (idx<0) return null;
+  const chunk=md.slice(idx);
+  const a=chunk.indexOf('```json');
+  const b=chunk.indexOf('```', a+7);
+  if (a<0||b<0) return null;
+  try { return JSON.parse(chunk.slice(a+7,b).trim()); } catch(e){ return null; }
 }
 async function editRow(slug){
   const r=landMeta.find(x=>x.Slug===slug); if(!r) return;
   editing=slug;
   document.getElementById('name').value=r.Name||'';
+  const ac=document.getElementById('rowActive'); if(ac) ac.checked=isActiveRow(r);
+  const aff=document.getElementById('rowAffiliation'); if(aff) aff.value=(['Ally','Enemy','Neutral'].includes(r.Affiliation)?r.Affiliation:(NPC_MODE?'Neutral':'Enemy'));
+  const npcEl=document.getElementById('rowNpc'); if(npcEl) npcEl.checked=NPC_MODE || isNpcFlag(r.NPC);
   document.getElementById('slug').value=slug;
-  document.getElementById('type').value=r.Type||'Minion';
+  document.getElementById('type').value=r.Type||(NPC_MODE?'Non-Combat':'Minion');
   document.getElementById('faction').value=r.Faction||'';
   const md=r.md||await fetch('/api/md/minions/'+encodeURIComponent(slug)).then(x=>x.ok?x.text():'');
   let desc='', tac='', abs=[];
-  try{
-    const jm=md.match(/## Builder[\\s\\S]*?```json\\s*([\\s\\S]*?)```/);
-    if (jm){
-      const st=JSON.parse(jm[1]);
-      abs=(st.abilities||[]).map(a=>({name:a.name||'', text:a.text||a.description||''}));
-    }
-  }catch(e){}
-  if (!abs.length){
-    const re=/###\\s*\\[[ARI?]\\]\\s*(?:\\[[^\\]]*\\]\\s*)?\"([^\"]+)\"\\s*\\n([\\s\\S]*?)(?=\\n###|\\n##\\s+|$)/g;
-    let m; while((m=re.exec(md))) abs.push({name:m[1], text:m[2].trim()});
+  const st=parseBuilderJson(md);
+  if (st && Array.isArray(st.abilities)) abs=st.abilities.map(a=>({name:a.name||'', text:a.text||a.description||''})).filter(a=>a.name||a.text);
+  if (!abs.length) abs=parseAbilityCards(md);
+  desc=sectionText(md,'Description');
+  tac=sectionText(md,'Tactics');
+  const leaked=parseAbilityCards(desc);
+  if (leaked.length){
+    const have=new Set(abs.map(a=>a.name));
+    leaked.forEach(a=>{ if(!have.has(a.name)) abs.push(a); });
+    desc=desc.replace(/###\s*\[[ARI?]\].*$/s,'').trim();
   }
-  const d=md.match(/## Description\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)/i);
-  const t=md.match(/## Tactics\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)/i);
-  desc=d?d[1].replace(/^_None yet\\._\\s*/,'').trim():'';
-  tac=t?t[1].replace(/^_None yet\\._\\s*/,'').trim():'';
-  if (!desc && !tac && !abs.length) desc=md.replace(/^#.*\\n+/,'').replace(/## Builder[\\s\\S]*$/,'').trim();
   document.getElementById('description').value=desc;
   document.getElementById('tactics').value=tac;
   abilities=abs; renderAbilities();
@@ -250,8 +326,9 @@ async function editRow(slug){
   const home=collections.find(c=>(c.issueSlugs||[]).some(s=>pickedIssues.includes(s)));
   document.getElementById('collPick').value=home?home.slug:'';
   onTypeChange();
-  document.getElementById('die').value=(r.Die||'d8');
-  setPerHero(r.Type==='Lieutenant'?'':(r.PerHero||'1'));
+  const ty=document.getElementById('type').value;
+  if (ty!=='Non-Combat') document.getElementById('die').value=(r.Die||'d8');
+  setPerHero((ty==='Lieutenant'||ty==='Hero'||ty==='Non-Combat')?'':(r.PerHero||'1'));
   fillAppearsBox();
   showForm();
 }
@@ -264,8 +341,9 @@ async function saveRow(){
   const faction=document.getElementById('faction').value.trim();
   const description=document.getElementById('description').value.trim();
   const tactics=document.getElementById('tactics').value.trim();
-  const perHero=type==='Lieutenant'?'':(currentPerHero()||'1');
-  const res=await fetch('/api/builder/minion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,slug,type,die,faction,description,tactics,perHero,abilities})});
+  const perHero=(type==='Lieutenant'||type==='Hero'||type==='Non-Combat')?'':(currentPerHero()||'1');
+  const dieVal=type==='Non-Combat'?'':die;
+  const res=await fetch('/api/builder/minion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,slug,type,die:dieVal,faction,description,tactics,perHero,abilities,active:document.getElementById('rowActive')?document.getElementById('rowActive').checked:true,origin:(landMeta.find(x=>x.Slug===slug)||{}).origin||'custom',npc:NPC_MODE || !!(document.getElementById('rowNpc')&&document.getElementById('rowNpc').checked),affiliation:(document.getElementById('rowAffiliation')||{}).value||(NPC_MODE?'Neutral':'Enemy')})});
   const j=await res.json().catch(()=>({}));
   if(!res.ok){ document.getElementById('msg').textContent=j.error||'Save failed'; return; }
   const saved=j.slug||slug;
@@ -283,7 +361,19 @@ async function saveRow(){
   document.getElementById('msg').innerHTML='<span class="ok">Saved '+esc(saved)+'</span>';
   showLanding();
 }
+if (NPC_MODE){
+  document.title='SCRPG NPC Builder';
+  const h=document.getElementById('builderTitle'); if(h) h.textContent='NPC Builder';
+  const b=document.getElementById('builderBlurb'); if(b) b.textContent='Build Heroes or Non-Combat NPCs (also Minion/Lieutenant). Non-Combat has no Boost/Hinder/Defend/Attack/Overcome on the board.';
+  const w=document.getElementById('npcFlagWrap'); if(w) w.classList.remove('hidden');
+  const npcEl=document.getElementById('rowNpc'); if(npcEl) npcEl.checked=true;
+  const typeEl=document.getElementById('type');
+  if (typeEl){
+    typeEl.innerHTML='<option>Hero</option><option>Non-Combat</option><option>Minion</option><option>Lieutenant</option>';
+  }
+}
 loadLanding();
+bindAutoGrow();
 loadAppears();
 </script>
 </body>

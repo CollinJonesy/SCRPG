@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 notion_import.py — reshape Notion database CSV exports into the SCRPG Scene
-Board's library format (heroes.csv / villains.csv / minions.csv + md/ files).
+Board's library format (players.csv / villains.csv / minions.csv + md/ files).
 
 No dependencies beyond the Python 3 standard library.
 
@@ -143,7 +143,7 @@ def write_md(md_dir, slug, sections):
 
 def import_heroes(src_path, campaign):
     src = read_notion_csv(src_path)
-    existing = load_existing(campaign / 'heroes.csv', HEROES_HEADERS)
+    existing = load_existing(campaign / 'players.csv', HEROES_HEADERS)
     taken = {r['Slug'] for r in existing}
     new_rows = []
     for row in src:
@@ -175,8 +175,8 @@ def import_heroes(src_path, campaign):
         ])
 
     merged = upsert(existing, new_rows)
-    write_csv(campaign / 'heroes.csv', HEROES_HEADERS, merged)
-    print(f'Heroes: {len(new_rows)} imported/updated, {len(merged)} total in heroes.csv')
+    write_csv(campaign / 'players.csv', HEROES_HEADERS, merged)
+    print(f'Heroes: {len(new_rows)} imported/updated, {len(merged)} total in players.csv')
 
 
 def import_villains(src_path, campaign):
@@ -260,7 +260,7 @@ def import_minions(src_path, campaign):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--campaign', required=True, help='Path to your campaign folder (contains heroes.csv etc.)')
+    ap.add_argument('--campaign', required=True, help='Path to your campaign folder (contains players.csv etc.)')
     ap.add_argument('--heroes', help='Path to Notion "The Hero Roster" CSV export')
     ap.add_argument('--villains', help='Path to Notion "Villain Database" CSV export')
     ap.add_argument('--minions', help='Path to Notion "Minions & Lieutenants" CSV export')

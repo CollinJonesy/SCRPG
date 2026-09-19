@@ -59,7 +59,7 @@ def rule_file_for_slug(slug: str):
 HEROES_HEADERS = ['Slug', 'Name', 'Alias', 'Player',
     'Power1', 'PowerDie1', 'Power1DisplayName', 'Power2', 'PowerDie2', 'Power2DisplayName', 'Power3', 'PowerDie3', 'Power3DisplayName', 'Power4', 'PowerDie4', 'Power4DisplayName', 'Power5', 'PowerDie5', 'Power5DisplayName', 'Power6', 'PowerDie6', 'Power6DisplayName',
     'Quality1', 'QualityDie1', 'Quality1DisplayName', 'Quality2', 'QualityDie2', 'Quality2DisplayName', 'Quality3', 'QualityDie3', 'Quality3DisplayName', 'Quality4', 'QualityDie4', 'Quality4DisplayName', 'Quality5', 'QualityDie5', 'Quality5DisplayName', 'Quality6', 'QualityDie6', 'Quality6DisplayName',
-    'MaxHealth', 'GreenStatusDie', 'YellowStatusDie', 'RedStatusDie', 'GMControlled',
+    'MaxHealth', 'GreenStatusDie', 'YellowStatusDie', 'RedStatusDie', 'Active', 'Origin', 'Affiliation',
     'Principle1Name', 'Principle1Roleplay', 'Principle1MinorTwist', 'Principle1MajorTwist',
     'Principle2Name', 'Principle2Roleplay', 'Principle2MinorTwist', 'Principle2MajorTwist']
 
@@ -71,12 +71,26 @@ VILLAINS_HEADERS = ['Slug', 'Name', 'Approach', 'Archetype',
     'MaxHealth', 'GreenFloor', 'YellowFloor', 'RedFloor',
     'GreenStatusDie', 'YellowStatusDie', 'RedStatusDie',
     'Status1Label', 'Status1Die', 'Status2Label', 'Status2Die', 'Status3Label', 'Status3Die',
-    'Status4Label', 'Status4Die', 'Status5Label', 'Status5Die']
+    'Status4Label', 'Status4Die', 'Status5Label', 'Status5Die', 'Active', 'Origin', 'Affiliation']
 
-MINIONS_HEADERS = ['Slug', 'Name', 'Type', 'Die', 'Faction', 'PerHero']
+MINIONS_HEADERS = ['Slug', 'Name', 'Type', 'Die', 'Faction', 'PerHero', 'Active', 'Origin', 'Affiliation']
+NPCS_HEADERS = ['Slug', 'Name', 'Type', 'Die', 'Faction', 'PerHero', 'Active', 'Origin', 'Affiliation']
 
-ENVIRONMENTS_HEADERS = ['Slug', 'Name',
-    'Trait1', 'TraitDie1', 'Trait2', 'TraitDie2', 'Trait3', 'TraitDie3']
+ENVIRONMENTS_HEADERS = [
+    'Slug', 'Name',
+    'Trait1', 'TraitDie1', 'Trait2', 'TraitDie2', 'Trait3', 'TraitDie3',
+    'Active', 'Origin',
+    'GreenMinorTwist1', 'GreenMinorTwist1Description',
+    'GreenMinorTwist2', 'GreenMinorTwist2Description',
+    'GreenMajorTwist', 'GreenMajorTwistDescription',
+    'YellowMinorTwist1', 'YellowMinorTwist1Description',
+    'YellowMinorTwist2', 'YellowMinorTwist2Description',
+    'YellowMajorTwist', 'YellowMajorTwistDescription',
+    'RedMinorTwist1', 'RedMinorTwist1Description',
+    'RedMinorTwist2', 'RedMinorTwist2Description',
+    'RedMajorTwist', 'RedMajorTwistDescription',
+    'MinionSlugs', 'LieutenantSlugs',
+]
 
 LOCATIONS_HEADERS = ['Slug', 'Name', 'EnvironmentSlug']
 TWISTS_HEADERS = ['Slug', 'Name', 'EffectType', 'Severity', 'Formula', 'Description']
@@ -130,11 +144,12 @@ DEFAULT_TWISTS = [
     ('meanwhile-vehicle-sabotaged', 'Vehicle Sabotaged', 'Story Complication (Later)', 'Any', '', 'Meanwhile: someone sabotages your vehicle.'),
 ]
 
-ABILITIES_HEADERS = ['HeroSlug', 'Zone', 'Name', 'DisplayName', 'Type', 'GameText', 'RollType', 'DieSource', 'EffectDieHint']
+ABILITIES_HEADERS = ['Slug', 'Zone', 'Name', 'DisplayName', 'Type', 'GameText', 'RollType', 'DieSource', 'EffectDieHint']
 
-CSV_FILES = {'heroes': ('heroes.csv', HEROES_HEADERS),
+CSV_FILES = {'heroes': ('players.csv', HEROES_HEADERS),
              'villains': ('villains.csv', VILLAINS_HEADERS),
              'minions': ('minions.csv', MINIONS_HEADERS),
+             'npcs': ('npcs.csv', NPCS_HEADERS),
              'environments': ('environments.csv', ENVIRONMENTS_HEADERS),
              'locations': ('locations.csv', LOCATIONS_HEADERS),
              'twists': ('twists.csv', TWISTS_HEADERS),
@@ -179,8 +194,7 @@ def default_scene(name='New Scene'):
         "difficulty": "Moderate",
         "tracker": {"stars": (["green"] * 2 + ["yellow"] * 4 + ["red"] * 2), "position": 0},
         "locations": [
-            {"id": "loc1", "name": "Location 1", "background": None},
-            {"id": "loc2", "name": "Location 2", "background": None},
+            {"id": "loc1", "name": "Main Location", "background": None},
         ],
         "environment": None,
         "challenges": [],
@@ -260,11 +274,25 @@ def local_ip():
 
 
 _SLUG_RE = re.compile(r'[^a-z0-9]+')
+_SAFE_SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9-]{0,120}$')
 
 
 def slugify(name: str) -> str:
     s = _SLUG_RE.sub('-', (name or '').strip().lower()).strip('-')
-    return s or 'unnamed'
+    s = s or 'unnamed'
+    return s[:120]
+
+
+def is_safe_slug(slug: str) -> bool:
+    """Reject path-injection and multi-line CSV debris used as filenames."""
+    return bool(slug) and bool(_SAFE_SLUG_RE.match(slug))
+
+
+def _csv_fieldnames(path: Path):
+    if not path.exists() or not path.read_text(encoding='utf-8').strip():
+        return []
+    with path.open(newline='', encoding='utf-8') as f:
+        return list(csv.DictReader(f).fieldnames or [])
 
 
 def _csv_rows(path: Path, headers):
@@ -275,20 +303,92 @@ def _csv_rows(path: Path, headers):
     # Clean up legacy "Green/Yellow" zone values in abilities (book shorthand for
     # "this ability's zone is chosen between Green and Yellow at build time" — the
     # actual zone is Green; the app's gyro filter + CSS can only handle real zones).
-    if path.name == 'abilities.csv' and 'Zone' in (headers or []):
+    # Also migrate legacy HeroSlug → Slug on abilities.csv.
+    if path.name == 'abilities.csv':
         for r in rows:
-            if (r.get('Zone') or '') == 'Green/Yellow':
+            if 'Zone' in (headers or []) and (r.get('Zone') or '') == 'Green/Yellow':
                 r['Zone'] = 'Green'
+            if not (r.get('Slug') or '').strip() and (r.get('HeroSlug') or '').strip():
+                r['Slug'] = r.get('HeroSlug') or ''
+            if 'HeroSlug' in r and 'Slug' in (headers or []):
+                r.pop('HeroSlug', None)
     return rows
 
 
-def _write_csv(path: Path, headers, rows):
+def _union_headers(*groups):
+    out = []
+    for group in groups:
+        for h in group or []:
+            if h and h not in out:
+                out.append(h)
+    return out
+
+
+def _write_csv_raw(path: Path, headers, rows):
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=headers, extrasaction='ignore', lineterminator='\n')
     w.writeheader()
     for row in rows:
-        w.writerow({h: row.get(h, '') or '' for h in headers})
+        w.writerow({h: '' if row.get(h) is None else str(row.get(h, '')) for h in headers})
     path.write_text(buf.getvalue(), encoding='utf-8')
+
+
+def _write_csv(path: Path, headers, rows):
+    """Write canonical headers plus any extra columns already on disk, by Slug."""
+    extras = _csv_fieldnames(path)
+    old = {r.get('Slug'): r for r in _csv_rows(path, None)}
+    fieldnames = _union_headers(headers, extras)
+    merged = []
+    for row in rows:
+        prev = old.get(row.get('Slug')) or {}
+        out = {}
+        for h in fieldnames:
+            if h in headers:
+                val = row.get(h, '')
+                out[h] = '' if val is None else str(val)
+            else:
+                out[h] = prev.get(h, '') or ''
+        merged.append(out)
+    _write_csv_raw(path, fieldnames, merged)
+
+
+def merge_json_put(path: Path, body: str) -> str:
+    """Keep keys the client omitted so a partial PUT cannot strip fields."""
+    incoming = json.loads(body or '{}')
+    if not isinstance(incoming, dict):
+        return body
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding='utf-8'))
+        except Exception:
+            existing = None
+        if isinstance(existing, dict):
+            for k, v in existing.items():
+                if k not in incoming:
+                    incoming[k] = v
+    return json.dumps(incoming, indent=2)
+
+
+def put_csv(path: Path, canonical_headers, body: str):
+    """Library PUT: keep columns the client omitted, matched by Slug."""
+    reader = csv.DictReader(io.StringIO(body or ''))
+    incoming_fields = list(reader.fieldnames or [])
+    incoming = list(reader)
+    old = {r.get('Slug'): r for r in _csv_rows(path, None)}
+    fieldnames = _union_headers(canonical_headers, _csv_fieldnames(path), incoming_fields)
+    incoming_set = set(incoming_fields)
+    merged = []
+    for row in incoming:
+        prev = old.get(row.get('Slug')) or {}
+        out = {}
+        for h in fieldnames:
+            if h in incoming_set:
+                val = row.get(h, '')
+                out[h] = '' if val is None else str(val)
+            else:
+                out[h] = prev.get(h, '') or ''
+        merged.append(out)
+    _write_csv_raw(path, fieldnames, merged)
 
 
 def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None = None) -> dict:
@@ -300,7 +400,7 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
 
     powers = list(payload.get('powers') or [])[:6]
     qualities = list(payload.get('qualities') or [])[:6]
-    heroes_path = campaign / 'heroes.csv'
+    heroes_path = campaign / 'players.csv'
     rows = _csv_rows(heroes_path, HEROES_HEADERS)
     existing = next((r for r in rows if (r.get('Slug') or '') == slug), None) or {}
     row = {h: existing.get(h, '') or '' for h in HEROES_HEADERS}
@@ -318,8 +418,16 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
         row['YellowStatusDie'] = payload.get('yellowStatusDie') or ''
     if payload.get('redStatusDie'):
         row['RedStatusDie'] = payload.get('redStatusDie') or ''
-    if payload.get('GMControlled') not in (None, ''):
-        row['GMControlled'] = str(payload.get('GMControlled')).lower()
+    if 'active' in payload or 'Active' in payload:
+        val = payload.get('active', payload.get('Active'))
+        row['Active'] = 'true' if str(val).lower() not in ('false', '0', 'no', '') else 'false'
+    orig = payload.get('origin', payload.get('Origin'))
+    if orig in ('premade', 'custom'):
+        row['Origin'] = orig
+    elif not row.get('Origin'):
+        row['Origin'] = 'custom'
+    aff = payload.get('affiliation') or payload.get('Affiliation') or row.get('Affiliation') or 'Ally'
+    row['Affiliation'] = aff if aff in ('Ally', 'Enemy', 'Neutral') else 'Ally'
     if powers:
         for i in range(1, 7):
             row[f'Power{i}'] = ''
@@ -353,20 +461,24 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
     abilities = list(payload.get('abilities') or [])
     ab_path = campaign / 'abilities.csv'
     if abilities:
-        ab_rows = [r for r in _csv_rows(ab_path, ABILITIES_HEADERS) if (r.get('HeroSlug') or '') != slug]
+        ab_entries = []
         for a in abilities:
-            ab_rows.append({
-                'HeroSlug': slug,
+            game = a.get('text') or a.get('gameText') or ''
+            roll = a.get('rollType') or ''
+            if not roll:
+                roll = _infer_roll_types(game)
+            ab_entries.append({
+                'Slug': slug,
                 'Zone': (a.get('zone') or '').replace('Green/Yellow', 'Green'),
                 'Name': a.get('name') or '',
                 'DisplayName': a.get('displayName') or a.get('DisplayName') or '',
                 'Type': a.get('type') or '',
-                'GameText': a.get('text') or a.get('gameText') or '',
-                'RollType': a.get('rollType') or '',
+                'GameText': game,
+                'RollType': roll,
                 'DieSource': a.get('dieSource') or '',
                 'EffectDieHint': a.get('effectDieHint') or '',
             })
-        _write_csv(ab_path, ABILITIES_HEADERS, ab_rows)
+        ab_path = _upsert_actor_abilities(campaign, slug, ab_entries)
 
     md_dir = campaign / 'md' / 'heroes'
     md_dir.mkdir(parents=True, exist_ok=True)
@@ -455,6 +567,14 @@ def _gyro_floors(max_health: int) -> tuple[str, str, str]:
     return str(g), str(y), str(r)
 
 
+def _infer_roll_types(text: str) -> str:
+    """RollType from Game Text: the 6 basic actions present as whole words; else blank."""
+    t = text or ''
+    found = [k for k in ('Attack', 'Defend', 'Boost', 'Hinder', 'Recover', 'Overcome')
+             if re.search(r'\b' + k + r'\b', t, flags=re.I)]
+    return ', '.join(found)
+
+
 def _ability_card_md(card: dict) -> list[str]:
     typ = (card.get('type') or 'A')[0].upper()
     if typ not in 'ARI':
@@ -466,6 +586,22 @@ def _ability_card_md(card: dict) -> list[str]:
     name = card.get('name') or 'Ability'
     text = card.get('text') or card.get('gameText') or ''
     return [f'### [{typ}] [{icon}] "{name}"', text, '']
+
+
+def _upsert_actor_abilities(campaign: Path, slug: str, ability_rows: list) -> Path:
+    """Replace all abilities.csv rows for slug with ability_rows (dicts with CSV keys)."""
+    ab_path = campaign / 'abilities.csv'
+    keep = [r for r in _csv_rows(ab_path, ABILITIES_HEADERS)
+            if (r.get('Slug') or r.get('HeroSlug') or '') != slug]
+    for a in ability_rows:
+        row = {h: '' for h in ABILITIES_HEADERS}
+        row.update({k: (a.get(k) or '') for k in ABILITIES_HEADERS})
+        row['Slug'] = slug
+        if not row.get('RollType'):
+            row['RollType'] = _infer_roll_types(row.get('GameText') or '')
+        keep.append(row)
+    _write_csv(ab_path, ABILITIES_HEADERS, keep)
+    return ab_path
 
 
 def save_built_villain(campaign: Path, payload: dict) -> dict:
@@ -504,6 +640,16 @@ def save_built_villain(campaign: Path, payload: dict) -> dict:
     row['GreenStatusDie'] = payload.get('greenStatusDie') or ''
     row['YellowStatusDie'] = payload.get('yellowStatusDie') or ''
     row['RedStatusDie'] = payload.get('redStatusDie') or ''
+    if 'active' in payload or 'Active' in payload:
+        val = payload.get('active', payload.get('Active'))
+        row['Active'] = 'false' if str(val).lower() in ('false', '0', 'no') else 'true'
+    orig = payload.get('origin', payload.get('Origin'))
+    if orig in ('premade', 'custom'):
+        row['Origin'] = orig
+    elif not row.get('Origin'):
+        row['Origin'] = 'custom'
+    aff = payload.get('affiliation') or payload.get('Affiliation') or row.get('Affiliation') or 'Enemy'
+    row['Affiliation'] = aff if aff in ('Ally', 'Enemy', 'Neutral') else 'Enemy'
     if row['GreenStatusDie'] and not row['GreenFloor'] and row['MaxHealth']:
         try:
             g, y, r = _gyro_floors(int(row['MaxHealth']))
@@ -567,7 +713,45 @@ def save_built_villain(campaign: Path, payload: dict) -> dict:
     md_dir.mkdir(parents=True, exist_ok=True)
     md_path = md_dir / f'{slug}.md'
     md_path.write_text('\n'.join(md_lines), encoding='utf-8')
-    return {'slug': slug, 'villainsCsv': str(path), 'md': str(md_path)}
+
+    # Dice-roller / board layer: selected abilities + upgrade + mastery → abilities.csv
+    ab_entries = []
+    for a in abilities:
+        game = a.get('text') or a.get('gameText') or ''
+        icons = a.get('icons') or a.get('icon') or a.get('rollType') or ''
+        if isinstance(icons, list):
+            icons = ', '.join(icons)
+        roll = a.get('rollType') or _infer_roll_types(game)
+        if not roll and icons:
+            parts = [p.strip() for p in re.split(r'[,/]', str(icons)) if p.strip()]
+            roll = ', '.join(p for p in parts if p in (
+                'Attack', 'Defend', 'Boost', 'Hinder', 'Recover', 'Overcome'))
+        ab_entries.append({
+            'Slug': slug, 'Zone': '', 'Name': a.get('name') or '',
+            'DisplayName': a.get('displayName') or '', 'Type': (a.get('type') or 'A')[0],
+            'GameText': game, 'RollType': roll, 'DieSource': a.get('dieSource') or '',
+            'EffectDieHint': a.get('effectDieHint') or '',
+        })
+    for u in upgrades:
+        game = u.get('text') or u.get('gameText') or ''
+        ab_entries.append({
+            'Slug': slug, 'Zone': 'Upgrade', 'Name': u.get('name') or '',
+            'DisplayName': '', 'Type': (u.get('type') or 'I')[0],
+            'GameText': game, 'RollType': _infer_roll_types(game),
+            'DieSource': '', 'EffectDieHint': '',
+        })
+    for m in masteries:
+        game = m.get('text') or m.get('gameText') or ''
+        ab_entries.append({
+            'Slug': slug, 'Zone': 'Mastery', 'Name': m.get('name') or '',
+            'DisplayName': '', 'Type': (m.get('type') or 'I')[0],
+            'GameText': game, 'RollType': _infer_roll_types(game),
+            'DieSource': '', 'EffectDieHint': '',
+        })
+    # Always rewrite this slug's ability rows (clears stale picks when builder empties them)
+    ab_path = _upsert_actor_abilities(campaign, slug, ab_entries)
+
+    return {'slug': slug, 'villainsCsv': str(path), 'md': str(md_path), 'abilitiesCsv': str(ab_path)}
 
 
 def save_built_minion(campaign: Path, payload: dict) -> dict:
@@ -575,28 +759,66 @@ def save_built_minion(campaign: Path, payload: dict) -> dict:
     if not name:
         raise ValueError('name is required')
     slug = slugify(payload.get('slug') or name)
-    path = campaign / 'minions.csv'
-    existing = next((r for r in _csv_rows(path, MINIONS_HEADERS) if (r.get('Slug') or '') == slug), None)
-    row = {h: (existing or {}).get(h, '') for h in MINIONS_HEADERS}
+    npc_val = payload.get('npc', payload.get('NPC'))
+    is_npc = str(npc_val).lower() not in ('false', '0', 'no', '', 'None') if npc_val is not None else False
+    if npc_val is None:
+        is_npc = False
+    dest_headers = NPCS_HEADERS if is_npc else MINIONS_HEADERS
+    dest = campaign / ('npcs.csv' if is_npc else 'minions.csv')
+    other = campaign / ('minions.csv' if is_npc else 'npcs.csv')
+    other_headers = MINIONS_HEADERS if is_npc else NPCS_HEADERS
+    dest_existing = next((r for r in _csv_rows(dest, dest_headers) if (r.get('Slug') or '') == slug), None)
+    if not dest_existing:
+        dest_existing = next((r for r in _csv_rows(other, other_headers) if (r.get('Slug') or '') == slug), None)
+    row = {h: (dest_existing or {}).get(h, '') for h in dest_headers}
     row['Slug'] = slug
     row['Name'] = name
     kind = payload.get('type') or row.get('Type') or 'Minion'
     row['Type'] = kind
-    row['Die'] = payload.get('die') or row.get('Die') or 'd8'
+    if kind == 'Non-Combat':
+        row['Die'] = ''
+        row['PerHero'] = ''
+    else:
+        if 'die' in payload:
+            row['Die'] = payload.get('die') or ''
+        elif not row.get('Die'):
+            row['Die'] = 'd8'
+        if kind in ('Lieutenant', 'Hero'):
+            row['PerHero'] = ''
+        elif 'perHero' in payload:
+            row['PerHero'] = str(payload.get('perHero') or '')
     if 'faction' in payload:
         row['Faction'] = payload.get('faction') or ''
-    if kind == 'Lieutenant':
-        row['PerHero'] = ''
-    elif 'perHero' in payload:
-        row['PerHero'] = str(payload.get('perHero') or '')
-    rows = [r for r in _csv_rows(path, MINIONS_HEADERS) if (r.get('Slug') or '') != slug]
-    rows.append(row)
-    _write_csv(path, MINIONS_HEADERS, rows)
+    if 'active' in payload or 'Active' in payload:
+        val = payload.get('active', payload.get('Active'))
+        row['Active'] = 'false' if str(val).lower() in ('false', '0', 'no') else 'true'
+    orig = payload.get('origin', payload.get('Origin'))
+    if orig in ('premade', 'custom'):
+        row['Origin'] = orig
+    elif not row.get('Origin'):
+        row['Origin'] = 'custom'
+    default_aff = 'Neutral' if is_npc else 'Enemy'
+    aff = payload.get('affiliation') or payload.get('Affiliation') or row.get('Affiliation') or default_aff
+    row['Affiliation'] = aff if aff in ('Ally', 'Enemy', 'Neutral') else default_aff
+    dest_rows = [r for r in _csv_rows(dest, dest_headers) if (r.get('Slug') or '') != slug]
+    dest_rows.append(row)
+    _write_csv(dest, dest_headers, dest_rows)
+    other_rows = [r for r in _csv_rows(other, other_headers) if (r.get('Slug') or '') != slug]
+    _write_csv(other, other_headers, other_rows)
+    path = dest
     abilities = payload.get('abilities') or []
     if not isinstance(abilities, list):
         abilities = []
     description = (payload.get('description') or payload.get('notes') or '').strip()
     tactics = (payload.get('tactics') or '').strip()
+    card_re = re.compile(
+        r'###\s*\[([ARI?])\]\s*(?:\[[^\]]*\]\s*)?"([^"]+)"\s*\n(.*?)(?=\n###|\n##\s+|$)',
+        re.S)
+    if not abilities:
+        for m in card_re.finditer(description):
+            abilities.append({'name': m.group(2).strip(), 'text': m.group(3).strip(), 'type': m.group(1)})
+    description = card_re.sub('', description).strip()
+    description = re.sub(r'\n{3,}', '\n\n', description).strip()
     md_lines = [f'# {name}', '']
     md_lines += ['## Description', '', description or '_None yet._', '']
     md_lines += ['## Abilities', '']
@@ -610,7 +832,7 @@ def save_built_minion(campaign: Path, payload: dict) -> dict:
         md_lines += [f'### [A] [None] "{aname}"', body, '']
     md_lines += ['## Tactics', '', tactics or '_None yet._', '']
     state = {
-        'origin': 'custom',
+        'origin': row.get('Origin') or payload.get('origin') or 'custom',
         'perHero': row.get('PerHero') or '',
         'abilities': [{'name': (a.get('name') or ''), 'text': (a.get('text') or a.get('description') or '')} for a in abilities if isinstance(a, dict)],
     }
@@ -622,27 +844,120 @@ def save_built_minion(campaign: Path, payload: dict) -> dict:
     return {'slug': slug, 'minionsCsv': str(path), 'md': str(md_path)}
 
 
+def _slug_list_field(val) -> str:
+    """Normalize list/string of slugs to semicolon-separated CSV cell."""
+    if val is None:
+        return ''
+    if isinstance(val, list):
+        parts = [str(x).strip() for x in val if str(x).strip()]
+    else:
+        parts = [p.strip() for p in re.split(r'[;\n,]+', str(val)) if p.strip()]
+    # preserve order, drop dups
+    seen, out = set(), []
+    for p in parts:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return ';'.join(out)
+
+
 def save_built_environment(campaign: Path, payload: dict) -> dict:
     name = (payload.get('name') or '').strip()
     if not name:
         raise ValueError('name is required')
     slug = slugify(payload.get('slug') or name)
-    row = {h: '' for h in ENVIRONMENTS_HEADERS}
+    path = campaign / 'environments.csv'
+    existing = next((r for r in _csv_rows(path, ENVIRONMENTS_HEADERS) if (r.get('Slug') or '') == slug), None)
+    row = {h: (existing or {}).get(h, '') for h in ENVIRONMENTS_HEADERS}
     row['Slug'] = slug
     row['Name'] = name
+    if 'active' in payload or 'Active' in payload:
+        val = payload.get('active', payload.get('Active'))
+        row['Active'] = 'false' if str(val).lower() in ('false', '0', 'no') else 'true'
+    orig = payload.get('origin', payload.get('Origin'))
+    if orig in ('premade', 'custom'):
+        row['Origin'] = orig
+    elif not row.get('Origin'):
+        row['Origin'] = 'custom'
     traits = list(payload.get('traits') or [])
     for i, t in enumerate(traits[:3], 1):
         row[f'Trait{i}'] = (t.get('name') or '') if isinstance(t, dict) else ''
         row[f'TraitDie{i}'] = (t.get('die') or '') if isinstance(t, dict) else ''
-    path = campaign / 'environments.csv'
+    # GYRO twists: payload.twists.{green|yellow|red}.{minor1|minor2|major}.{name|description}
+    # or flat CSV-style keys GreenMinorTwist1 / GreenMinorTwist1Description / ...
+    raw_twists = payload.get('twists')
+    twists: dict = raw_twists if isinstance(raw_twists, dict) else {}
+    zone_map = (
+        ('Green', 'green'),
+        ('Yellow', 'yellow'),
+        ('Red', 'red'),
+    )
+    twist_slots = (
+        ('MinorTwist1', 'minor1'),
+        ('MinorTwist2', 'minor2'),
+        ('MajorTwist', 'major'),
+    )
+    for zone_csv, zone_key in zone_map:
+        raw_z = twists.get(zone_key)
+        z: dict = raw_z if isinstance(raw_z, dict) else {}
+        for slot_csv, slot_key in twist_slots:
+            raw_s = z.get(slot_key)
+            s: dict = raw_s if isinstance(raw_s, dict) else {}
+            name_key = f'{zone_csv}{slot_csv}'
+            desc_key = f'{zone_csv}{slot_csv}Description'
+            if name_key in payload:
+                row[name_key] = str(payload.get(name_key) or '')
+            elif s:
+                row[name_key] = str(s.get('name') or '')
+            if desc_key in payload:
+                row[desc_key] = str(payload.get(desc_key) or '')
+            elif s:
+                row[desc_key] = str(s.get('description') or s.get('desc') or '')
+    if 'minionSlugs' in payload or 'MinionSlugs' in payload:
+        row['MinionSlugs'] = _slug_list_field(payload.get('minionSlugs', payload.get('MinionSlugs')))
+    if 'lieutenantSlugs' in payload or 'LieutenantSlugs' in payload:
+        row['LieutenantSlugs'] = _slug_list_field(payload.get('lieutenantSlugs', payload.get('LieutenantSlugs')))
     rows = [r for r in _csv_rows(path, ENVIRONMENTS_HEADERS) if (r.get('Slug') or '') != slug]
     rows.append(row)
     _write_csv(path, ENVIRONMENTS_HEADERS, rows)
+
+    # Location membership: locations.csv EnvironmentSlug points at this environment
+    if 'locationSlugs' in payload or 'LocationSlugs' in payload:
+        want = set()
+        raw = payload.get('locationSlugs', payload.get('LocationSlugs'))
+        if isinstance(raw, list):
+            want = {str(x).strip() for x in raw if str(x).strip()}
+        else:
+            want = {p for p in re.split(r'[;\n,]+', str(raw or '')) if p.strip()}
+        loc_path = campaign / 'locations.csv'
+        loc_rows = _csv_rows(loc_path, LOCATIONS_HEADERS)
+        changed = False
+        for lr in loc_rows:
+            lslug = (lr.get('Slug') or '').strip()
+            if not lslug:
+                continue
+            cur = (lr.get('EnvironmentSlug') or '').strip()
+            if lslug in want:
+                if cur != slug:
+                    lr['EnvironmentSlug'] = slug
+                    changed = True
+            elif cur == slug:
+                lr['EnvironmentSlug'] = ''
+                changed = True
+        if changed or loc_rows:
+            _write_csv(loc_path, LOCATIONS_HEADERS, loc_rows)
+
     notes = (payload.get('notes') or '').strip()
     md_dir = campaign / 'md' / 'environments'
     md_dir.mkdir(parents=True, exist_ok=True)
     md_path = md_dir / f'{slug}.md'
-    md = [f'# {name}', '', notes or '_None yet._', '', '## Builder', '', '```json', json.dumps({'origin': 'custom'}), '```', '']
+    origin = row.get('Origin') or 'custom'
+    md = [
+        f'# {name}', '', notes or '_None yet._', '',
+        '## Builder', '', '```json',
+        json.dumps({'origin': origin}, indent=2),
+        '```', '',
+    ]
     md_path.write_text('\n'.join(md), encoding='utf-8')
     return {'slug': slug, 'environmentsCsv': str(path), 'md': str(md_path)}
 
@@ -736,6 +1051,10 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 if len(parts) < 5:
                     return self._send_text('bad path', 400)
                 kind, slug = parts[3], parts[4]
+                if kind not in ('heroes', 'villains', 'minions', 'environments', 'npcs'):
+                    return self._send_text('unknown kind', 404)
+                if not is_safe_slug(slug):
+                    return self._send_text('invalid slug', 400)
                 p = campaign / 'md' / kind / (slug + '.md')
                 text = p.read_text(encoding='utf-8') if p.exists() else ''
                 return self._send_text(text, 200, 'text/markdown; charset=utf-8')
@@ -750,6 +1069,7 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                             'name': data.get('name', f.stem),
                             'sceneType': data.get('sceneType', ''),
                             'difficulty': data.get('difficulty', ''),
+                            'environment': data.get('environment') or '',
                         })
                     except Exception:
                         continue
@@ -813,6 +1133,17 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 p = campaign / 'revealed_roll.json'
                 text = p.read_text(encoding='utf-8') if p.exists() else 'null'
                 return self._send_text(text, 200, 'application/json')
+
+            if path == '/api/scene-notes':
+                notes_dir = campaign / 'scenes'
+                notes = {}
+                if notes_dir.exists():
+                    for p in sorted(notes_dir.glob('*.md')):
+                        try:
+                            notes[p.name] = p.read_text(encoding='utf-8')
+                        except Exception:
+                            notes[p.name] = ''
+                return self._send_text(json.dumps(notes), 200, 'application/json')
 
             if path == '/api/rules':
                 items = []
@@ -899,8 +1230,8 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 kind = path.rsplit('/', 1)[-1]
                 if kind not in CSV_FILES:
                     return self._send_text('unknown kind', 404)
-                fname, _ = CSV_FILES[kind]
-                (campaign / fname).write_text(self._read_body_text(), encoding='utf-8')
+                fname, headers = CSV_FILES[kind]
+                put_csv(campaign / fname, headers, self._read_body_text())
                 return self._send_text('ok')
 
             if path.startswith('/api/md/'):
@@ -908,6 +1239,10 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 if len(parts) < 5:
                     return self._send_text('bad path', 400)
                 kind, slug = parts[3], parts[4]
+                if kind not in ('heroes', 'villains', 'minions', 'environments', 'npcs'):
+                    return self._send_text('unknown kind', 404)
+                if not is_safe_slug(slug):
+                    return self._send_text('invalid slug', 400)
                 d = campaign / 'md' / kind
                 d.mkdir(parents=True, exist_ok=True)
                 (d / (slug + '.md')).write_text(self._read_body_text(), encoding='utf-8')
@@ -922,13 +1257,15 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
             if path.startswith('/api/issues/'):
                 slug = path.rsplit('/', 1)[-1]
                 issues_dir.mkdir(parents=True, exist_ok=True)
-                (issues_dir / (slug + '.json')).write_text(self._read_body_text(), encoding='utf-8')
+                dest = issues_dir / (slug + '.json')
+                dest.write_text(merge_json_put(dest, self._read_body_text()), encoding='utf-8')
                 return self._send_text('ok')
 
             if path.startswith('/api/collections/'):
                 slug = path.rsplit('/', 1)[-1]
                 collections_dir.mkdir(parents=True, exist_ok=True)
-                (collections_dir / (slug + '.json')).write_text(self._read_body_text(), encoding='utf-8')
+                dest = collections_dir / (slug + '.json')
+                dest.write_text(merge_json_put(dest, self._read_body_text()), encoding='utf-8')
                 return self._send_text('ok')
 
             if path == '/api/active-scene':

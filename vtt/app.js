@@ -78,27 +78,204 @@ function findArchetype(name) { return VILLAIN_ARCHETYPES.find(a => a.name.toLowe
 const HEROES_HEADERS = ['Slug','Name','Alias','Player',
   'Power1','PowerDie1','Power1DisplayName','Power2','PowerDie2','Power2DisplayName','Power3','PowerDie3','Power3DisplayName','Power4','PowerDie4','Power4DisplayName','Power5','PowerDie5','Power5DisplayName','Power6','PowerDie6','Power6DisplayName',
   'Quality1','QualityDie1','Quality1DisplayName','Quality2','QualityDie2','Quality2DisplayName','Quality3','QualityDie3','Quality3DisplayName','Quality4','QualityDie4','Quality4DisplayName','Quality5','QualityDie5','Quality5DisplayName','Quality6','QualityDie6','Quality6DisplayName',
-  'MaxHealth','GreenStatusDie','YellowStatusDie','RedStatusDie','GMControlled',
+  'MaxHealth','GreenStatusDie','YellowStatusDie','RedStatusDie','Active','Origin','Affiliation',
   'Principle1Name','Principle1Roleplay','Principle1MinorTwist','Principle1MajorTwist',
   'Principle2Name','Principle2Roleplay','Principle2MinorTwist','Principle2MajorTwist'];
 const VILLAINS_HEADERS = ['Slug','Name','Approach','Archetype',
   'Power1','PowerDie1','Power2','PowerDie2','Power3','PowerDie3','Power4','PowerDie4','Power5','PowerDie5',
   'Quality1','QualityDie1','Quality2','QualityDie2','Quality3','QualityDie3','Quality4','QualityDie4','Quality5','QualityDie5','Quality6','QualityDie6',
   'MaxHealth','GreenFloor','YellowFloor','RedFloor','GreenStatusDie','YellowStatusDie','RedStatusDie',
-  'Status1Label','Status1Die','Status2Label','Status2Die','Status3Label','Status3Die','Status4Label','Status4Die','Status5Label','Status5Die'];
-const MINIONS_HEADERS = ['Slug','Name','Type','Die','Faction','PerHero'];
-const ENVIRONMENTS_HEADERS = ['Slug','Name','Trait1','TraitDie1','Trait2','TraitDie2','Trait3','TraitDie3'];
+  'Status1Label','Status1Die','Status2Label','Status2Die','Status3Label','Status3Die','Status4Label','Status4Die','Status5Label','Status5Die','Active','Origin','Affiliation'];
+const MINIONS_HEADERS = ['Slug','Name','Type','Die','Faction','PerHero','Active','Origin','Affiliation'];
+const NPCS_HEADERS = ['Slug','Name','Type','Die','Faction','PerHero','Active','Origin','Affiliation'];
+const ENVIRONMENTS_HEADERS = [
+  'Slug','Name',
+  'Trait1','TraitDie1','Trait2','TraitDie2','Trait3','TraitDie3',
+  'Active','Origin',
+  'GreenMinorTwist1','GreenMinorTwist1Description',
+  'GreenMinorTwist2','GreenMinorTwist2Description',
+  'GreenMajorTwist','GreenMajorTwistDescription',
+  'YellowMinorTwist1','YellowMinorTwist1Description',
+  'YellowMinorTwist2','YellowMinorTwist2Description',
+  'YellowMajorTwist','YellowMajorTwistDescription',
+  'RedMinorTwist1','RedMinorTwist1Description',
+  'RedMinorTwist2','RedMinorTwist2Description',
+  'RedMajorTwist','RedMajorTwistDescription',
+  'MinionSlugs','LieutenantSlugs',
+];
 const LOCATIONS_HEADERS = ['Slug','Name','EnvironmentSlug'];
 const TWISTS_HEADERS = ['Slug','Name','EffectType','Severity','Formula','Description'];
-const ABILITIES_HEADERS = ['HeroSlug','Zone','Name','DisplayName','Type','GameText','RollType','DieSource','EffectDieHint'];
+const ABILITIES_HEADERS = ['Slug','Zone','Name','DisplayName','Type','GameText','RollType','DieSource','EffectDieHint'];
 const TWIST_EFFECT_TYPES = [
   'Story Consequence', 'Story Complication (Later)', 'Hinder', 'Boost (Enemies)',
   'Damage (Allies)', 'Defend (Enemies)', 'Add Threats', 'Create Challenge',
   'Advance Scene Tracker', 'Combination',
 ];
 
-const LIB_HEADERS = { heroes: HEROES_HEADERS, villains: VILLAINS_HEADERS, minions: MINIONS_HEADERS, environments: ENVIRONMENTS_HEADERS, locations: LOCATIONS_HEADERS, twists: TWISTS_HEADERS, abilities: ABILITIES_HEADERS };
+const LIB_HEADERS = { heroes: HEROES_HEADERS, villains: VILLAINS_HEADERS, minions: MINIONS_HEADERS, npcs: NPCS_HEADERS, environments: ENVIRONMENTS_HEADERS, locations: LOCATIONS_HEADERS, twists: TWISTS_HEADERS, abilities: ABILITIES_HEADERS };
 function libHeaders(kind) { return LIB_HEADERS[kind]; }
+
+function naturalNameSort(a, b) {
+  return String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' });
+}
+/** Split semicolon/comma slug lists from environment CSV cells. */
+function splitEnvSlugs(val) {
+  if (Array.isArray(val)) return val.map(s => String(s || '').trim()).filter(Boolean);
+  return String(val || '').split(/[;\n,]+/).map(s => s.trim()).filter(Boolean);
+}
+function envSlugNameList(slugCell, rows) {
+  const slugs = splitEnvSlugs(slugCell);
+  if (!slugs.length) return '<span class="empty-hint">—</span>';
+  const names = slugs.map(s => {
+    const hit = (rows || []).find(r => r.Slug === s);
+    const die = hit && hit.Die ? ` (${hit.Die})` : '';
+    return (hit ? hit.Name : s) + die;
+  }).sort(naturalNameSort);
+  return `<div class="name-list">${names.map(n => `<span>${escHtml(n)}</span>`).join('')}</div>`;
+}
+function envLocationNames(envSlug) {
+  const locs = (state.locations || []).filter(l => (l.EnvironmentSlug || '') === envSlug);
+  if (!locs.length) return '<span class="empty-hint">—</span>';
+  const names = locs.map(l => l.Name || l.Slug).sort(naturalNameSort);
+  return `<div class="name-list">${names.map(n => `<span>${escHtml(n)}</span>`).join('')}</div>`;
+}
+function envTwistSummary(row) {
+  if (!row) return '<span class="empty-hint">—</span>';
+  const zones = [
+    ['G', 'Green'],
+    ['Y', 'Yellow'],
+    ['R', 'Red'],
+  ];
+  const parts = [];
+  zones.forEach(([short, Z]) => {
+    const names = [];
+    ['MinorTwist1', 'MinorTwist2', 'MajorTwist'].forEach(slot => {
+      const n = (row[Z + slot] || '').trim();
+      if (n) names.push(n);
+    });
+    if (names.length) parts.push(`<span><b>${short}</b> ${escHtml(names.join(' · '))}</span>`);
+  });
+  if (!parts.length) return '<span class="empty-hint">—</span>';
+  return `<div class="name-list">${parts.join('')}</div>`;
+}
+function openEnvironmentBuilder(slug) {
+  const q = slug ? ('?edit=' + encodeURIComponent(slug)) : '';
+  window.open('/environment-builder.html' + q, '_blank');
+}
+function libMinion(slug) {
+  return (state.minions || []).find(m => m.Slug === slug)
+    || (state.npcs || []).find(m => m.Slug === slug) || null;
+}
+function isNpcToken(t) {
+  if (!t) return false;
+  if (t.npc) return true;
+  return !!(state.npcs || []).find(m => m.Slug === t.slug);
+}
+function npcTypeOf(t) {
+  if (!t) return '';
+  const row = libMinion(t.slug) || {};
+  const ty = String(row.Type || '').trim();
+  if (ty) return ty;
+  if (t.kind === 'lieutenant') return 'Lieutenant';
+  if (t.kind === 'hero') return 'Hero';
+  return 'Minion';
+}
+function isNonCombatNpc(t) {
+  if (!t) return false;
+  if (t.nonCombat) return true;
+  return isNpcToken(t) && /^non[-\s]?combat$/i.test(npcTypeOf(t));
+}
+function libRowForToken(t) {
+  if (!t) return null;
+  if (t.kind === 'hero') return (state.heroes || []).find(h => h.Slug === t.slug) || null;
+  if (t.kind === 'villain') return (state.villains || []).find(v => v.Slug === t.slug) || null;
+  return libMinion(t.slug);
+}
+function tokenAffiliation(t) {
+  if (!t) return 'Neutral';
+  if (t.affiliation && ['Ally', 'Enemy', 'Neutral'].includes(t.affiliation)) return t.affiliation;
+  const row = libRowForToken(t) || {};
+  const a = String(row.Affiliation || '').trim();
+  if (['Ally', 'Enemy', 'Neutral'].includes(a)) return a;
+  if (t.kind === 'hero') return 'Ally';
+  if (t.kind === 'villain' || t.kind === 'minion' || t.kind === 'lieutenant') return 'Enemy';
+  return 'Neutral';
+}
+function isPcHeroTokenGm(t) {
+  if (!t || t.kind !== 'hero' || t.npc) return false;
+  if (!t.slug) return false;
+  if (!(state.heroes || []).length) return true;
+  return !!(state.heroes || []).find(h => h.Slug === t.slug);
+}
+function tokenTypeSortRank(t) {
+  // Hero, Villain, Lieutenant, Minion, Non-Combat
+  if (isNonCombatNpc(t)) return 4;
+  if (t.kind === 'hero' || npcTypeOf(t) === 'Hero') return 0;
+  if (t.kind === 'villain') return 1;
+  if (t.kind === 'lieutenant' || npcTypeOf(t) === 'Lieutenant') return 2;
+  if (t.kind === 'minion') return 3;
+  return 5;
+}
+function sortAllyTokens(tokens) {
+  const list = (tokens || []).slice();
+  const pcs = list.filter(isPcHeroTokenGm).sort(byTokenName);
+  const rest = list.filter(t => !isPcHeroTokenGm(t))
+    .sort((a, b) => tokenTypeSortRank(a) - tokenTypeSortRank(b) || byTokenName(a, b));
+  return pcs.concat(rest);
+}
+function sortNeutralTokens(tokens) {
+  return (tokens || []).slice()
+    .sort((a, b) => tokenTypeSortRank(a) - tokenTypeSortRank(b) || byTokenName(a, b));
+}
+function tokenShowsBhd(t) {
+  // NPCs never get Boost/Hinder/Defend boxes; Non-Combat has no combat chrome at all.
+  if (isNpcToken(t) || isNonCombatNpc(t)) return false;
+  return true;
+}
+function tokenKindFromMinionRow(row) {
+  const ty = String((row && row.Type) || '').trim();
+  if (ty === 'Lieutenant') return 'lieutenant';
+  // Hero / Non-Combat / Minion (and unknown) use the minion token shell on the board.
+  return 'minion';
+}
+function isActiveFlag(v) {
+  if (v === '' || v == null) return true;
+  const s = String(v).toLowerCase();
+  return s !== 'false' && s !== '0' && s !== 'no';
+}
+function byTokenName(a, b) {
+  return naturalNameSort(a.name, b.name);
+}
+function dieSizeOf(t) { return Number(t.currentDie) || 0; }
+function villainMaxHealthOf(t) {
+  const row = (state.villains || []).find(v => v.Slug === t.slug) || {};
+  return Number(row.MaxHealth) || Number(t.maxHealth) || 0;
+}
+function sortEnemyTokens(tokens) {
+  // Non-Combat always last. Others by Type rank then name (Affiliation already filtered).
+  const combat = (tokens || []).filter(t => !isNonCombatNpc(t));
+  const nonCombat = (tokens || []).filter(t => isNonCombatNpc(t)).sort(byTokenName);
+  const heroes = combat.filter(t => t.kind === 'hero' || npcTypeOf(t) === 'Hero')
+    .sort(byTokenName);
+  const villains = combat.filter(t => t.kind === 'villain' && npcTypeOf(t) !== 'Hero')
+    .sort((a, b) => villainMaxHealthOf(b) - villainMaxHealthOf(a) || byTokenName(a, b));
+  const lieutenants = combat.filter(t => t.kind === 'lieutenant' || npcTypeOf(t) === 'Lieutenant')
+    .filter(t => t.kind !== 'villain' && t.kind !== 'hero')
+    .sort((a, b) => dieSizeOf(b) - dieSizeOf(a) || byTokenName(a, b));
+  const minions = combat.filter(t => !heroes.includes(t) && !villains.includes(t) && !lieutenants.includes(t))
+    .sort((a, b) => dieSizeOf(b) - dieSizeOf(a) || byTokenName(a, b));
+  return heroes.concat(villains, lieutenants, minions, nonCombat);
+}
+function inferRollTypesFromText(text) {
+  const t = String(text || '');
+  return ['Attack', 'Defend', 'Boost', 'Hinder', 'Overcome', 'Recover'].filter(a =>
+    new RegExp('\\b' + a + '\\b', 'i').test(t)
+  );
+}
+/** Owner slug on an abilities.csv row (Slug; legacy HeroSlug still accepted). */
+function abilityOwnerSlug(a) {
+  return String((a && (a.Slug || a.HeroSlug)) || '').trim();
+}
 
 /* ---------------- Server API ---------------- */
 
@@ -190,7 +367,7 @@ function portraitCellHtml(kind, slug) {
 /* ---------------- App state ---------------- */
 
 const state = {
-  heroes: [], villains: [], minions: [], environments: [], locations: [], twists: [], abilities: [],
+  heroes: [], villains: [], minions: [], npcs: [], environments: [], locations: [], twists: [], abilities: [],
   scenesList: [],       // [{slug, name}]
   issuesList: [],
   collectionsList: [],
@@ -201,7 +378,6 @@ const state = {
 };
 
 let currentLibTab = 'heroes';
-let currentCollTab = 'collections';
 let currentNotesTarget = null;
 
 /* ---------------- Utilities ---------------- */
@@ -265,10 +441,10 @@ function bhdRowHtml(t, scene, interactive) {
   if (hasHealth) {
     const hp = Number(t.currentHealth) || 0;
     html += interactive
-      ? `<div class="bhd-stat health"><span>HEALTH</span><input type="number" min="0" value="${hp}" onclick="event.stopPropagation()" onchange="setHealth('${t.id}',this.value)"></div>`
+      ? `<div class="bhd-stat health"><span onclick="openBoardAction('${t.id}','Recover',null)" title="Recover">HEALTH</span><input type="number" min="0" value="${hp}" onclick="event.stopPropagation()" onchange="setHealth('${t.id}',this.value)"></div>`
       : `<div class="bhd-stat health"><span>HEALTH</span><b>${hp}</b></div>`;
   }
-  return `<div class="bhd-row${hasHealth ? ' bhd-row-4' : ''}">${html}</div>`;
+  return `<div class="bhd-row${hasHealth ? ' bhd-row-4' : ''}${t.kind !== 'hero' ? ' bhd-row-lg' : ''}">${html}</div>`;
 }
 
 function toast(msg) {
@@ -287,7 +463,7 @@ function debounce(fn, ms) {
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
-function escAttr(v) { return String(v ?? '').replace(/"/g, '&quot;'); }
+function escAttr(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
 function escHtml(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 /* ---------------- GYRO band logic (per-character health) ---------------- */
@@ -464,7 +640,7 @@ function setVillainStatusOverride(tokenId) {
    ============================================================ */
 
 async function loadLibrary() {
-  const kinds = ['heroes','villains','minions','environments','locations','twists','abilities'];
+  const kinds = ['heroes','villains','minions','npcs','environments','locations','twists','abilities'];
   for (const k of kinds) {
     try { state[k] = await apiReadCsv(k); }
     catch (e) { if (!Array.isArray(state[k])) state[k] = []; }
@@ -472,16 +648,10 @@ async function loadLibrary() {
 }
 
 const saveLibraryDebounced = debounce(async (kind) => {
-  ['saveStatus','collSaveStatus'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = 'Saving…';
-  });
+  const el = document.getElementById('saveStatus');
+  if (el) el.textContent = 'Saving…';
   await apiWriteCsv(kind, libHeaders(kind), state[kind]);
-  const statusMsg = 'Saved to ' + kind + '.csv ✓';
-  ['saveStatus','collSaveStatus'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = statusMsg;
-  });
+  if (el) el.textContent = 'Saved to ' + kind + '.csv ✓';
   refreshSpawnOptions();
 }, 500);
 
@@ -490,10 +660,10 @@ function dieOptions(selected) {
 }
 
 function issueFieldFor(kind) {
-  return { heroes: 'heroSlugs', villains: 'villainSlugs', minions: 'minionSlugs', environments: 'environmentSlugs', locations: 'locationSlugs', twists: 'twistSlugs' }[kind] || '';
+  return { heroes: 'heroSlugs', villains: 'villainSlugs', minions: 'minionSlugs', npcs: 'minionSlugs', environments: 'environmentSlugs', locations: 'locationSlugs', twists: 'twistSlugs' }[kind] || '';
 }
-function rowIssueCell(kind, slug) {
-  const field = issueFieldFor(kind);
+function rowIssueCell(dataKind, slug) {
+  const field = issueFieldFor(dataKind);
   if (!field) return '<td></td>';
   const boxes = (state.issuesList || []).map(iss => {
     const on = (iss[field] || []).includes(slug);
@@ -509,62 +679,104 @@ async function toggleEntityIssue(issueSlug, field, entitySlug, on) {
   iss[field] = [...set];
   await apiSaveIssue(issueSlug, iss);
   await refreshIssuesList();
+  fillLibCollectionFilter();
   fillLibIssueFilter();
-  if (currentCollTab === 'locations') renderLibraryTable('locations');
-  else renderLibraryTable(currentLibTab);
+  renderLibraryTable(currentLibTab);
+}
+function fillLibCollectionFilter() {
+  const el = document.getElementById('libCollectionFilter');
+  if (!el) return;
+  const cur = el.value || 'all';
+  const colls = (state.collectionsList || []).slice().sort((a, b) => naturalNameSort(a.name, b.name));
+  el.innerHTML = '<option value="all">All collections</option>' +
+    colls.map(c => `<option value="${escAttr(c.slug)}">${escHtml(c.name)}</option>`).join('');
+  el.value = [...el.options].some(o => o.value === cur) ? cur : 'all';
 }
 function fillLibIssueFilter() {
-  ['libIssueFilter','collIssueFilter'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value || 'all';
-    el.innerHTML = '<option value="all">All issues</option>' +
-      (state.issuesList || []).map(i => `<option value="${i.slug}">${escHtml(i.name)}</option>`).join('');
-    el.value = [...el.options].some(o => o.value === cur) ? cur : 'all';
-  });
+  const el = document.getElementById('libIssueFilter');
+  if (!el) return;
+  const cur = el.value || 'all';
+  // Cascade Collection → Issue only on the Issues & Scenes tab; other tabs need the full issue list.
+  const collF = currentLibTab === 'issues-scenes'
+    ? ((document.getElementById('libCollectionFilter') || {}).value || 'all')
+    : 'all';
+  let issues = (state.issuesList || []).slice();
+  if (collF !== 'all') {
+    const coll = (state.collectionsList || []).find(c => c.slug === collF);
+    const allowed = new Set((coll && coll.issueSlugs) || []);
+    issues = issues.filter(i => allowed.has(i.slug));
+  }
+  issues.sort((a, b) => naturalNameSort(a.name, b.name));
+  el.innerHTML = '<option value="all">All issues</option>' +
+    issues.map(i => `<option value="${escAttr(i.slug)}">${escHtml(i.name)}</option>`).join('');
+  el.value = [...el.options].some(o => o.value === cur) ? cur : 'all';
 }
 function renderLibraryTable(kind) {
+  const dataKind = kind;
   const panel = document.getElementById(kind + 'Panel');
   if (!panel) return;
-  if (!Array.isArray(state[kind])) state[kind] = [];
-  const allRows = state[kind];
-  const filterId = kind === 'locations' ? 'collIssueFilter' : 'libIssueFilter';
-  const filt = (document.getElementById(filterId) || {}).value || 'all';
+  if (!Array.isArray(state[dataKind])) state[dataKind] = [];
+  const allRows = state[dataKind];
+  if (dataKind === 'issues-scenes') { renderIssuesScenesTable(); return; }
+  const filt = (document.getElementById('libIssueFilter') || {}).value || 'all';
   const iss = filt === 'all' ? null : (state.issuesList || []).find(i => i.slug === filt);
   function rowVisible(row) {
-    if (kind === 'twists') {
+    if (dataKind === 'twists') {
       const sev = (document.getElementById('twistSeverityFilter') || {}).value || 'all';
       const eff = (document.getElementById('twistEffectFilter') || {}).value || 'all';
       if (sev !== 'all' && row.Severity !== sev) return false;
       if (eff !== 'all' && row.EffectType !== eff) return false;
-      return true;
+    } else {
+      const activeFilt = (document.getElementById('libActiveFilter') || {}).value || 'active';
+      if (activeFilt === 'active') {
+        if (dataKind === 'abilities') {
+          const owner = abilityOwnerSlug(row);
+          const hero = (state.heroes || []).find(h => h.Slug === owner);
+          const villain = (state.villains || []).find(v => v.Slug === owner);
+          const actor = hero || villain;
+          if (!actor || !isActiveFlag(actor.Active)) return false;
+        } else if (['heroes', 'villains', 'minions', 'npcs', 'environments'].includes(dataKind) && !isActiveFlag(row.Active)) {
+          return false;
+        }
+      }
+      if (filt !== 'all') {
+        if (dataKind === 'abilities') {
+          const owner = abilityOwnerSlug(row);
+          const heroes = (iss && iss.heroSlugs) || [];
+          const villains = (iss && iss.villainSlugs) || [];
+          return heroes.includes(owner) || villains.includes(owner);
+        }
+        const field = issueFieldFor(dataKind);
+        if (!field) return true;
+        return ((iss && iss[field]) || []).includes(row.Slug);
+      }
     }
-    if (filt === 'all') return true;
-    if (kind === 'abilities') return ((iss && iss.heroSlugs) || []).includes(row.HeroSlug);
-    const field = issueFieldFor(kind);
-    if (!field) return true;
-    return ((iss && iss[field]) || []).includes(row.Slug);
+    return true;
   }
   let theadCols;
-  if (kind === 'heroes') {
-    theadCols = ['Name','P1','Die','P2','Die','P3','Die','P4','Die','P5','Die','P6','Die','Q1','Die','Q2','Die','Q3','Die','Q4','Die','Q5','Die','Q6','Die','MaxHP','GreenDie','YellowDie','RedDie','GM Roll','Principles','Notes','Portrait','Issues',''];
-  } else if (kind === 'villains') {
-    theadCols = ['Name','Approach','Archetype','P1','Die','P2','Die','P3','Die','P4','Die','P5','Die',
+  if (dataKind === 'heroes') {
+    theadCols = ['Name','Active','Affiliation','P1','Die','P2','Die','P3','Die','P4','Die','P5','Die','P6','Die','Q1','Die','Q2','Die','Q3','Die','Q4','Die','Q5','Die','Q6','Die','MaxHP','GreenDie','YellowDie','RedDie','Principles','Notes','Portrait','Issues',''];
+  } else if (dataKind === 'villains') {
+    theadCols = ['Name','Active','Affiliation','Approach','Archetype','P1','Die','P2','Die','P3','Die','P4','Die','P5','Die',
       'Q1','Die','Q2','Die','Q3','Die','Q4','Die','Q5','Die','Q6','Die','MaxHP','Calc','GreenFloor','YellowFloor','RedFloor',
       'GreenDie','YellowDie','RedDie',
       'Status 1','Status 1 Die','Status 2','Status 2 Die','Status 3','Status 3 Die','Status 4','Status 4 Die','Status 5','Status 5 Die','Notes','Portrait','Issues',''];
-  } else if (kind === 'minions') {
-    theadCols = ['Name','Type','Die','Faction','Notes','Portrait','Issues',''];
-  } else if (kind === 'environments') {
-    theadCols = ['Name','Trait1','Die','Trait2','Die','Trait3','Die','Notes','Issues',''];
-  } else if (kind === 'locations') {
-    theadCols = ['Name','Environment','Issues',''];
-  } else if (kind === 'twists') {
+  } else if (dataKind === 'minions' || dataKind === 'npcs') {
+    theadCols = ['Name','Active','Affiliation','Type','Die','Faction','Notes','Portrait','Issues',''];
+  } else if (dataKind === 'environments') {
+    theadCols = ['Name','Active','Trait1','Die','Trait2','Die','Trait3','Die','Twists','Minions','Lieutenants','Locations','Issues',''];
+  } else if (dataKind === 'twists') {
     theadCols = ['Name','Effect Type','Severity','Formula','Description',''];
   } else {
-    theadCols = ['Hero Slug','Zone','Name','Display Name','Type','Game Text','Roll Type','Die Source','Effect Die Hint',''];
+    theadCols = ['Slug','Zone','Name','Display Name','Type','Game Text','Roll Type','Die Source','Effect Die Hint',''];
     const dl = document.getElementById('heroSlugsList');
-    if (dl) dl.innerHTML = state.heroes.map(h => `<option value="${escAttr(h.Slug)}">`).join('');
+    if (dl) {
+      const opts = []
+        .concat((state.heroes || []).map(h => h.Slug))
+        .concat((state.villains || []).map(v => v.Slug))
+        .filter(Boolean);
+      dl.innerHTML = opts.map(s => `<option value="${escAttr(s)}">`).join('');
+    }
   }
   let html = '<table class="lib-table"><thead><tr>' + theadCols.map(c => {
     const wrap = (c === 'Game Text' || c === 'Description') ? ' class="wrap-col"' : '';
@@ -573,96 +785,118 @@ function renderLibraryTable(kind) {
   allRows.forEach((row, idx) => {
     if (!rowVisible(row)) return;
     html += '<tr>';
-    if (kind === 'heroes') {
-      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      for (let i = 1; i <= 6; i++) { html += tdText(kind, idx, 'Power' + i, row['Power' + i]); html += tdDie(kind, idx, 'PowerDie' + i, row['PowerDie' + i]); }
-      for (let i = 1; i <= 6; i++) { html += tdText(kind, idx, 'Quality' + i, row['Quality' + i]); html += tdDie(kind, idx, 'QualityDie' + i, row['QualityDie' + i]); }
-      html += tdText(kind, idx, 'MaxHealth', row.MaxHealth);
-      html += tdDie(kind, idx, 'GreenStatusDie', row.GreenStatusDie);
-      html += tdDie(kind, idx, 'YellowStatusDie', row.YellowStatusDie);
-      html += tdDie(kind, idx, 'RedStatusDie', row.RedStatusDie);
-      html += tdCheckbox(kind, idx, 'GMControlled', row.GMControlled);
+    if (dataKind === 'heroes') {
+      html += tdText(dataKind, idx, 'Name', row.Name, 'name-field');
+      html += tdCheckbox(dataKind, idx, 'Active', row.Active === '' || row.Active == null ? 'true' : row.Active);
+      html += tdAffiliation(dataKind, idx, row.Affiliation);
+      for (let i = 1; i <= 6; i++) { html += tdText(dataKind, idx, 'Power' + i, row['Power' + i]); html += tdDie(dataKind, idx, 'PowerDie' + i, row['PowerDie' + i]); }
+      for (let i = 1; i <= 6; i++) { html += tdText(dataKind, idx, 'Quality' + i, row['Quality' + i]); html += tdDie(dataKind, idx, 'QualityDie' + i, row['QualityDie' + i]); }
+      html += tdText(dataKind, idx, 'MaxHealth', row.MaxHealth);
+      html += tdDie(dataKind, idx, 'GreenStatusDie', row.GreenStatusDie);
+      html += tdDie(dataKind, idx, 'YellowStatusDie', row.YellowStatusDie);
+      html += tdDie(dataKind, idx, 'RedStatusDie', row.RedStatusDie);
       html += `<td><button class="btn btn-small btn-ghost" onclick="openPrinciplesEditor(${idx})">Principles</button></td>`;
       html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('heroes','${row.Slug}','${escAttr(row.Name)}')">Notes</button></td>`;
       html += portraitCellHtml('heroes', row.Slug);
-    } else if (kind === 'villains') {
-      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      html += tdFitInput(kind, idx, 'Approach', row.Approach, 'list="approachesList"');
-      html += tdFitInput(kind, idx, 'Archetype', row.Archetype, 'list="archetypesList"');
-      for (let i = 1; i <= 5; i++) { html += tdText(kind, idx, 'Power' + i, row['Power' + i]); html += tdDie(kind, idx, 'PowerDie' + i, row['PowerDie' + i]); }
-      for (let i = 1; i <= 6; i++) { html += tdText(kind, idx, 'Quality' + i, row['Quality' + i]); html += tdDie(kind, idx, 'QualityDie' + i, row['QualityDie' + i]); }
-      html += tdText(kind, idx, 'MaxHealth', row.MaxHealth);
+    } else if (dataKind === 'villains') {
+      html += tdText(dataKind, idx, 'Name', row.Name, 'name-field');
+      html += tdCheckbox(dataKind, idx, 'Active', row.Active === '' || row.Active == null ? 'true' : row.Active);
+      html += tdAffiliation(dataKind, idx, row.Affiliation);
+      html += tdFitInput(dataKind, idx, 'Approach', row.Approach, 'list="approachesList"');
+      html += tdFitInput(dataKind, idx, 'Archetype', row.Archetype, 'list="archetypesList"');
+      for (let i = 1; i <= 5; i++) { html += tdText(dataKind, idx, 'Power' + i, row['Power' + i]); html += tdDie(dataKind, idx, 'PowerDie' + i, row['PowerDie' + i]); }
+      for (let i = 1; i <= 6; i++) { html += tdText(dataKind, idx, 'Quality' + i, row['Quality' + i]); html += tdDie(dataKind, idx, 'QualityDie' + i, row['QualityDie' + i]); }
+      html += tdText(dataKind, idx, 'MaxHealth', row.MaxHealth);
       html += `<td><button class="btn btn-small btn-ghost" onclick="openHealthCalc(${idx})">Calc</button></td>`;
-      html += tdText(kind, idx, 'GreenFloor', row.GreenFloor);
-      html += tdText(kind, idx, 'YellowFloor', row.YellowFloor);
-      html += tdText(kind, idx, 'RedFloor', row.RedFloor);
-      html += tdDie(kind, idx, 'GreenStatusDie', row.GreenStatusDie);
-      html += tdDie(kind, idx, 'YellowStatusDie', row.YellowStatusDie);
-      html += tdDie(kind, idx, 'RedStatusDie', row.RedStatusDie);
-      for (let i = 1; i <= 5; i++) { html += tdText(kind, idx, 'Status' + i + 'Label', row['Status' + i + 'Label']); html += tdDie(kind, idx, 'Status' + i + 'Die', row['Status' + i + 'Die']); }
+      html += tdText(dataKind, idx, 'GreenFloor', row.GreenFloor);
+      html += tdText(dataKind, idx, 'YellowFloor', row.YellowFloor);
+      html += tdText(dataKind, idx, 'RedFloor', row.RedFloor);
+      html += tdDie(dataKind, idx, 'GreenStatusDie', row.GreenStatusDie);
+      html += tdDie(dataKind, idx, 'YellowStatusDie', row.YellowStatusDie);
+      html += tdDie(dataKind, idx, 'RedStatusDie', row.RedStatusDie);
+      for (let i = 1; i <= 5; i++) { html += tdText(dataKind, idx, 'Status' + i + 'Label', row['Status' + i + 'Label']); html += tdDie(dataKind, idx, 'Status' + i + 'Die', row['Status' + i + 'Die']); }
       html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('villains','${row.Slug}','${escAttr(row.Name)}')">Notes</button></td>`;
       html += portraitCellHtml('villains', row.Slug);
-    } else if (kind === 'minions') {
-      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      html += `<td><select onchange="onCellChange('${kind}',${idx},'Type',this.value)">
-        <option value="Minion" ${row.Type === 'Minion' ? 'selected' : ''}>Minion</option>
-        <option value="Lieutenant" ${row.Type === 'Lieutenant' ? 'selected' : ''}>Lieutenant</option>
-      </select></td>`;
-      html += tdDie(kind, idx, 'Die', row.Die);
-      html += tdText(kind, idx, 'Faction', row.Faction);
+    } else if (dataKind === 'minions' || dataKind === 'npcs') {
+      html += tdText(dataKind, idx, 'Name', row.Name, 'name-field');
+      html += tdCheckbox(dataKind, idx, 'Active', row.Active === '' || row.Active == null ? 'true' : row.Active);
+      html += tdAffiliation(dataKind, idx, row.Affiliation);
+      if (dataKind === 'npcs') {
+        const ty = row.Type || 'Non-Combat';
+        html += `<td><select onchange="onCellChange('${dataKind}',${idx},'Type',this.value)">
+          <option value="Hero" ${ty === 'Hero' ? 'selected' : ''}>Hero</option>
+          <option value="Non-Combat" ${ty === 'Non-Combat' ? 'selected' : ''}>Non-Combat</option>
+          <option value="Minion" ${ty === 'Minion' ? 'selected' : ''}>Minion</option>
+          <option value="Lieutenant" ${ty === 'Lieutenant' ? 'selected' : ''}>Lieutenant</option>
+        </select></td>`;
+      } else {
+        html += `<td><select onchange="onCellChange('${dataKind}',${idx},'Type',this.value)">
+          <option value="Minion" ${row.Type === 'Minion' ? 'selected' : ''}>Minion</option>
+          <option value="Lieutenant" ${row.Type === 'Lieutenant' ? 'selected' : ''}>Lieutenant</option>
+        </select></td>`;
+      }
+      html += tdDie(dataKind, idx, 'Die', row.Die);
+      html += tdText(dataKind, idx, 'Faction', row.Faction);
       html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('minions','${row.Slug}','${escAttr(row.Name)}')">Notes</button></td>`;
       html += portraitCellHtml('minions', row.Slug);
-    } else if (kind === 'environments') {
-      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      for (let i = 1; i <= 3; i++) { html += tdText(kind, idx, 'Trait' + i, row['Trait' + i]); html += tdDie(kind, idx, 'TraitDie' + i, row['TraitDie' + i]); }
-      html += `<td><button class="btn btn-small btn-ghost" onclick="openNotes('environments','${row.Slug}','${escAttr(row.Name)}')">Notes (Twists)</button></td>`;
-    } else if (kind === 'locations') {
-      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      html += `<td><select onchange="onCellChange('${kind}',${idx},'EnvironmentSlug',this.value)">
-        <option value="">— none —</option>
-        ${ (state.environments || []).map(e => `<option value="${escAttr(e.Slug)}" ${row.EnvironmentSlug===e.Slug?'selected':''}>${escHtml(e.Name)}</option>`).join('') }
-      </select></td>`;
-    } else if (kind === 'twists') {
-      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      html += `<td><select onchange="onCellChange('${kind}',${idx},'EffectType',this.value)">
+    } else if (dataKind === 'environments') {
+      html = html.slice(0, -4); // remove opening <tr> — rebuild as clickable
+      html += `<tr class="lib-row-clickable" onclick="openEnvironmentBuilder('${escAttr(row.Slug)}')">`;
+      html += `<td class="name-field">${escHtml(row.Name || row.Slug)}</td>`;
+      html += `<td>${isActiveFlag(row.Active) ? 'Yes' : 'No'}</td>`;
+      for (let i = 1; i <= 3; i++) {
+        html += `<td>${escHtml(row['Trait' + i] || '')}</td>`;
+        html += `<td>${escHtml(row['TraitDie' + i] || '')}</td>`;
+      }
+      html += `<td class="assign-cell wrap-col">${envTwistSummary(row)}</td>`;
+      html += `<td class="assign-cell wrap-col">${envSlugNameList(row.MinionSlugs, state.minions)}</td>`;
+      html += `<td class="assign-cell wrap-col">${envSlugNameList(row.LieutenantSlugs, state.minions)}</td>`;
+      html += `<td class="assign-cell wrap-col">${envLocationNames(row.Slug)}</td>`;
+    } else if (dataKind === 'twists') {
+      html += tdText(dataKind, idx, 'Name', row.Name, 'name-field');
+      html += `<td><select onchange="onCellChange('${dataKind}',${idx},'EffectType',this.value)">
         ${TWIST_EFFECT_TYPES.map(t => `<option value="${t}" ${row.EffectType === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select></td>`;
-      html += `<td><select onchange="onCellChange('${kind}',${idx},'Severity',this.value)">
+      html += `<td><select onchange="onCellChange('${dataKind}',${idx},'Severity',this.value)">
         <option value="Minor" ${row.Severity === 'Minor' ? 'selected' : ''}>Minor</option>
         <option value="Major" ${row.Severity === 'Major' ? 'selected' : ''}>Major</option>
         <option value="Any" ${row.Severity === 'Any' ? 'selected' : ''}>Any</option>
       </select></td>`;
-      html += tdText(kind, idx, 'Formula', row.Formula);
-      html += `<td class="wrap-cell"><textarea onchange="onCellChange('${kind}',${idx},'Description',this.value)">${escHtml(row.Description || '')}</textarea></td>`;
+      html += tdText(dataKind, idx, 'Formula', row.Formula);
+      html += `<td class="wrap-cell"><textarea title="${escAttr(row.Description || '')}" onchange="onCellChange('${dataKind}',${idx},'Description',this.value)">${escHtml(row.Description || '')}</textarea></td>`;
     } else {
-      html += tdFitInput(kind, idx, 'HeroSlug', row.HeroSlug, 'list="heroSlugsList"');
-      html += `<td><select onchange="onCellChange('${kind}',${idx},'Zone',this.value)">
-        ${['Green','Yellow','Red','Out'].map(z => `<option value="${z}" ${row.Zone === z ? 'selected' : ''}>${z}</option>`).join('')}
+      html += tdFitInput(dataKind, idx, 'Slug', row.Slug || row.HeroSlug || '', 'list="heroSlugsList"');
+      html += `<td><select onchange="onCellChange('${dataKind}',${idx},'Zone',this.value)">
+        ${['','Green','Yellow','Red','Out','Upgrade','Mastery'].map(z => `<option value="${z}" ${(row.Zone || '') === z ? 'selected' : ''}>${z || '—'}</option>`).join('')}
       </select></td>`;
-      html += tdText(kind, idx, 'Name', row.Name, 'name-field');
-      html += tdText(kind, idx, 'DisplayName', row.DisplayName);
-      html += `<td><select onchange="onCellChange('${kind}',${idx},'Type',this.value)">
+      html += tdText(dataKind, idx, 'Name', row.Name, 'name-field');
+      html += tdText(dataKind, idx, 'DisplayName', row.DisplayName);
+      html += `<td><select onchange="onCellChange('${dataKind}',${idx},'Type',this.value)">
         <option value="">-</option>
         <option value="A" ${row.Type === 'A' ? 'selected' : ''}>Action</option>
         <option value="R" ${row.Type === 'R' ? 'selected' : ''}>Reaction</option>
         <option value="I" ${row.Type === 'I' ? 'selected' : ''}>Inherent</option>
       </select></td>`;
-      html += `<td class="game-text-cell"><textarea onchange="onCellChange('${kind}',${idx},'GameText',this.value)">${escHtml(row.GameText || '')}</textarea></td>`;
+      html += `<td class="game-text-cell"><textarea title="${escAttr(row.GameText || '')}" onchange="onCellChange('${dataKind}',${idx},'GameText',this.value)">${escHtml(row.GameText || '')}</textarea></td>`;
       const selectedTypes = parseRollTypes(row.RollType);
       html += `<td class="roll-type-cell">${ABILITY_ICON_ROWS.map(group =>
         `<div class="roll-type-row">${group.map(t =>
           `<label><input type="checkbox" ${selectedTypes.includes(t)?'checked':''} onchange="toggleAbilityRollType(${idx},'${t}',this.checked)"> ${t}</label>`
         ).join('')}</div>`
       ).join('')}</td>`;
-      html += tdText(kind, idx, 'DieSource', row.DieSource);
+      html += tdText(dataKind, idx, 'DieSource', row.DieSource);
       html += `<td><select onchange="onCellChange('${kind}',${idx},'EffectDieHint',this.value)">
         <option value="">-</option>
         ${EFFECT_DIE_OPTIONS.map(o => `<option value="${o.key}" ${row.EffectDieHint === o.key ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select></td>`;
     }
-    if (kind !== 'abilities' && kind !== 'twists') html += rowIssueCell(kind, row.Slug);
-    html += `<td><button class="btn btn-small btn-danger" onclick="deleteRow('${kind}',${idx})">Delete</button></td>`;
-    if (kind !== 'twists' && kind !== 'abilities') html += '<td class="table-fill"></td>';
+    if (dataKind !== 'abilities' && dataKind !== 'twists') html += rowIssueCell(dataKind, row.Slug);
+    if (dataKind === 'environments') {
+      html += `<td class="no-row-nav" onclick="event.stopPropagation()"><button class="btn btn-small btn-danger" onclick="event.stopPropagation();deleteRow('${dataKind}',${idx})">Delete</button></td>`;
+    } else {
+      html += `<td><button class="btn btn-small btn-danger" onclick="deleteRow('${dataKind}',${idx})">Delete</button></td>`;
+    }
+    if (dataKind !== 'twists' && dataKind !== 'abilities') html += '<td class="table-fill"></td>';
     html += '</tr>';
   });
   html += '</tbody></table>';
@@ -689,11 +923,27 @@ function tdCheckbox(kind, idx, field, value) {
 function tdDie(kind, idx, field, value) {
   return `<td><select onchange="onCellChange('${kind}',${idx},'${field}',this.value)"><option value="">-</option>${dieOptions(value)}</select></td>`;
 }
+const AFFILIATIONS = ['Ally', 'Enemy', 'Neutral'];
+function defaultAffiliation(kind) {
+  if (kind === 'heroes') return 'Ally';
+  if (kind === 'npcs') return 'Neutral';
+  if (kind === 'villains' || kind === 'minions') return 'Enemy';
+  return 'Neutral';
+}
+function tdAffiliation(kind, idx, value) {
+  const cur = AFFILIATIONS.includes(value) ? value : defaultAffiliation(kind);
+  return `<td><select onchange="onCellChange('${kind}',${idx},'Affiliation',this.value)">${AFFILIATIONS.map(a => `<option value="${a}" ${a === cur ? 'selected' : ''}>${a}</option>`).join('')}</select></td>`;
+}
 function onCellChange(kind, idx, field, value) {
   const row = state[kind][idx];
   row[field] = value;
   if (field === 'Name') row.Slug = uniqueLibSlug(kind, slugify(value), row.Slug);
+  if (kind === 'abilities' && field === 'GameText') {
+    // Roll Type is derived only from the 6 basic-action keywords in Game Text; blank if none.
+    row.RollType = inferRollTypesFromText(value).join(', ');
+  }
   saveLibraryDebounced(kind);
+  if (field === 'Active') renderLibraryTable(currentLibTab);
 }
 function uniqueLibSlug(kind, base, currentSlug) {
   if (!Array.isArray(state[kind])) state[kind] = [];
@@ -703,27 +953,40 @@ function uniqueLibSlug(kind, base, currentSlug) {
   return candidate;
 }
 function addRow(kind) {
-  if (!Array.isArray(state[kind])) state[kind] = [];
-  ['libIssueFilter','collIssueFilter','twistSeverityFilter','twistEffectFilter'].forEach(id => {
+  const dataKind = kind;
+  if (dataKind === 'issues-scenes') return issuesScenesAddRow();
+  if (dataKind === 'environments') {
+    window.open('/environment-builder.html', '_blank');
+    return;
+  }
+  if (!Array.isArray(state[dataKind])) state[dataKind] = [];
+  ['libIssueFilter','libCollectionFilter','twistSeverityFilter','twistEffectFilter'].forEach(id => {
     const filt = document.getElementById(id);
     if (filt) filt.value = 'all';
   });
-  const headers = libHeaders(kind);
+  const headers = libHeaders(dataKind);
   if (!headers) { toast('Unknown library table.'); return; }
   const row = {}; headers.forEach(h => row[h] = '');
   row.Name = 'New Entry';
-  row.Slug = uniqueLibSlug(kind, 'new-entry', null);
-  if (kind === 'minions') row.Type = 'Minion';
-  if (kind === 'twists') { row.EffectType = 'Hinder'; row.Severity = 'Minor'; }
-  state[kind].push(row);
+  row.Slug = uniqueLibSlug(dataKind, 'new-entry', null);
+  if (dataKind === 'heroes' || dataKind === 'villains' || dataKind === 'minions' || dataKind === 'npcs' || dataKind === 'environments') row.Active = 'true';
+  if (dataKind === 'minions') row.Type = 'Minion';
+  if (dataKind === 'npcs') row.Type = 'Non-Combat';
+  row.Origin = 'custom';
+  if (dataKind === 'heroes' || dataKind === 'villains' || dataKind === 'minions' || dataKind === 'npcs') {
+    row.Affiliation = defaultAffiliation(dataKind);
+  }
+  if (dataKind === 'twists') { row.EffectType = 'Hinder'; row.Severity = 'Minor'; }
+  state[dataKind].push(row);
   renderLibraryTable(kind);
-  saveLibraryDebounced(kind);
+  saveLibraryDebounced(dataKind);
 }
 function deleteRow(kind, idx) {
   if (!confirm('Delete this entry from the Library? This cannot be undone.')) return;
-  state[kind].splice(idx, 1);
+  const dataKind = kind;
+  state[dataKind].splice(idx, 1);
   renderLibraryTable(kind);
-  saveLibraryDebounced(kind);
+  saveLibraryDebounced(dataKind);
 }
 async function openNotes(kind, slug, name) {
   if (!slug) { toast('Name this entry first, then add notes.'); return; }
@@ -814,7 +1077,7 @@ async function openAbilities(tokenId) {
   let row, mdKind;
   if (t.kind === 'hero') { row = state.heroes.find(h => h.Slug === t.slug); mdKind = 'heroes'; }
   else if (t.kind === 'villain') { row = state.villains.find(v => v.Slug === t.slug); mdKind = 'villains'; }
-  else { row = state.minions.find(m => m.Slug === t.slug); mdKind = 'minions'; }
+  else { row = libMinion(t.slug); mdKind = 'minions'; }
   if (!row) { toast('No Library entry found for this token.'); return; }
   currentAbilitiesTarget = { kind: mdKind, slug: t.slug, name: row.Name };
   document.getElementById('abilitiesModalTitle').textContent = 'Abilities — ' + row.Name;
@@ -899,16 +1162,51 @@ function heroAbilitiesForToken(t) {
   // Normalize legacy "Green/Yellow" zone values to Green (they are Green-by-default
   // abilities whose book shorthand said "can be chosen Green or Yellow"; the zone field
   // must be a real gyro zone for filtering + CSS to work).
-  // HeroSlug guard: only abilities actually chosen for this hero during Hero Builder.
+  // Slug guard: only abilities actually chosen for this hero during Hero Builder.
   return sortHeroAbilitiesGyroAlpha((state.abilities || []).filter(a => {
-    if ((a.HeroSlug || '').trim() !== (t.slug || '').trim()) return false;
+    if (abilityOwnerSlug(a) !== (t.slug || '').trim()) return false;
     let z = (a.Zone || '').trim();
     if (z === 'Green/Yellow') { z = 'Green'; a.Zone = 'Green'; }
+    if (z === 'Upgrade' || z === 'Mastery') return false;
     return zones.includes(z);
   }));
 }
+function csvAbilityToCard(a) {
+  return {
+    type: a.Type || '',
+    icon: a.RollType || '',
+    name: heroAbilityShownName(a) || a.Name || '',
+    body: a.GameText || '',
+    GameText: a.GameText || '',
+    RollType: a.RollType || '',
+    EffectDieHint: a.EffectDieHint || '',
+    Zone: a.Zone || '',
+    Name: a.Name || '',
+    DisplayName: a.DisplayName || '',
+  };
+}
 function villainAbilitiesForToken(t) {
-  const key = (t.kind || '') + ':' + (t.slug || '');
+  const owner = (t.slug || '').trim();
+  const multi = state.scene.tokens.filter(tk => tk.kind === 'villain').length > 1;
+  const hideExtras = multi || (state.scene.difficulty || '') === 'Moderate';
+  const csvRows = (state.abilities || []).filter(a => abilityOwnerSlug(a) === owner);
+  if (csvRows.length) {
+    let cards = csvRows
+      .filter(a => {
+        const z = (a.Zone || '').trim();
+        return z !== 'Upgrade' && z !== 'Mastery';
+      })
+      .map(csvAbilityToCard);
+    if (t.kind === 'villain' && !hideExtras) {
+      cards = cards.concat(
+        csvRows.filter(a => (a.Zone || '').trim() === 'Upgrade').map(csvAbilityToCard),
+        csvRows.filter(a => (a.Zone || '').trim() === 'Mastery').map(csvAbilityToCard),
+      );
+    }
+    return cards;
+  }
+  // Fallback: MD notes when abilities.csv has no rows for this slug yet.
+  const key = (t.kind || '') + ':' + owner;
   const cache = (state._mdCache = state._mdCache || {});
   const md = cache[key];
   if (typeof md !== 'string') {
@@ -919,8 +1217,6 @@ function villainAbilitiesForToken(t) {
   const sections = parseAbilitiesMd(md);
   let cards = sections.Abilities.slice();
   if (t.kind === 'villain') {
-    const multi = state.scene.tokens.filter(tk => tk.kind === 'villain').length > 1;
-    const hideExtras = multi || (state.scene.difficulty || '') === 'Moderate';
     if (!hideExtras) cards = cards.concat(sections.Upgrades, sections.Mastery);
   }
   return cards;
@@ -931,6 +1227,18 @@ function abilityRollTypes(a) {
   if (fromField.length) return fromField;
   const blob = (a.GameText || a.body || '');
   return ABILITY_ICON_TYPES.filter(k => new RegExp('\\b' + k + '\\b', 'i').test(blob));
+}
+function abilityTypeLetter(a) {
+  const raw = String((a && (a.type || a.Type)) || '').trim().toUpperCase();
+  if (!raw) return '';
+  if (raw === 'A' || raw.startsWith('ACTION')) return 'A';
+  if (raw === 'I' || raw.startsWith('INHERENT') || raw.startsWith('INNATE')) return 'I';
+  if (raw === 'R' || raw.startsWith('REACTION')) return 'R';
+  return '';
+}
+function abilityRollLetters(a) {
+  const map = { Attack: 'A', Defend: 'D', Boost: 'B', Hinder: 'H', Recover: 'R', Overcome: 'O' };
+  return abilityRollTypes(a).map(t => map[t]).filter(Boolean).join(' / ');
 }
 function boardAbilityListHtml(t) {
   if (t.kind === 'hero') {
@@ -951,29 +1259,88 @@ function boardAbilityListHtml(t) {
   if (t.kind === 'villain') {
     const abs = villainAbilitiesForToken(t);
     if (!abs.length) return '';
-    return '<div class="board-ability-list">' + abs.map((a, i) =>
-      `<div class="board-ability" onclick="openVillainAbility('${t.id}',${i})"><span class="board-ability-zone">${escHtml(a.icon || a.type || '')}</span><span class="board-ability-name">${escHtml(a.name)}</span></div>`
-    ).join('') + '</div>';
+    return '<div class="board-ability-list">' + abs.map((a, i) => {
+      const typeLetter = abilityTypeLetter(a);
+      const rollStr = abilityRollLetters(a);
+      const name = a.name || a.Name || '';
+      return `<div class="board-ability villain-ab" onclick="openVillainAbility('${t.id}',${i})"><span class="board-ability-type">${escHtml(typeLetter)}</span><span class="board-ability-name">${escHtml(name)}</span>${rollStr ? `<span class="board-ability-rolls">${escHtml(rollStr)}</span>` : ''}</div>`;
+    }).join('') + '</div>';
   }
   return '';
 }
 function tokenShowsTwists(t) {
-  if (t.kind !== 'hero') return false;
-  const row = state.heroes.find(h => h.Slug === t.slug) || {};
-  const g = row.GMControlled;
-  return !(g === true || g === 1 || String(g).toLowerCase() === 'true' || g === '1');
+  return t.kind === 'hero' || t.kind === 'villain';
+}
+function boardActionBtn(t, a) {
+  return `<button type="button" class="btn btn-small btn-ghost" onclick="openBoardAction('${t.id}','${a}',null)">${a}</button>`;
+}
+function boardTwistsBtn(t) {
+  return `<button type="button" class="btn btn-small btn-ghost" onclick="openTwistPicker('${t.id}')">Twists</button>`;
 }
 function boardBasicActionsHtml(t) {
-  const row1 = ['Attack', 'Recover', 'Defend'];
-  const row2 = ['Boost', 'Hinder'];
-  const btn = (a) => `<button type="button" class="btn btn-small btn-ghost" onclick="openBoardAction('${t.id}','${a}',null)">${a}</button>`;
-  const twists = tokenShowsTwists(t)
-    ? `<button type="button" class="btn btn-small btn-ghost" onclick="openTwistPicker('${t.id}')">Twists</button>`
-    : '<span></span>';
-  return `<div class="board-actions">
-    <div class="board-actions-row">${row1.map(btn).join('')}</div>
-    <div class="board-actions-row">${row2.map(btn).join('')}${twists}</div>
-  </div>`;
+  // Non-Combat NPCs: no Attack / Overcome / BHD chrome.
+  if (isNonCombatNpc(t)) return '';
+  // Other NPCs: Hero type gets full basic hero actions; minion/lt-shaped NPCs Attack only.
+  if (isNpcToken(t)) {
+    if (npcTypeOf(t) === 'Hero') {
+      return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}${boardTwistsBtn(t)}</div></div>`;
+    }
+    return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}</div></div>`;
+  }
+  if (t.kind === 'villain') {
+    return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}${boardTwistsBtn(t)}</div></div>`;
+  }
+  if (t.kind === 'minion' || t.kind === 'lieutenant') {
+    return `<div class="board-actions"><div class="board-actions-row board-actions-row-2">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}</div></div>`;
+  }
+  // Hero (non-NPC): Attack, Overcome, Twists (tickers handle Boost/Hinder/Defend/Recover)
+  return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}${boardTwistsBtn(t)}</div></div>`;
+}
+function abilityPopupText(ability) {
+  if (!ability) return '';
+  return ability.text || ability.GameText || ability.body || ability.Description || '';
+}
+function abilityPopupDescHtml(ability) {
+  const text = abilityPopupText(ability);
+  return `<div class="ability-popup-desc"><div class="ability-popup-desc-label">Game Text</div><p>${text ? escHtml(text) : '<span class="empty-hint">No game text on file.</span>'}</p></div>`;
+}
+const VILLAIN_TWIST_HELP = `<div class="gm-help">
+  <h3>Villains and Minor Twists</h3>
+  <p>Villains can succeed with minor twists, but these are different than the twists heroes take. Useful minor twists for villains:</p>
+  <ul>
+    <li>Villain takes damage equal to their Max die. Victory comes at a price.</li>
+    <li>Villain eliminates one of their own minions or lowers the die size of one of their lieutenants. If someone else can pay the price of victory, so much the better.</li>
+    <li>Villain takes a penalty (as from a Hinder action) or grants a hero in the same location a bonus (as from a Boost action) equal to their Max die. The best laid plans often go awry.</li>
+    <li>Villain inflicts a penalty (as from a Hinder action based on their Mid die) to all their minions and lieutenants or grants a bonus (as from a Boost action based on their Mid die) to the heroes. If one lets their anger get the best of them, it can be their undoing.</li>
+    <li>Villain skips their next action to deal with a consequence (unintended or otherwise) of their action. If you want something done right, you have to do it yourself!</li>
+  </ul>
+  <h3>Major Twists for Villains</h3>
+  <p>Villains should not take major twists. If a villain is offered the choice of either success with a major twist or failure, the villain will fail. Major twists follow a hero for the full issue; a villain is often only in one or two scenes. Exception:</p>
+  <h3>Use Major Twists to End the Scene</h3>
+  <p>If the scene is running long, or it would be fun narratively, a villain’s major twist can end the scene immediately. The villain could barely or partially succeed but wind up captured, or their scheme fails completely but they escape.</p>
+</div>`;
+const VILLAIN_OVERCOME_HELP = `<div class="gm-help">
+  <h3>Overcome</h3>
+  <p>Villains Overcome obstacles similarly to heroes. Major villains often have masteries that auto-succeed at Overcome actions in their expertise. There are no opposed rolls — Overcome cannot nullify a hero’s action. Use Hinder or a special ability for that.</p>
+  <h3>Overcome to Make the Scene More Dangerous</h3>
+  <p>On a success, the scene tracker advances one space (mayhem, monologue, chaos). <b>At most once per scene.</b> Do not use this to end a scene by surprise; telegraph desperation so players can plan.</p>
+</div>`;
+const MINION_OVERCOME_HELP = `<div class="gm-help">
+  <h3>Overcome</h3>
+  <p>Minions and lieutenants may Overcome obstacles that advance their agenda. They cannot advance the scene tracker — only villains can.</p>
+  <ul>
+    <li>They never take a major twist on a 1–3. They just fail.</li>
+    <li>As a group, two “success with a minor twist” results in the same action count as one full success.</li>
+    <li>A minion who succeeds with a minor twist on their own knocks themselves out. A lieutenant who does degrades one die size.</li>
+    <li>An 8+ is a full success; a spectacular success can be a later “graduation” if it would be fun.</li>
+    <li>Player-controlled minions/lieutenants use that hero’s principles for twists.</li>
+  </ul>
+</div>`;
+function actionHelpHtml(t, action) {
+  if (action !== 'Overcome') return '';
+  if (t.kind === 'villain') return VILLAIN_OVERCOME_HELP;
+  if (t.kind === 'minion' || t.kind === 'lieutenant') return MINION_OVERCOME_HELP;
+  return '';
 }
 
 let boardActionState = null;
@@ -986,7 +1353,7 @@ function showAbilityReadOnly(t, name, body) {
   boardActionState = null;
   document.getElementById('abilitiesModalTitle').textContent = name + ' — ' + t.name;
   document.getElementById('abilitiesModalBody').innerHTML = `
-    <p class="ability-card-body">${escHtml(body || '')}</p>
+    ${abilityPopupDescHtml({ name, text: body })}
     <p class="empty-hint">Passive / no target — nothing to apply here.</p>`;
   document.getElementById('abilitiesModal').classList.remove('hidden');
 }
@@ -995,20 +1362,18 @@ function openHeroAbility(tokenId, idx) {
   const a = heroAbilitiesForToken(t)[idx];
   if (!a) return;
   const types = abilityRollTypes(a);
-  if (!types.length) { showAbilityReadOnly(t, a.Name, a.GameText || ''); return; }
-  openBoardAction(tokenId, types[0], {
-    name: a.Name, text: a.GameText || '', rollTypes: types, effectHint: a.EffectDieHint || ''
-  });
+  const shown = { name: heroAbilityShownName(a) || a.Name, text: a.GameText || a.body || '', rollTypes: types, effectHint: a.EffectDieHint || '' };
+  if (!types.length) { showAbilityReadOnly(t, shown.name, shown.text); return; }
+  openBoardAction(tokenId, types[0], shown);
 }
 function openVillainAbility(tokenId, idx) {
   const t = findTok(tokenId);
   const a = villainAbilitiesForToken(t)[idx];
   if (!a) return;
   const types = abilityRollTypes(a);
-  if (!types.length) { showAbilityReadOnly(t, a.name, a.body || ''); return; }
-  openBoardAction(tokenId, types[0], {
-    name: a.name, text: a.body || '', rollTypes: types, effectHint: ''
-  });
+  const shown = { name: a.name || a.Name, text: a.body || a.GameText || a.text || '', rollTypes: types, effectHint: a.EffectDieHint || '' };
+  if (!types.length) { showAbilityReadOnly(t, shown.name, shown.text); return; }
+  openBoardAction(tokenId, types[0], shown);
 }
 function healthOrDieTargets() {
   return (state.scene.tokens || []).filter(x => !x.ko && (x.kind === 'hero' || x.kind === 'villain' || x.kind === 'minion' || x.kind === 'lieutenant'));
@@ -1016,38 +1381,36 @@ function healthOrDieTargets() {
 function openBoardAction(tokenId, action, ability) {
   const t = findTok(tokenId);
   if (!t) return;
-  const types = (ability && ability.rollTypes && ability.rollTypes.length) ? ability.rollTypes : [action];
-  boardActionState = { tokenId, action: action || types[0], ability };
+  const types = (ability && ability.rollTypes && ability.rollTypes.length) ? ability.rollTypes.slice() : [action];
+  boardActionState = { tokenId, action: action || types[0], ability, types };
   const title = (ability ? ability.name : 'Basic ' + action) + ' — ' + t.name;
   document.getElementById('abilitiesModalTitle').textContent = title;
   const combat = healthOrDieTargets();
   const combatOpts = combat.map(x =>
     `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(x.name)} (${x.kind})</option>`
   ).join('');
-  const typeSel = types.length > 1
-    ? `<label>Action <select id="boardActType">${types.map(k => `<option value="${k}" ${k === boardActionState.action ? 'selected' : ''}>${k}</option>`).join('')}</select></label>`
-    : `<input type="hidden" id="boardActType" value="${escAttr(boardActionState.action)}">`;
+  const blocks = types.map((k, i) => {
+    const typeName = String(k || action || '').trim() || 'Action';
+    const targetInner = typeName === 'Overcome'
+      ? `<label class="board-act-target">Target <input type="text" id="boardActTarget_${i}" data-rtype="${escAttr(typeName)}" placeholder="Door, alarm, scene object…"></label>`
+      : `<label class="board-act-target">Target <select id="boardActTarget_${i}" data-rtype="${escAttr(typeName)}">${combatOpts}</select></label>`;
+    return `<div class="board-act-block">
+      <div class="board-act-type-header field-label" style="margin-top:8px;">${escHtml(typeName)}</div>
+      <div class="board-act-effect-row">
+        <label class="board-act-effect">Effect Die <input type="number" id="boardActEffect_${i}" data-rtype="${escAttr(typeName)}" min="0" value="0"></label>
+        ${targetInner}
+      </div>
+    </div>`;
+  }).join('');
+  const helpBits = types.map(k => actionHelpHtml(t, k)).filter(Boolean).join('');
   const el = document.getElementById('abilitiesModalBody');
   el.innerHTML = `
-    ${ability && ability.text ? `<p class="ability-card-body">${escHtml(ability.text)}</p>` : '<p class="empty-hint">Basic action (no ability text).</p>'}
+    ${ability ? abilityPopupDescHtml(ability) : ''}
     ${ability && ability.effectHint ? `<p class="empty-hint">Effect die hint: ${escHtml(ability.effectHint)}</p>` : ''}
-    ${typeSel}
-    <label>Effect Die <input type="number" id="boardActEffect" min="0" value="0"></label>
-    <div id="boardActTargetWrap"></div>
+    <div id="boardActHelp">${helpBits}</div>
+    ${blocks}
+    <div class="board-act-apply-gap"></div>
     <button type="button" class="btn btn-accent" onclick="commitBoardAction()">Apply</button>`;
-  const typeEl = document.getElementById('boardActType');
-  const paintTargets = () => {
-    const act = typeEl.tagName === 'SELECT' ? typeEl.value : typeEl.value;
-    boardActionState.action = act;
-    const wrap = document.getElementById('boardActTargetWrap');
-    if (act === 'Overcome') {
-      wrap.innerHTML = `<label>Target (no Health / no Minion die)<input type="text" id="boardActTargetText" placeholder="Door, alarm, scene object…"></label>`;
-    } else {
-      wrap.innerHTML = `<label>Target<select id="boardActTarget">${combatOpts}</select></label>`;
-    }
-  };
-  if (typeEl.tagName === 'SELECT') typeEl.addEventListener('change', paintTargets);
-  paintTargets();
   document.getElementById('abilitiesModal').classList.remove('hidden');
 }
 function commitBoardAction() {
@@ -1055,26 +1418,34 @@ function commitBoardAction() {
   if (!st) return;
   const actor = findTok(st.tokenId);
   if (!actor) return;
-  const typeEl = document.getElementById('boardActType');
-  const action = (typeEl && typeEl.value) || st.action;
-  const effect = Math.max(0, Number(document.getElementById('boardActEffect').value) || 0);
-  const abilityName = (st.ability && st.ability.name) || ('Basic ' + action);
-  if (action === 'Overcome') {
-    const obj = (document.getElementById('boardActTargetText') || {}).value || 'scene object';
-    logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, action,
-      { name: obj }, `${abilityName}: Overcome ${effect} vs ${obj} — ${overcomeResult(effect)}`, { effect, ability: abilityName });
-    toast(`${abilityName}: Overcome ${effect} vs ${obj}`);
-    closeAbilities();
-    return;
-  }
-  const targetId = (document.getElementById('boardActTarget') || {}).value;
-  const target = findTok(targetId);
-  if (!target) { toast('Pick a target with Health or a Minion die.'); return; }
-  if (action === 'Attack') applyBoardAttack(actor, target, effect, abilityName);
-  else if (action === 'Defend') applyBoardMod(actor, target, 'defend', effect, abilityName, false);
-  else if (action === 'Boost') applyBoardMod(actor, target, 'boost', bhModValue(effect), abilityName, true);
-  else if (action === 'Hinder') applyBoardMod(actor, target, 'hinder', bhModValue(effect), abilityName, true);
-  else if (action === 'Recover') applyBoardRecover(actor, target, effect, abilityName);
+  const types = (st.types && st.types.length) ? st.types : [st.action];
+  const abilityName = (st.ability && st.ability.name) || ('Basic ' + (types[0] || st.action));
+  let applied = 0;
+  types.forEach((action, i) => {
+    const effectEl = document.getElementById('boardActEffect_' + i);
+    const effect = Math.max(0, Number(effectEl && effectEl.value) || 0);
+    if (action === 'Overcome') {
+      const objEl = document.getElementById('boardActTarget_' + i);
+      const obj = (objEl && objEl.value) || 'scene object';
+      logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, action,
+        { name: obj }, `${abilityName}: Overcome ${effect} vs ${obj} — ${overcomeResult(effect)}`, { effect, ability: abilityName });
+      applied++;
+      return;
+    }
+    const targetEl = document.getElementById('boardActTarget_' + i);
+    const targetId = targetEl && targetEl.value;
+    const target = findTok(targetId);
+    if (!target) return;
+    if (action === 'Attack') applyBoardAttack(actor, target, effect, abilityName);
+    else if (action === 'Defend') applyBoardMod(actor, target, 'defend', effect, abilityName, false);
+    else if (action === 'Boost') applyBoardMod(actor, target, 'boost', bhModValue(effect), abilityName, true);
+    else if (action === 'Hinder') applyBoardMod(actor, target, 'hinder', bhModValue(effect), abilityName, true);
+    else if (action === 'Recover') applyBoardRecover(actor, target, effect, abilityName);
+    else return;
+    applied++;
+  });
+  if (!applied) { toast('Pick a target with Health or a Minion die.'); return; }
+  if (types.includes('Overcome') && applied) toast(`${abilityName}: applied`);
   closeAbilities();
   renderTokens();
 }
@@ -1259,16 +1630,20 @@ async function loadSceneRoster() {
 }
 
 function refreshSpawnOptions() {
-  const type = document.getElementById('spawnType').value;
+  const typeEl = document.getElementById('spawnType');
   const listSel = document.getElementById('spawnSelect');
   const hint = document.getElementById('spawnHint');
-  const list = type === 'hero' ? state.heroes : type === 'villain' ? state.villains : state.minions;
+  if (!typeEl || !listSel) return;
+  const type = typeEl.value;
+  const prevSlug = listSel.value;
+  const list = type === 'hero' ? state.heroes : type === 'villain' ? state.villains : type === 'npc' ? state.npcs : state.minions;
   const field = type === 'hero' ? 'hero' : type === 'villain' ? 'villain' : 'minion';
   const allowed = (state.sceneRoster && state.sceneRoster[field]) || new Set();
-  let filtered = list.filter(r => r.Name && allowed.has(r.Slug));
+  let filtered = (list || []).filter(r => r.Name && allowed.has(r.Slug));
   if (type === 'villain' && state.scene && (state.scene.difficulty || '') === 'Easy') filtered = [];
   listSel.innerHTML = '<option value="">Select from Issue roster…</option>' +
     filtered.map(r => `<option value="${r.Slug}">${escHtml(r.Name)}${r.Type ? ' (' + r.Type + ')' : ''}</option>`).join('');
+  if (prevSlug && [...listSel.options].some(o => o.value === prevSlug)) listSel.value = prevSlug;
   if (hint) {
     if (!state.scene) hint.textContent = '';
     else if (!state.sceneHasIssue) hint.textContent = 'This scene is not on an Issue — assign it in Issue Builder.';
@@ -1276,6 +1651,24 @@ function refreshSpawnOptions() {
     else if (!filtered.length) hint.textContent = 'No ' + type + 's assigned to this Issue.';
     else hint.textContent = '';
   }
+  refreshSpawnLocations();
+}
+function refreshSpawnLocations() {
+  const sel = document.getElementById('spawnLocation');
+  if (!sel) return;
+  const prev = sel.value;
+  const locs = (state.scene && state.scene.locations) || [];
+  sel.innerHTML = locs.map(l => `<option value="${escAttr(l.id)}">${escHtml(l.name)}</option>`).join('')
+    + '<option value="">Unplaced</option>';
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  else if (locs[0]) sel.value = locs[0].id;
+  else sel.value = '';
+}
+function selectedSpawnLocationId() {
+  const sel = document.getElementById('spawnLocation');
+  if (!sel) return (state.scene && state.scene.locations[0] && state.scene.locations[0].id) || null;
+  const v = sel.value;
+  return v ? v : null;
 }
 
 /* ============================================================
@@ -1289,9 +1682,9 @@ function blankScene(name) {
     sceneType: 'Action',
     tracker: { stars: [...TRACKER_PRESETS.standard.stars], position: 0 },
     locations: [
-      { id: uid('loc'), name: 'Location 1', background: null },
-      { id: uid('loc'), name: 'Location 2', background: null },
+      { id: uid('loc'), name: 'Main Location' },
     ],
+    background: null, // scene-level art for Player Display (not per-location)
     environment: null, // slug of an entry in the Environments library, or null
     challenges: [],
     tokens: [],
@@ -1306,104 +1699,191 @@ async function refreshScenesList() {
   state.scenesList = await apiListScenes();
 }
 
-function switchCollTab(tab) {
-  currentCollTab = tab;
-  document.querySelectorAll('.coll-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.coll === tab));
-  const filt = document.getElementById('collIssueFilter');
-  if (filt) filt.classList.toggle('hidden', tab !== 'locations' && tab !== 'scenes');
-  document.getElementById('collCollectionsPanel').classList.toggle('hidden', tab !== 'collections');
-  document.getElementById('collIssuesPanel').classList.toggle('hidden', tab !== 'issues');
-  document.getElementById('collScenesPanel').classList.toggle('hidden', tab !== 'scenes');
-  document.getElementById('locationsPanel').classList.toggle('hidden', tab !== 'locations');
-  renderCurrentCollPanel();
+function parentCollectionForIssue(issueSlug) {
+  return (state.collectionsList || []).find(c => (c.issueSlugs || []).includes(issueSlug)) || null;
 }
-function renderCurrentCollPanel() {
-  if (currentCollTab === 'collections') renderCollectionsTable();
-  else if (currentCollTab === 'issues') renderIssuesTable();
-  else if (currentCollTab === 'scenes') renderScenesTable();
-  else if (currentCollTab === 'locations') renderLibraryTable('locations');
+function parentIssueForScene(sceneSlug) {
+  return (state.issuesList || []).find(i => (i.sceneSlugs || []).includes(sceneSlug)) || null;
 }
-function renderCollectionsList() { renderCurrentCollPanel(); }
-function renderScenesList() { renderCurrentCollPanel(); }
-function renderIssuesList() { renderCurrentCollPanel(); }
-
-function slugNames(slugs, list) {
-  const names = (slugs || []).map(slug => {
-    const hit = (list || []).find(x => x.slug === slug);
-    return hit ? hit.name : slug;
-  }).filter(Boolean);
-  if (!names.length) return '<span class="empty-hint">—</span>';
-  return `<div class="name-list">${names.map(n => `<span>${escHtml(n)}</span>`).join('')}</div>`;
+function buildIssuesScenesRows() {
+  const rows = [];
+  const seenIssues = new Set();
+  const seenScenes = new Set();
+  const colls = (state.collectionsList || []).slice().sort((a, b) => naturalNameSort(a.name, b.name));
+  colls.forEach(coll => {
+    const issueSlugs = coll.issueSlugs || [];
+    if (!issueSlugs.length) {
+      rows.push({
+        kind: 'collection',
+        collectionSlug: coll.slug,
+        collectionName: coll.name || coll.slug,
+        issueSlug: '', issueName: '',
+        sceneSlug: '', sceneName: '', sceneType: '', difficulty: '', environment: '',
+      });
+      return;
+    }
+    issueSlugs.forEach(is => {
+      const iss = (state.issuesList || []).find(i => i.slug === is);
+      if (!iss) return;
+      seenIssues.add(iss.slug);
+      const sceneSlugs = iss.sceneSlugs || [];
+      if (!sceneSlugs.length) {
+        rows.push({
+          kind: 'issue',
+          collectionSlug: coll.slug,
+          collectionName: coll.name || coll.slug,
+          issueSlug: iss.slug,
+          issueName: iss.name || iss.slug,
+          sceneSlug: '', sceneName: '', sceneType: '', difficulty: '', environment: '',
+        });
+        return;
+      }
+      sceneSlugs.forEach(ss => {
+        const sc = (state.scenesList || []).find(s => s.slug === ss);
+        if (!sc) return;
+        seenScenes.add(sc.slug);
+        rows.push({
+          kind: 'scene',
+          collectionSlug: coll.slug,
+          collectionName: coll.name || coll.slug,
+          issueSlug: iss.slug,
+          issueName: iss.name || iss.slug,
+          sceneSlug: sc.slug,
+          sceneName: sc.name || sc.slug,
+          sceneType: sc.sceneType || '',
+          difficulty: sc.difficulty || '',
+          environment: sc.environment || '',
+        });
+      });
+    });
+  });
+  (state.issuesList || []).slice().sort((a, b) => naturalNameSort(a.name, b.name)).forEach(iss => {
+    if (seenIssues.has(iss.slug)) return;
+    const sceneSlugs = iss.sceneSlugs || [];
+    if (!sceneSlugs.length) {
+      rows.push({
+        kind: 'issue',
+        collectionSlug: '', collectionName: '',
+        issueSlug: iss.slug, issueName: iss.name || iss.slug,
+        sceneSlug: '', sceneName: '', sceneType: '', difficulty: '', environment: '',
+      });
+      return;
+    }
+    sceneSlugs.forEach(ss => {
+      const sc = (state.scenesList || []).find(s => s.slug === ss);
+      if (!sc) return;
+      seenScenes.add(sc.slug);
+      rows.push({
+        kind: 'scene',
+        collectionSlug: '', collectionName: '',
+        issueSlug: iss.slug, issueName: iss.name || iss.slug,
+        sceneSlug: sc.slug, sceneName: sc.name || sc.slug,
+        sceneType: sc.sceneType || '', difficulty: sc.difficulty || '',
+        environment: sc.environment || '',
+      });
+    });
+  });
+  (state.scenesList || []).slice().sort((a, b) => naturalNameSort(a.name, b.name)).forEach(sc => {
+    if (seenScenes.has(sc.slug)) return;
+    rows.push({
+      kind: 'scene',
+      collectionSlug: '', collectionName: '',
+      issueSlug: '', issueName: '',
+      sceneSlug: sc.slug, sceneName: sc.name || sc.slug,
+      sceneType: sc.sceneType || '', difficulty: sc.difficulty || '',
+      environment: sc.environment || '',
+    });
+  });
+  return rows;
 }
-
-function renderCollectionsTable() {
-  const el = document.getElementById('collCollectionsPanel');
+function renderIssuesScenesTable() {
+  const el = document.getElementById('issues-scenesPanel');
   if (!el) return;
-  const rows = state.collectionsList || [];
-  let html = '<table class="lib-table"><thead><tr><th>Name</th><th class="wrap-col">Issues</th><th></th></tr></thead><tbody>';
-  rows.forEach(coll => {
-    html += `<tr>
-      <td><input class="name-field" type="text" value="${escAttr(coll.name)}" onchange="renameCollection('${coll.slug}', this.value)"></td>
-      <td class="assign-cell wrap-col">${slugNames(coll.issueSlugs, state.issuesList)}</td>
-      <td class="row-actions">
-        <button class="btn btn-small btn-primary" onclick="editCollection('${coll.slug}')">Edit</button>
-        <button class="btn btn-small btn-danger" onclick="deleteCollection('${coll.slug}')">Delete</button>
-      </td>
+  const collF = (document.getElementById('libCollectionFilter') || {}).value || 'all';
+  const issF = (document.getElementById('libIssueFilter') || {}).value || 'all';
+  const activeFilt = (document.getElementById('libActiveFilter') || {}).value || 'active';
+  let rows = buildIssuesScenesRows();
+  if (collF !== 'all') rows = rows.filter(r => r.collectionSlug === collF);
+  if (issF !== 'all') rows = rows.filter(r => r.issueSlug === issF);
+  if (activeFilt === 'active') {
+    rows = rows.filter(r => {
+      if (r.kind !== 'scene' || !r.environment) return true;
+      const env = (state.environments || []).find(e => e.Slug === r.environment);
+      if (!env) return true;
+      return isActiveFlag(env.Active);
+    });
+  }
+  const envOpts = (state.environments || []).slice().sort((a, b) => naturalNameSort(a.Name, b.Name));
+  let html = `<table class="lib-table"><thead><tr>
+    <th>Collection Name</th><th>Issue Name</th><th>Scene Name</th>
+    <th>Scene Type</th><th>Scene Difficulty</th><th>Environment</th>
+  </tr></thead><tbody>`;
+  rows.forEach((r, i) => {
+    const nav = r.kind === 'scene' ? `editScene('${escAttr(r.sceneSlug)}')`
+      : r.kind === 'issue' ? `editIssue('${escAttr(r.issueSlug)}')`
+      : `editCollection('${escAttr(r.collectionSlug)}')`;
+    const envCell = r.kind === 'scene'
+      ? `<td class="no-row-nav" onclick="event.stopPropagation()"><select onchange="onIssuesScenesEnvChange('${escAttr(r.sceneSlug)}', this.value)">
+          <option value="">— none —</option>
+          ${envOpts.map(e => `<option value="${escAttr(e.Slug)}" ${r.environment === e.Slug ? 'selected' : ''}>${escHtml(e.Name || e.Slug)}</option>`).join('')}
+        </select></td>`
+      : '<td></td>';
+    html += `<tr class="lib-row-clickable" onclick="${nav}">
+      <td class="name-field">${escHtml(r.collectionName || (r.kind === 'collection' ? '—' : ''))}</td>
+      <td class="name-field">${escHtml(r.issueName || '')}</td>
+      <td class="name-field">${escHtml(r.sceneName || '')}</td>
+      <td>${escHtml(r.sceneType || '')}</td>
+      <td>${escHtml(r.difficulty || '')}</td>
+      ${envCell}
     </tr>`;
   });
-  if (!rows.length) html += '<tr><td colspan="3" class="empty-hint">No collections yet. Click "+ Add Row".</td></tr>';
+  if (!rows.length) html += '<tr><td colspan="6" class="empty-hint">No collections, issues, or scenes yet. Click "+ Add Row".</td></tr>';
   html += '</tbody></table>';
   el.innerHTML = html;
 }
-function renderIssuesTable() {
-  const el = document.getElementById('collIssuesPanel');
-  if (!el) return;
-  const rows = state.issuesList || [];
-  let html = '<table class="lib-table"><thead><tr><th>Name</th><th class="wrap-col">Scenes</th><th></th></tr></thead><tbody>';
-  rows.forEach(iss => {
-    html += `<tr>
-      <td><input class="name-field" type="text" value="${escAttr(iss.name)}" onchange="renameIssue('${iss.slug}', this.value)"></td>
-      <td class="assign-cell wrap-col">${slugNames(iss.sceneSlugs, state.scenesList)}</td>
-      <td class="row-actions">
-        <button class="btn btn-small btn-primary" onclick="editIssue('${iss.slug}')">Edit</button>
-        <button class="btn btn-small btn-danger" onclick="deleteIssue('${iss.slug}')">Delete</button>
-      </td>
-    </tr>`;
-  });
-  if (!rows.length) html += '<tr><td colspan="3" class="empty-hint">No issues yet. Click "+ Add Row".</td></tr>';
-  html += '</tbody></table>';
-  el.innerHTML = html;
+async function onIssuesScenesEnvChange(sceneSlug, envSlug) {
+  const sc = await apiGetScene(sceneSlug);
+  if (!sc) return;
+  sc.environment = envSlug || null;
+  await apiSaveScene(sceneSlug, sc);
+  const meta = (state.scenesList || []).find(s => s.slug === sceneSlug);
+  if (meta) meta.environment = envSlug || '';
+  const st = document.getElementById('saveStatus');
+  if (st) st.textContent = 'Saved environment ✓';
+  if (state.scene && state.scene.__slug === sceneSlug) {
+    state.scene.environment = envSlug || null;
+  }
 }
-function renderScenesTable() {
-  const el = document.getElementById('collScenesPanel');
-  if (!el) return;
-  const filt = (document.getElementById('collIssueFilter') || {}).value || 'all';
-  const iss = filt === 'all' ? null : (state.issuesList || []).find(i => i.slug === filt);
-  const rows = (state.scenesList || []).filter(s => {
-    if (filt === 'all') return true;
-    return ((iss && iss.sceneSlugs) || []).includes(s.slug);
-  });
-  let html = '<table class="lib-table"><thead><tr><th>Name</th><th>Type</th><th>Difficulty</th><th></th><th class="table-fill"></th></tr></thead><tbody>';
-  rows.forEach(s => {
-    html += `<tr>
-      <td><input class="name-field" type="text" value="${escAttr(s.name)}" onchange="renameScene('${s.slug}', this.value)"></td>
-      <td>${escHtml(s.sceneType || '')}</td>
-      <td>${escHtml(s.difficulty || '')}</td>
-      <td class="row-actions">
-        <button class="btn btn-small btn-primary" onclick="editScene('${s.slug}')">Edit</button>
-        <button class="btn btn-small btn-accent" onclick="loadSceneToBoard('${s.slug}')">Load to Board</button>
-        <button class="btn btn-small btn-danger" onclick="deleteScene('${s.slug}')">Delete</button>
-      </td>
-      <td class="table-fill"></td>
-    </tr>`;
-  });
-  if (!rows.length) html += '<tr><td colspan="5" class="empty-hint">No scenes yet. Click "+ Add Row".</td></tr>';
-  html += '</tbody></table>';
-  el.innerHTML = html;
+async function issuesScenesAddRow() {
+  const collF = (document.getElementById('libCollectionFilter') || {}).value || 'all';
+  const issF = (document.getElementById('libIssueFilter') || {}).value || 'all';
+  if (issF !== 'all') return newScene(issF, true);
+  if (collF !== 'all') {
+    const name = prompt('Issue name:');
+    if (!name) return;
+    const slug = uniqueIssueSlug(slugify(name));
+    await apiSaveIssue(slug, blankIssue(name));
+    const coll = await apiGetCollection(collF);
+    if (coll) {
+      coll.issueSlugs = coll.issueSlugs || [];
+      if (!coll.issueSlugs.includes(slug)) coll.issueSlugs.push(slug);
+      await apiSaveCollection(collF, coll);
+    }
+    await refreshIssuesList();
+    await refreshCollectionsList();
+    fillLibCollectionFilter();
+    fillLibIssueFilter();
+    editIssue(slug);
+    return;
+  }
+  return newCollection();
 }
+function renderCollectionsList() { if (currentLibTab === 'issues-scenes') renderIssuesScenesTable(); }
+function renderScenesList() { if (currentLibTab === 'issues-scenes') renderIssuesScenesTable(); }
+function renderIssuesList() { if (currentLibTab === 'issues-scenes') renderIssuesScenesTable(); }
 
 async function showCollectionsList() {
-  const list = document.getElementById('collectionsListView');
+  const list = document.getElementById('libraryListView');
   const collEd = document.getElementById('collectionEditorView');
   const iss = document.getElementById('issueEditorView');
   const sc = document.getElementById('sceneEditorView');
@@ -1412,19 +1892,12 @@ async function showCollectionsList() {
   if (iss) iss.classList.add('hidden');
   if (sc) sc.classList.add('hidden');
   state.editingCollectionSlug = null;
+  state.editingIssueSlug = null;
+  state.editingSlug = null;
   await Promise.all([refreshCollectionsList(), refreshIssuesList(), refreshScenesList()]);
-  switchCollTab(currentCollTab);
-}
-
-async function collAddRow() {
-  if (currentCollTab === 'collections') return newCollection();
-  if (currentCollTab === 'issues') return newIssue(false);
-  if (currentCollTab === 'scenes') {
-    const filt = document.getElementById('collIssueFilter');
-    const issueSlug = filt && filt.value && filt.value !== 'all' ? filt.value : null;
-    return newScene(issueSlug, false);
-  }
-  if (currentCollTab === 'locations') return addRow('locations');
+  fillLibCollectionFilter();
+  fillLibIssueFilter();
+  if (currentLibTab === 'issues-scenes') renderIssuesScenesTable();
 }
 
 async function newScene(issueSlug, openEditor) {
@@ -1442,8 +1915,9 @@ async function newScene(issueSlug, openEditor) {
   }
   await refreshScenesList();
   await refreshIssuesList();
-  if (openEditor === false) renderCurrentCollPanel();
-  else editScene(slug);
+  if (openEditor === false) {
+    if (currentLibTab === 'issues-scenes') renderIssuesScenesTable();
+  } else editScene(slug);
 }
 
 function uniqueSceneSlug(base) {
@@ -1457,14 +1931,48 @@ async function deleteScene(slug) {
   if (!confirm('Delete this scene? This cannot be undone.')) return;
   await apiDeleteScene(slug);
   await refreshScenesList();
-  renderScenesList();
+  if (state.editingSlug === slug) showCollectionsList();
+  else renderScenesList();
+}
+async function deleteSceneFromEditor() {
+  const slug = state.editingSlug || (state.scene && state.scene.__slug);
+  if (!slug) return;
+  await deleteScene(slug);
+}
+async function deleteCollectionFromEditor() {
+  const slug = state.editingCollectionSlug;
+  if (!slug) return;
+  await deleteCollection(slug);
+  showCollectionsList();
+}
+async function deleteIssueFromEditor() {
+  const slug = state.editingIssueSlug;
+  if (!slug) return;
+  await deleteIssue(slug);
+  showCollectionsList();
+}
+
+function ensureSceneChallenges(scene) {
+  if (!scene) return scene;
+  if (!Array.isArray(scene.challenges)) scene.challenges = [];
+  scene.challenges.forEach(c => {
+    if (!c || typeof c !== 'object') return;
+    if (!Array.isArray(c.paths)) c.paths = [];
+  });
+  // Migrate legacy per-location backgrounds up to the scene once.
+  if (!scene.background) {
+    const locBg = (scene.locations || []).map(l => l && l.background).find(Boolean);
+    if (locBg) scene.background = locBg;
+  }
+  (scene.locations || []).forEach(l => { if (l && 'background' in l) delete l.background; });
+  return scene;
 }
 
 async function editScene(slug) {
   state.editingSlug = slug;
-  state.scene = await apiGetScene(slug);
+  state.scene = ensureSceneChallenges(await apiGetScene(slug));
   if (state.scene) state.scene.__slug = slug;
-  document.getElementById('collectionsListView').classList.add('hidden');
+  document.getElementById('libraryListView').classList.add('hidden');
   document.getElementById('collectionEditorView').classList.add('hidden');
   document.getElementById('issueEditorView').classList.add('hidden');
   document.getElementById('sceneEditorView').classList.remove('hidden');
@@ -1480,7 +1988,7 @@ async function loadSceneToBoard(slug) {
   await apiSetActiveScene(slug);
   state.activeSlug = slug;
   state.turnMarks = {};
-  state.scene = await apiGetScene(slug);
+  state.scene = ensureSceneChallenges(await apiGetScene(slug));
   if (state.scene) {
     state.scene.__slug = slug;
     (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
@@ -1488,6 +1996,71 @@ async function loadSceneToBoard(slug) {
   toast('Loaded "' + state.scene.name + '" to Board.');
   switchView('board');
   renderBoard();
+}
+
+/** Find Issue sceneSlugs order containing slug; return next slug or null. */
+async function findNextSceneSlugInIssue(slug) {
+  if (!slug) return null;
+  const list = await apiListIssues();
+  for (const i of list) {
+    const f = await apiGetIssue(i.slug);
+    const scenes = (f && f.sceneSlugs) || [];
+    const idx = scenes.indexOf(slug);
+    if (idx < 0) continue;
+    if (idx >= scenes.length - 1) return null; // last in this issue
+    return scenes[idx + 1] || null;
+  }
+  return null;
+}
+
+async function nextSceneInIssue() {
+  const slug = state.activeSlug || (state.scene && state.scene.__slug);
+  if (!slug) {
+    toast('No scene loaded.');
+    return;
+  }
+  // Flush live board state before switching so tracker/tokens aren't lost.
+  if (state.scene && state.scene.__slug) {
+    try { await apiSaveScene(state.scene.__slug, state.scene); } catch (err) { /* still try next */ }
+  }
+  const next = await findNextSceneSlugInIssue(slug);
+  if (!next) {
+    const list = await apiListIssues();
+    let onIssue = false;
+    for (const i of list) {
+      const f = await apiGetIssue(i.slug);
+      if (f && (f.sceneSlugs || []).includes(slug)) { onIssue = true; break; }
+    }
+    toast(onIssue
+      ? 'Already the last scene in this Issue.'
+      : 'This scene is not on an Issue — assign it in Issue Builder.');
+    updateNextSceneBtn();
+    return;
+  }
+  await loadSceneToBoard(next);
+}
+
+async function updateNextSceneBtn() {
+  const btn = document.getElementById('nextSceneBtn');
+  if (!btn) return;
+  const slug = state.activeSlug || (state.scene && state.scene.__slug);
+  if (!slug || !state.scene) {
+    btn.disabled = true;
+    btn.title = 'No scene loaded';
+    return;
+  }
+  if (!(state.scenesList || []).length) {
+    try { state.scenesList = await apiListScenes(); } catch (e) { /* ignore */ }
+  }
+  const next = await findNextSceneSlugInIssue(slug);
+  btn.disabled = !next;
+  if (next) {
+    const meta = (state.scenesList || []).find(s => s.slug === next);
+    const name = (meta && meta.name) || next;
+    btn.title = 'Load next scene in Issue order: ' + name;
+  } else {
+    btn.title = 'No next scene in Issue order';
+  }
 }
 
 // Saves whichever scene is CURRENTLY loaded into state.scene, to its own slug --
@@ -1572,9 +2145,9 @@ function renderActivityLog() {
   if (!el) return;
   const log = (state.scene && state.scene.activityLog) || [];
   const rnd = state.scene && state.scene.round ? state.scene.round : 1;
-  if (!log.length) { el.innerHTML = `<h3 class="sidebar-heading">Activity Log</h3><p class="empty-hint">Round ${rnd}. Nothing has happened yet.</p>`; return; }
+  if (!log.length) { el.innerHTML = `<h3 class="sidebar-heading">Activity Log</h3><button type="button" class="btn btn-small btn-ghost" onclick="clearActivityLog()">Clear Activity Log</button><p class="empty-hint">Round ${rnd}. Nothing has happened yet.</p>`; return; }
   const recent = log.slice(-200).slice().reverse();
-  let html = `<h3 class="sidebar-heading">Activity Log</h3><p class="empty-hint">Round ${rnd}</p><div class="activity-log-list">`;
+  let html = `<h3 class="sidebar-heading">Activity Log</h3><button type="button" class="btn btn-small btn-ghost" onclick="clearActivityLog()">Clear Activity Log</button><p class="empty-hint">Round ${rnd}</p><div class="activity-log-list">`;
   recent.forEach((e, i) => {
     const who = e.actor ? escHtml(e.actor.name) : '';
     const whom = e.target ? ' → ' + escHtml(e.target.name) : '';
@@ -1599,6 +2172,15 @@ function deleteActivityLog(id) {
   saveSceneDebounced();
   renderActivityLog();
 }
+function clearActivityLog() {
+  if (!state.scene) return;
+  if (!confirm('Clear the entire Activity Log and all turn marker numbers? This cannot be undone.')) return;
+  state.scene.activityLog = [];
+  state.turnMarks = {};
+  saveSceneDebounced();
+  renderActivityLog();
+  renderTokens();
+}
 
 /* ---------------- Scene Editor rendering ---------------- */
 
@@ -1607,7 +2189,7 @@ function renderSceneEditor() {
   const el = document.getElementById('sceneEditorView');
   el.innerHTML = `
     <div class="scene-editor-header">
-      <button class="btn btn-ghost" onclick="backToScenesList()">&larr; Back to Collections</button>
+      <button class="btn btn-ghost" onclick="backToScenesList()">&larr; Back to Issues &amp; Scenes</button>
       <span id="sceneSaveStatus" class="save-status"></span>
     </div>
 
@@ -1637,9 +2219,21 @@ function renderSceneEditor() {
     </div>
     <div id="trackerEditorRow" class="tracker-row"></div>
 
+    <label class="field-label">Scene Background <span class="gm-only-badge" style="background:var(--accent);">Player Display full backdrop</span></label>
+    <div class="location-edit-row">
+      <input type="file" accept="image/*" onchange="uploadSceneBackground(this.files[0])">
+      ${s.background ? `<img class="bg-thumb" src="${backgroundUrl(s.background)}">
+        <button class="btn btn-small btn-ghost" type="button" onclick="removeSceneBackground()">Remove BG</button>` : '<span class="bg-thumb-empty">No scene background</span>'}
+    </div>
+
     <label class="field-label">Locations</label>
     <div id="locationsEditorList"></div>
     <button class="btn btn-small btn-accent" onclick="addLocation()">+ Add Location</button>
+
+    <label class="field-label">Challenges</label>
+    <p class="empty-hint">Scene-only. Add here, then Load to Board to mark successes live.</p>
+    <div id="challengesEditorList"></div>
+    <button type="button" class="btn btn-small btn-accent" onclick="addChallenge()">+ Add Challenge</button>
 
     <label class="field-label">Environment <span class="gm-only-badge" style="background:var(--accent);">One per Scene — its Twists move the Scene Tracker</span></label>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1651,12 +2245,13 @@ function renderSceneEditor() {
     </div>
     <div id="environmentEditorPanel"></div>
 
-    <label class="field-label">Challenges</label>
-    <div id="challengesEditorList"></div>
-    <button class="btn btn-small btn-accent" onclick="addChallenge()">+ Add Challenge</button>
-
     <label class="field-label">GM Notes <span class="gm-only-badge">GM ONLY — never shown on Player Display</span></label>
     <textarea class="gm-notes-textarea" onchange="updateSceneField('gmNotes', this.value)">${escHtml(s.gmNotes)}</textarea>
+
+    <div class="editor-footer-actions">
+      <button type="button" class="btn btn-accent" onclick="loadSceneToBoard('${escAttr(state.editingSlug || s.__slug || '')}')">Load to Board</button>
+      <button type="button" class="btn btn-danger" onclick="deleteSceneFromEditor()">Delete Scene</button>
+    </div>
   `;
   renderTrackerEditor();
   renderLocationsEditor();
@@ -1785,9 +2380,6 @@ function renderLocationsEditor() {
         <option value="">custom</option>
         ${(state.locations||[]).map(l => `<option value="${escAttr(l.Slug)}" ${loc.locationSlug===l.Slug?'selected':''}>${escHtml(l.Name)}</option>`).join('')}
       </select>
-      <input type="file" accept="image/*" onchange="uploadLocationBackground(${idx}, this.files[0])">
-      ${loc.background ? `<img class="bg-thumb" src="${backgroundUrl(loc.background)}">
-        <button class="btn btn-small btn-ghost" onclick="removeLocationBackground(${idx})">Remove BG</button>` : '<span class="bg-thumb-empty">No image</span>'}
       <button class="btn btn-small btn-danger" onclick="removeLocation(${idx})">Delete</button>
     </div>`).join('');
 }
@@ -1796,7 +2388,7 @@ function addLocationFromCatalog() {
   const slug = sel && sel.value;
   const row = (state.locations || []).find(l => l.Slug === slug);
   if (!row) return;
-  state.scene.locations.push({ id: uid('loc'), name: row.Name, locationSlug: row.Slug, background: null });
+  state.scene.locations.push({ id: uid('loc'), name: row.Name, locationSlug: row.Slug });
   saveSceneDebounced();
   renderLocationsEditor();
 }
@@ -1810,7 +2402,7 @@ function updateLocationField(idx, field, value) {
   if (field === 'locationSlug') renderLocationsEditor();
 }
 function addLocation() {
-  state.scene.locations.push({ id: uid('loc'), name: 'New Location', locationSlug: '', background: null });
+  state.scene.locations.push({ id: uid('loc'), name: 'New Location', locationSlug: '' });
   saveSceneDebounced();
   renderLocationsEditor();
 }
@@ -1822,21 +2414,20 @@ function removeLocation(idx) {
   saveSceneDebounced();
   renderLocationsEditor();
 }
-async function uploadLocationBackground(idx, file) {
-  if (!file) return;
-  const loc = state.scene.locations[idx];
-  const key = state.editingSlug + '-' + loc.id;
+async function uploadSceneBackground(file) {
+  if (!file || !state.scene) return;
+  const key = (state.editingSlug || state.activeSlug || 'scene') + '-bg';
   await apiUploadBackground(key, file);
-  loc.background = key;
+  state.scene.background = key;
   saveSceneDebounced();
-  renderLocationsEditor();
+  renderSceneEditor();
 }
-async function removeLocationBackground(idx) {
-  const loc = state.scene.locations[idx];
-  if (loc.background) await apiDeleteBackground(loc.background);
-  loc.background = null;
+async function removeSceneBackground() {
+  if (!state.scene) return;
+  if (state.scene.background) await apiDeleteBackground(state.scene.background);
+  state.scene.background = null;
   saveSceneDebounced();
-  renderLocationsEditor();
+  renderSceneEditor();
 }
 
 /* ---- Challenges editor ---- */
@@ -1853,6 +2444,8 @@ function blankChallenge() {
 
 function renderChallengesEditor() {
   const el = document.getElementById('challengesEditorList');
+  if (!el || !state.scene) return;
+  ensureSceneChallenges(state.scene);
   el.innerHTML = state.scene.challenges.map((c, idx) => renderChallengeEditRow(c, idx)).join('') || '<p class="empty-hint">No challenges yet.</p>';
 }
 
@@ -1957,9 +2550,13 @@ function removePath(idx, pi) {
   renderChallengesEditor();
 }
 function addChallenge() {
+  if (!state.scene) { toast('Open a scene in Library → Issues & Scenes first.'); return; }
+  ensureSceneChallenges(state.scene);
   state.scene.challenges.push(blankChallenge());
   saveSceneDebounced();
   renderChallengesEditor();
+  const list = document.getElementById('challengesEditorList');
+  if (list) list.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function removeChallenge(idx) {
   if (!confirm('Delete this challenge?')) return;
@@ -1982,12 +2579,13 @@ function advanceDoomsdayTurn(idx) {
    Board: Locations, tokens, live tracker + challenges panel
    ============================================================ */
 
-function renderBoard() {
+async function renderBoard() {
   const boardEmpty = document.getElementById('boardEmptyState');
   const boardContent = document.getElementById('boardContent');
   if (!state.scene) {
     boardEmpty.classList.remove('hidden');
     boardContent.classList.add('hidden');
+    await renderEmptyBoardWithIssues();
     return;
   }
   boardEmpty.classList.add('hidden');
@@ -1996,13 +2594,106 @@ function renderBoard() {
   document.getElementById('boardSceneDifficulty').textContent = state.scene.difficulty;
   const typeEl = document.getElementById('boardSceneType');
   if (typeEl) typeEl.value = state.scene.sceneType || 'Action';
+  updateNextSceneBtn();
   renderBoardTracker();
   renderBoardEnvironment();
   renderLocationsBoard();
   renderChallengesPanel();
   renderActivityLog();
+  renderSceneNotesPanel();
   loadSceneRoster().then(() => refreshSpawnOptions());
 }
+
+async function renderSceneNotesPanel() {
+  const panel = document.getElementById('sceneNotesPanel');
+  if (!panel) return;
+  panel.innerHTML = '<p class="empty-hint">Loading scene notes...</p>';
+
+  try {
+    const res = await fetch('/api/scene-notes');
+    const data = await res.json();
+    let html = '';
+    for (const [filename, content] of Object.entries(data)) {
+      const title = filename.replace('.md', '');
+      html += `<details style="margin-bottom:16px;" open>
+        <summary style="font-family:var(--font-display);font-size:17px;cursor:pointer;padding:4px 0;color:var(--accent);">${escHtml(title)}</summary>
+        <div style="padding:8px 12px;background:var(--ink);border:1px solid #333;border-radius:4px;margin-top:6px;">${renderMarkdownLite(content || '')}</div>
+      </details>`;
+    }
+    panel.innerHTML = html || '<p class="empty-hint">No .md files found in campaign/scenes/.</p>';
+  } catch (e) {
+    panel.innerHTML = '<p class="empty-hint">Error loading notes (server may need /api/scene-notes endpoint).</p>';
+    console.error(e);
+  }
+}
+
+function toggleCollapsible(el) {
+  const parent = el.closest('.challenges-sidebar');
+  if (!parent) return;
+  const content = parent.querySelector('#challengesPanel, #activityLogContent, #sceneNotesPanel, .collapsible-content');
+  if (!content) return;
+  const isHidden = content.style.display === 'none';
+  content.style.display = isHidden ? 'block' : 'none';
+  const indicator = el.querySelector('span, button');
+  if (indicator) indicator.textContent = isHidden ? '−' : '+';
+}
+
+async function renderEmptyBoardWithIssues() {
+  const msg = document.getElementById('emptyBoardMessage');
+  const listContainer = document.getElementById('activeIssuesList');
+  const content = document.getElementById('issuesListContent');
+
+  try {
+    const issues = await apiListIssues();
+    const active = issues.filter(i => i.active !== false);
+
+    if (active.length === 0) {
+      msg.textContent = 'No scene loaded. Go to Library → Issues & Scenes, open a scene, and click "Load to Board".';
+      listContainer.classList.add('hidden');
+      return;
+    }
+
+    msg.textContent = 'No scene loaded. Click a scene below to load it:';
+    listContainer.classList.remove('hidden');
+    let html = '';
+
+    for (const issue of active) {
+      const fullIssue = await apiGetIssue(issue.slug);
+      const scenes = fullIssue && fullIssue.sceneSlugs ? fullIssue.sceneSlugs : [];
+      html += `<div style="margin-bottom:18px;border-bottom:1px solid #333;padding-bottom:12px;">`;
+      html += `<div style="font-family:var(--font-display);font-size:18px;color:var(--accent);margin-bottom:6px;">${escHtml(issue.name || issue.slug)}</div>`;
+
+      if (scenes.length === 0) {
+        html += `<div class="empty-hint" style="font-size:13px;">No scenes yet.</div>`;
+      } else {
+        for (const scSlug of scenes) {
+          const sceneName = scSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          html += `<div onclick="loadSceneBySlug('${escAttr(scSlug)}');" style="cursor:pointer;padding:6px 10px;background:var(--ink-2);margin:4px 0;border-radius:4px;font-size:14px;">${escHtml(sceneName)}</div>`;
+        }
+      }
+      html += `</div>`;
+    }
+    content.innerHTML = html;
+  } catch (e) {
+    console.error(e);
+    listContainer.classList.add('hidden');
+    msg.textContent = 'No scene loaded. Go to Library → Issues & Scenes.';
+  }
+}
+
+window.loadSceneBySlug = async function(slug) {
+  try {
+    const sceneData = await apiGetScene(slug);
+    if (sceneData) {
+      await apiSetActiveScene(slug);
+      state.scene = sceneData;
+      renderBoard();
+      toast(`Loaded scene: ${sceneData.name}`);
+    }
+  } catch (e) {
+    toast('Could not load scene.');
+  }
+};
 
 function renderBoardEnvironment() {
   const el = document.getElementById('boardEnvironment');
@@ -2048,10 +2739,14 @@ function renderLocationsBoard() {
         <input type="text" class="location-name-input" value="${escAttr(loc.name)}" onchange="renameLocationOnBoard('${loc.id}', this.value)">
         <span class="location-drop-hint">Drop tokens here</span>
       </div>
-      <div class="mvc-stage">
+      <div class="mvc-stage mvc-stage-3">
         <div class="mvc-side heroes">
           <div class="mvc-side-label">HEROES</div>
           <div class="mvc-row" id="mvcHeroes-${locKey(loc.id)}"></div>
+        </div>
+        <div class="mvc-side neutral">
+          <div class="mvc-side-label">NEUTRAL</div>
+          <div class="mvc-row" id="mvcNeutral-${locKey(loc.id)}"></div>
         </div>
         <div class="mvc-side villains">
           <div class="mvc-side-label">VILLAINS</div>
@@ -2066,8 +2761,9 @@ function renderLocationsBoard() {
         <span class="location-name-display">Unplaced</span>
         <span class="location-drop-hint">Drop here to clear location</span>
       </div>
-      <div class="mvc-stage">
+      <div class="mvc-stage mvc-stage-3">
         <div class="mvc-side heroes"><div class="mvc-row" id="mvcHeroes-none"></div></div>
+        <div class="mvc-side neutral"><div class="mvc-row" id="mvcNeutral-none"></div></div>
         <div class="mvc-side villains">
           <div class="mvc-row" id="mvcVillains-none"></div>
           <div class="mvc-row mvc-row-small" id="mvcExtras-none"></div>
@@ -2076,6 +2772,7 @@ function renderLocationsBoard() {
     </section>
     <div class="mvc-ko" id="mvcKo"></div>`;
   bindLocationDrops(row);
+  refreshSpawnLocations();
   renderTokens();
 }
 
@@ -2159,18 +2856,32 @@ function renderTokens() {
   locs.forEach(id => {
     const k = locKey(id);
     const heroes = document.getElementById('mvcHeroes-' + k);
+    const neutrals = document.getElementById('mvcNeutral-' + k);
     const villains = document.getElementById('mvcVillains-' + k);
     const extras = document.getElementById('mvcExtras-' + k);
     if (!heroes) return;
     heroes.innerHTML = '';
+    if (neutrals) neutrals.innerHTML = '';
     if (villains) villains.innerHTML = '';
     if (extras) extras.innerHTML = '';
     const here = state.scene.tokens.filter(t => !t.ko && (t.locationId || '') === (id || ''));
-    here.filter(t => t.kind === 'hero').forEach(t => heroes.appendChild(renderToken(t)));
-    here.filter(t => t.kind === 'villain').forEach(t => villains && villains.appendChild(renderToken(t)));
-    here.filter(t => t.kind === 'minion' || t.kind === 'lieutenant').forEach(t => extras && extras.appendChild(renderToken(t, true)));
-    if (!heroes.children.length) heroes.innerHTML = '<div class="mvc-empty">—</div>';
-    if (villains && !villains.children.length) villains.innerHTML = '<div class="mvc-empty">—</div>';
+    // Side axis = Affiliation (Ally / Neutral / Enemy), not sheet kind.
+    const allies = sortAllyTokens(here.filter(t => tokenAffiliation(t) === 'Ally'));
+    const neutList = sortNeutralTokens(here.filter(t => tokenAffiliation(t) === 'Neutral'));
+    const enemies = sortEnemyTokens(here.filter(t => tokenAffiliation(t) === 'Enemy'));
+    allies.forEach(t => {
+      const small = t.kind === 'minion' || t.kind === 'lieutenant';
+      heroes.appendChild(renderToken(t, small));
+    });
+    neutList.forEach(t => {
+      const small = t.kind === 'minion' || t.kind === 'lieutenant';
+      if (neutrals) neutrals.appendChild(renderToken(t, small));
+    });
+    enemies.forEach(t => {
+      const small = t.kind === 'minion' || t.kind === 'lieutenant';
+      if (small) extras && extras.appendChild(renderToken(t, true));
+      else villains && villains.appendChild(renderToken(t));
+    });
   });
   const koEl = document.getElementById('mvcKo');
   const ko = state.scene.tokens.filter(t => t.ko);
@@ -2179,7 +2890,7 @@ function renderTokens() {
 
 function renderToken(t, small) {
   const card = document.createElement('div');
-  card.className = `token mvc-card ${t.kind}${small ? ' small' : ''}`;
+  card.className = `token mvc-card ${t.kind}${small ? ' small' : ''}${t.npc ? ' npc' : ''}`;
   card.draggable = true;
   card.addEventListener('dragstart', e => {
     if (e.target.closest('button, input, select, textarea, label, .board-ability')) { e.preventDefault(); return; }
@@ -2189,13 +2900,17 @@ function renderToken(t, small) {
   attachTouchDrag(card, t.id);
 
   const heroRow = t.kind === 'hero' ? (state.heroes.find(h => h.Slug === t.slug) || {}) : null;
+  if ((t.kind === 'minion' || t.kind === 'lieutenant') && !t.npc) {
+    t.npc = isNpcToken(t);
+  }
   let body = `${state.turnMarks && state.turnMarks[t.id] ? `<div class="turn-badge">${state.turnMarks[t.id]}</div>` : ''}
+    ${t.npc ? '<div class="npc-badge">NPC</div>' : ''}
     <div class="mvc-plate"><span>${escHtml(t.name)}</span>
       <div class="token-controls"><button type="button" title="Remove from scene" onclick="removeToken('${t.id}')">✕</button></div>
     </div>`;
   if (t.kind === 'hero' || t.kind === 'villain') body += renderHealthBlock(t, heroRow);
-  if (t.kind === 'minion' || t.kind === 'lieutenant') body += renderDieBlock(t);
-  body += bhdRowHtml(t, state.scene, true);
+  if ((t.kind === 'minion' || t.kind === 'lieutenant') && !isNonCombatNpc(t)) body += renderDieBlock(t);
+  if (tokenShowsBhd(t)) body += bhdRowHtml(t, state.scene, true);
   body += boardAbilityListHtml(t);
   body += boardBasicActionsHtml(t);
   card.innerHTML = body;
@@ -2220,16 +2935,9 @@ function renderHealthBlock(t, heroRow) {
     </div>`;
 }
 function renderDieBlock(t) {
-  if (t.ko) return `<div class="die-row"><span class="die-badge ko">KO</span><span class="die-row-label">Defeated</span></div>`;
-  const badge = `<button class="die-badge d${t.currentDie}" title="Roll" onclick="rollTokenDie('${t.id}')">d${t.currentDie}</button>`;
-  let label = t.kind === 'lieutenant' ? 'Lieutenant die (steps down)' : 'Minion die (defeated outright)';
-  if (t.kind === 'minion') {
-    const row = state.minions.find(m => m.Slug === t.slug) || {};
-    const ph = String(row.PerHero || '');
-    const shown = ph === '0.5' ? '½ Ⓗ' : ph === '2' ? '2 Ⓗ' : ph === '1' ? '1 Ⓗ' : '';
-    if (shown) label += ' · ' + shown;
-  }
-  return `<div class="die-row">${badge}<span class="die-row-label">${label}</span></div>`;
+  if (t.ko) return `<div class="die-row"><span class="die-badge ko">KO</span></div>`;
+  const badge = `<button class="die-badge d${t.currentDie}" title="Roll d${t.currentDie}" onclick="rollTokenDie('${t.id}')">d${t.currentDie}</button>`;
+  return `<div class="die-row">${badge}</div>`;
 }
 function renderStatusSlots(t) {
   const row = state.villains.find(v => v.Slug === t.slug) || {};
@@ -2255,22 +2963,80 @@ function spawnToken() {
   const slug = document.getElementById('spawnSelect').value;
   if (!slug) { toast('Pick a Library entry first.'); return; }
   if (!state.scene) { toast('Load a scene onto the Board first.'); return; }
-  const firstLoc = state.scene.locations[0]?.id || null;
+  const locId = selectedSpawnLocationId();
   let tok;
   if (type === 'hero') {
     const row = state.heroes.find(r => r.Slug === slug);
-    tok = { id: uid('tok'), kind: 'hero', slug, name: row.Name, locationId: firstLoc, currentHealth: Number(row.MaxHealth) || 20, maxHealth: Number(row.MaxHealth) || 20 };
+    tok = {
+      id: uid('tok'), kind: 'hero', slug, name: row.Name, locationId: locId,
+      currentHealth: Number(row.MaxHealth) || 20, maxHealth: Number(row.MaxHealth) || 20,
+      affiliation: String(row.Affiliation || 'Ally'),
+    };
   } else if (type === 'villain') {
     const row = state.villains.find(r => r.Slug === slug);
-    tok = { id: uid('tok'), kind: 'villain', slug, name: row.Name, locationId: firstLoc, currentHealth: Number(row.MaxHealth) || 20, maxHealth: Number(row.MaxHealth) || 20 };
+    tok = {
+      id: uid('tok'), kind: 'villain', slug, name: row.Name, locationId: locId,
+      currentHealth: Number(row.MaxHealth) || 20, maxHealth: Number(row.MaxHealth) || 20,
+      affiliation: String(row.Affiliation || 'Enemy'),
+    };
   } else {
-    const row = state.minions.find(r => r.Slug === slug);
-    const kind = row.Type === 'Lieutenant' ? 'lieutenant' : 'minion';
-    tok = { id: uid('tok'), kind, slug, name: row.Name, locationId: firstLoc, currentDie: Number((row.Die || 'd6').replace('d','')) || 6, ko: false };
+    const row = libMinion(slug);
+    if (!row) { toast('No Library entry found for this token.'); return; }
+    const fromNpcLib = type === 'npc' || !!(state.npcs || []).find(m => m.Slug === slug);
+    const kind = tokenKindFromMinionRow(row);
+    tok = {
+      id: uid('tok'), kind, slug, name: row.Name, locationId: locId,
+      currentDie: Number((row.Die || 'd6').replace('d','')) || 6, ko: false,
+      npc: fromNpcLib,
+      nonCombat: fromNpcLib && /^non[-\s]?combat$/i.test(String(row.Type || '')),
+      affiliation: String(row.Affiliation || (fromNpcLib ? 'Neutral' : 'Enemy')),
+    };
   }
   state.scene.tokens.push(tok);
   saveSceneDebounced();
   renderTokens();
+  // Keep Issue roster selection (do not reset spawnSelect).
+}
+
+function addAllPCsToScene() {
+  if (!state.scene) {
+    toast('Load a scene onto the Board first.');
+    return;
+  }
+  if (!state.heroes || state.heroes.length === 0) {
+    toast('No heroes found in library.');
+    return;
+  }
+
+  const locId = selectedSpawnLocationId();
+  let added = 0;
+
+  state.heroes.forEach(row => {
+    if (!row.Slug || !row.Name || !isActiveFlag(row.Active)) return;
+    // Avoid duplicates
+    if (state.scene.tokens.some(t => t.kind === 'hero' && t.slug === row.Slug)) return;
+
+    const tok = {
+      id: uid('tok'),
+      kind: 'hero',
+      slug: row.Slug,
+      name: row.Name,
+      locationId: locId,
+      currentHealth: Number(row.MaxHealth) || 20,
+      maxHealth: Number(row.MaxHealth) || 20,
+      affiliation: String(row.Affiliation || 'Ally'),
+    };
+    state.scene.tokens.push(tok);
+    added++;
+  });
+
+  if (added > 0) {
+    saveSceneDebounced();
+    renderTokens();
+    toast(`Added ${added} PC${added === 1 ? '' : 's'} to the location.`);
+  } else {
+    toast('All active PCs are already on the scene (or none active).');
+  }
 }
 
 /* ---- Challenges panel (live, on the Board) ---- */
@@ -2283,17 +3049,33 @@ function pathDisplayOutcome(p) {
   return marked >= need ? 'success' : '';
 }
 
+function challengeIsResolved(c) {
+  const paths = (c && c.paths) || [];
+  if (!paths.length) return false;
+  return paths.every(p => !!pathDisplayOutcome(p));
+}
 function renderChallengesPanel() {
   const el = document.getElementById('challengesPanel');
-  if (!el) return;
-  if (!state.scene.challenges.length) { el.innerHTML = '<p class="empty-hint">No challenges in this scene.</p>'; return; }
-  el.innerHTML = state.scene.challenges.map((c, idx) => `
-    <div class="challenge-board-card">
-      <div class="challenge-board-top">
-        <span class="challenge-board-title">${escHtml(c.title)}</span>
-        <span class="token-type-chip challenge-type-chip">${c.type}</span>
-      </div>
-      ${c.paths.map((p, pi) => {
+  if (!el || !state.scene) return;
+  ensureSceneChallenges(state.scene);
+  if (!state.scene.challenges.length) {
+    el.innerHTML = '<p class="empty-hint">No challenges in this scene. Add them under Library → Issues & Scenes → Edit (not here on the Board).</p>';
+    return;
+  }
+  el.innerHTML = state.scene.challenges.map((c, idx) => {
+    const resolved = challengeIsResolved(c);
+    const forceOpen = !!c._forceOpen;
+    const collapsed = resolved && !forceOpen;
+    const resolvedPaths = (c.paths || []).filter(p => pathDisplayOutcome(p));
+    const collapsedSummary = resolvedPaths.map(p => {
+      const outcome = pathDisplayOutcome(p);
+      const badge = outcome === 'fail'
+        ? '<span class="challenge-outcome fail">Fail</span>'
+        : '<span class="challenge-outcome success">Success</span>';
+      return `<span class="challenge-collapsed-summary">${escHtml(p.label || 'Path')} ${badge}</span>`;
+    }).join('');
+    const fullBody = `
+      ${(c.paths || []).map((p, pi) => {
           const outcome = pathDisplayOutcome(p);
           const badge = outcome === 'fail' ? '<span class="challenge-outcome fail">Fail</span>'
             : outcome === 'success' ? '<span class="challenge-outcome success">Success</span>' : '';
@@ -2315,8 +3097,24 @@ function renderChallengesPanel() {
             <span class="counter-value">${c.timerTurnsRemaining}</span>
           </span></div>` : ''}
       ${c.type === 'Doomsday Device' ? `<button class="btn btn-small btn-danger" onclick="advanceDoomsdayTurnLive(${idx})">Advance Device Turn</button>` : ''}
-      <label class="hidden-toggle"><input type="checkbox" ${c.hidden ? 'checked' : ''} onchange="toggleChallengeHiddenLive(${idx}, this.checked)"> Hidden from Player Display</label>
-    </div>`).join('');
+      <label class="hidden-toggle"><input type="checkbox" ${c.hidden ? 'checked' : ''} onchange="toggleChallengeHiddenLive(${idx}, this.checked)"> Hidden from Player Display</label>`;
+    return `
+    <div class="challenge-board-card${collapsed ? ' collapsed' : ''}">
+      <div class="challenge-board-top">
+        <span class="challenge-board-title">${escHtml(c.title)}</span>
+        <span class="token-type-chip challenge-type-chip">${c.type}</span>
+        ${resolved ? `<button type="button" class="btn btn-small btn-ghost" onclick="toggleChallengeForceOpen(${idx})">${forceOpen ? 'Collapse' : 'Expand'}</button>` : ''}
+      </div>
+      <div class="challenge-collapsed-body">${collapsedSummary || '<span class="empty-hint">Resolved</span>'}</div>
+      <div class="challenge-full-body">${fullBody}</div>
+    </div>`;
+  }).join('');
+}
+function toggleChallengeForceOpen(idx) {
+  const c = state.scene.challenges[idx];
+  if (!c) return;
+  c._forceOpen = !c._forceOpen;
+  renderChallengesPanel();
 }
 function bumpPathFieldLive(idx, pi, delta) {
   const c = state.scene.challenges[idx];
@@ -2590,7 +3388,7 @@ function resetLieutenantDice() {
   const lts = (state.scene.tokens || []).filter(t => t.kind === 'lieutenant');
   if (!lts.length) { toast('No lieutenants on the board.'); return; }
   lts.forEach(t => {
-    const row = state.minions.find(m => m.Slug === t.slug) || {};
+    const row = libMinion(t.slug) || {};
     t.currentDie = Number((row.Die || 'd8').replace('d', '')) || 8;
     t.ko = false;
     logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Reset', null, `${t.name} die reset to d${t.currentDie}`, {});
@@ -2607,11 +3405,15 @@ function switchView(view) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   document.getElementById('boardView').classList.toggle('hidden', view !== 'board');
   document.getElementById('libraryView').classList.toggle('hidden', view !== 'library');
-  document.getElementById('collectionsView').classList.toggle('hidden', view !== 'collections');
   document.getElementById('rulesView').classList.toggle('hidden', view !== 'rules');
   document.getElementById('builderView').classList.toggle('hidden', view !== 'builder');
   if (view === 'board') refreshBoardFromServer();
-  if (view === 'collections') { showCollectionsList(); }
+  if (view === 'library') {
+    // Return to list if an editor was left open from a prior visit
+    const list = document.getElementById('libraryListView');
+    if (list && list.classList.contains('hidden')) showCollectionsList();
+    else if (currentLibTab === 'issues-scenes') showCollectionsList();
+  }
   if (view === 'rules' && state.rulesList.length === 0) initRules();
 }
 
@@ -2652,13 +3454,19 @@ async function initRules() {
 const RULES_CHAPTERS = [];
 let rulesOpenChapter = null;
 
+function isIndexGlossaryRule(r) {
+  const blob = `${r.chapter || ''} ${r.slug || ''} ${r.title || ''}`;
+  return /index\s*[&/]\s*glossary/i.test(blob) || /^Ch\s*8\b/i.test(r.chapter || '') || /^Ch\s*8\b/i.test(r.slug || '');
+}
 function rulesChapterGroups() {
   const order = [];
   const map = new Map();
   (state.rulesList || []).forEach(r => {
-    const ch = r.chapter || r.slug.split('--')[0] || 'Other';
-    if (!map.has(ch)) { map.set(ch, []); order.push(ch); }
-    map.get(ch).push(r);
+    if (isIndexGlossaryRule(r)) return; // handled as a one-click doc, not a chapter folder
+    const raw = r.chapter || r.slug.split('--')[0] || 'Other';
+    if (/^Ch\s*[167]\b/i.test(raw)) return;
+    if (!map.has(raw)) { map.set(raw, []); order.push(raw); }
+    map.get(raw).push(r);
   });
   return order.map(title => ({ title, files: map.get(title) }));
 }
@@ -2689,8 +3497,13 @@ function renderRulesList(filter) {
       : '<p class="empty-hint" style="padding:10px;">No matches.</p>';
     return;
   }
+  const indexDocs = (state.rulesList || []).filter(isIndexGlossaryRule);
+  // One click opens the doc — no chapter expand, no nested file row.
+  const indexHtml = indexDocs.map(r =>
+    `<button class="rules-list-item rules-chapter" onclick="openRuleDoc('${escAttr(r.slug)}')">Index &amp; Glossary</button>`
+  ).join('');
   const chapters = rulesChapterGroups();
-  el.innerHTML = chapters.map((ch, i) => {
+  const chapterHtml = chapters.map((ch, i) => {
     const open = rulesOpenChapter === i;
     const body = open
       ? (ch.files.length
@@ -2699,6 +3512,7 @@ function renderRulesList(filter) {
       : '';
     return `<button class="rules-list-item rules-chapter" onclick="toggleRulesChapter(${i})">${escHtml(ch.title)}</button>${body}`;
   }).join('');
+  el.innerHTML = chapterHtml + indexHtml;
 }
 function toggleRulesChapter(i) {
   rulesOpenChapter = rulesOpenChapter === i ? null : i;
@@ -2756,17 +3570,31 @@ function inlineMd(s) {
 function switchLibTab(kind) {
   currentLibTab = kind;
   document.querySelectorAll('.lib-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.lib === kind));
-  ['heroes','villains','minions','environments','twists','abilities'].forEach(k => {
+  ['heroes','villains','minions','npcs','environments','issues-scenes','twists','abilities'].forEach(k => {
     const panel = document.getElementById(k + 'Panel');
     if (panel) panel.classList.toggle('hidden', k !== kind);
   });
-  document.getElementById('villainRefBtn').classList.toggle('hidden', kind !== 'villains');
+  const vr = document.getElementById('villainRefBtn');
+  if (vr) vr.classList.add('hidden');
+  const isIS = kind === 'issues-scenes';
+  const collFilt = document.getElementById('libCollectionFilter');
+  if (collFilt) collFilt.classList.toggle('hidden', !isIS);
   const issueFilt = document.getElementById('libIssueFilter');
-  if (issueFilt) issueFilt.classList.toggle('hidden', kind === 'twists');
+  if (issueFilt) {
+    // Issue filter: entity-issue assign tabs + Issues & Scenes hierarchy filter
+    const hideIssue = kind === 'twists';
+    issueFilt.classList.toggle('hidden', hideIssue);
+  }
+  const activeFilt = document.getElementById('libActiveFilter');
+  if (activeFilt) activeFilt.classList.toggle('hidden', kind === 'twists' || kind === 'abilities');
   const sevFilt = document.getElementById('twistSeverityFilter');
   const effFilt = document.getElementById('twistEffectFilter');
   if (sevFilt) sevFilt.classList.toggle('hidden', kind !== 'twists');
   if (effFilt) effFilt.classList.toggle('hidden', kind !== 'twists');
+  if (isIS) {
+    fillLibCollectionFilter();
+    fillLibIssueFilter();
+  }
   renderLibraryTable(kind);
 }
 
@@ -2870,6 +3698,13 @@ let twistFilterSeverity = 'All';
 
 function openTwistPicker(tokenId) {
   const t = findTok(tokenId);
+  if (!t) return;
+  if (t.kind === 'villain') {
+    document.getElementById('twistPickerTitle').textContent = 'Villain Twists — ' + t.name;
+    document.getElementById('twistPickerBody').innerHTML = VILLAIN_TWIST_HELP;
+    document.getElementById('twistPickerModal').classList.remove('hidden');
+    return;
+  }
   const hero = state.heroes.find(h => h.Slug === t.slug);
   document.getElementById('twistPickerTitle').textContent = 'Twists — ' + t.name;
   twistFilterSeverity = 'All';
@@ -2979,7 +3814,11 @@ function openDiceRoller(tokenId) {
     statusLabel = status.source;
   }
 
-  const abilities = t.kind === 'hero' ? sortHeroAbilitiesGyroAlpha(state.abilities.filter(a => a.HeroSlug === t.slug)) : [];
+  const abilities = t.kind === 'hero'
+    ? sortHeroAbilitiesGyroAlpha(state.abilities.filter(a => abilityOwnerSlug(a) === t.slug))
+    : (t.kind === 'villain'
+      ? (state.abilities || []).filter(a => abilityOwnerSlug(a) === t.slug && !['Upgrade','Mastery'].includes((a.Zone||'').trim()))
+      : []);
   rollerState = { tokenId, kind: t.kind, libRow, powers, qualities, pIdx: 0, qIdx: 0, statusDie, statusLabel, lastRoll: null, abilities, abilityIdx: '', pendingEffectKey: 'mid' };
   document.getElementById('diceRollerTitle').textContent = 'Dice Pool — ' + t.name;
   renderDiceRollerBody();
@@ -2995,7 +3834,7 @@ function renderDiceRollerBody() {
     return;
   }
   let html = '';
-  if (rs.kind === 'hero' && rs.abilities.length) {
+  if ((rs.kind === 'hero' || rs.kind === 'villain') && rs.abilities.length) {
     const selected = rs.abilityIdx === '' ? null : rs.abilities[Number(rs.abilityIdx)];
     html += `
     <label class="field-label" style="margin-top:0;">Ability (optional — fully resolves the ability)</label>
@@ -3161,7 +4000,7 @@ async function apiGetCollection(slug) { const r = await fetch(`/api/collections/
 async function apiSaveCollection(slug, coll) { await fetch(`/api/collections/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(coll, null, 2) }); }
 async function apiDeleteCollection(slug) { await fetch(`/api/collections/${encodeURIComponent(slug)}`, { method: 'DELETE' }); }
 
-function blankIssue(name) { return { name: name || 'New Issue', sceneSlugs: [], villainSlugs: [], heroSlugs: [], minionSlugs: [], notes: '' }; }
+function blankIssue(name) { return { name: name || 'New Issue', sceneSlugs: [], villainSlugs: [], heroSlugs: [], minionSlugs: [], notes: '', active: true }; }
 
 async function refreshIssuesList() { state.issuesList = await apiListIssues(); }
 async function refreshCollectionsList() { state.collectionsList = await apiListCollections(); }
@@ -3185,7 +4024,8 @@ async function deleteCollection(slug) {
   if (!confirm('Delete this collection? Issues inside it are not deleted.')) return;
   await apiDeleteCollection(slug);
   await refreshCollectionsList();
-  renderCurrentCollPanel();
+  fillLibCollectionFilter();
+  if (currentLibTab === 'issues-scenes') renderIssuesScenesTable();
 }
 async function renameCollection(slug, name) {
   const coll = (state.collectionsList || []).find(c => c.slug === slug);
@@ -3197,8 +4037,9 @@ async function editCollection(slug) {
   state.editingCollectionSlug = slug;
   state.collection = await apiGetCollection(slug);
   if (!state.collection) state.collection = blankCollection(slug);
-  state.collection.issueSlugs = state.collection.issueSlugs || [];
-  document.getElementById('collectionsListView').classList.add('hidden');
+  const nameOf = (s) => (state.issuesList.find(x => x.slug === s) || {}).name || s;
+  state.collection.issueSlugs = (state.collection.issueSlugs || []).slice().sort((a, b) => naturalNameSort(nameOf(a), nameOf(b)));
+  document.getElementById('libraryListView').classList.add('hidden');
   document.getElementById('issueEditorView').classList.add('hidden');
   document.getElementById('sceneEditorView').classList.add('hidden');
   document.getElementById('collectionEditorView').classList.remove('hidden');
@@ -3216,10 +4057,13 @@ const saveCollectionDebounced = debounce(async () => {
 function renderCollectionEditor() {
   const coll = state.collection;
   const el = document.getElementById('collectionEditorView');
-  const attachedNames = (coll.issueSlugs || []).map(s => (state.issuesList.find(x => x.slug === s) || {}).name || s);
+  const nameOf = (s) => (state.issuesList.find(x => x.slug === s) || {}).name || s;
+  const attachedNames = (coll.issueSlugs || []).map(nameOf);
+  const taken = new Set((state.collectionsList || []).flatMap(c => c.issueSlugs || []));
+  const addable = state.issuesList.filter(i => !taken.has(i.slug)).sort((a, b) => naturalNameSort(a.name, b.name));
   el.innerHTML = `
     <div class="scene-editor-header">
-      <button class="btn btn-ghost" onclick="backToCollectionsList()">&larr; Back to Collections</button>
+      <button class="btn btn-ghost" onclick="backToCollectionsList()">&larr; Back to Issues &amp; Scenes</button>
       <span id="collectionSaveStatus" class="save-status"></span>
     </div>
     <label class="field-label">Collection Name</label>
@@ -3237,9 +4081,13 @@ function renderCollectionEditor() {
     </div>
     <select id="collectionIssueAdd">
       <option value="">Add an Issue…</option>
-      ${state.issuesList.filter(i => !(coll.issueSlugs || []).includes(i.slug)).map(i => `<option value="${i.slug}">${escHtml(i.name)}</option>`).join('')}
+      ${addable.map(i => `<option value="${i.slug}">${escHtml(i.name)}</option>`).join('')}
     </select>
     <button class="btn btn-small btn-accent" onclick="addCollectionIssue()">Add</button>
+
+    <div class="editor-footer-actions">
+      <button type="button" class="btn btn-danger" onclick="deleteCollectionFromEditor()">Delete Collection</button>
+    </div>
   `;
 }
 function updateCollectionField(field, value) { state.collection[field] = value; saveCollectionDebounced(); }
@@ -3248,6 +4096,8 @@ function addCollectionIssue() {
   if (!sel.value) return;
   state.collection.issueSlugs = state.collection.issueSlugs || [];
   state.collection.issueSlugs.push(sel.value);
+  const nameOf = (s) => (state.issuesList.find(x => x.slug === s) || {}).name || s;
+  state.collection.issueSlugs.sort((a, b) => naturalNameSort(nameOf(a), nameOf(b)));
   saveCollectionDebounced(); renderCollectionEditor();
 }
 function removeCollectionIssue(i) {
@@ -3276,7 +4126,7 @@ async function toggleIssueScene(issueSlug, sceneSlug, on) {
   iss.sceneSlugs = [...set];
   await apiSaveIssue(issueSlug, iss);
   await refreshIssuesList();
-  renderCurrentCollPanel();
+  if (currentLibTab === 'issues-scenes') renderIssuesScenesTable();
 }
 async function renameScene(slug, name) {
   const sc = await apiGetScene(slug);
@@ -3284,7 +4134,7 @@ async function renameScene(slug, name) {
   sc.name = name;
   await apiSaveScene(slug, sc);
   await refreshScenesList();
-  renderCurrentCollPanel();
+  if (currentLibTab === 'issues-scenes') renderIssuesScenesTable();
 }
 
 async function newIssue(openEditor) {
@@ -3294,8 +4144,9 @@ async function newIssue(openEditor) {
   await apiSaveIssue(slug, blankIssue(name));
   await refreshIssuesList();
   fillLibIssueFilter();
-  if (openEditor === false) renderCurrentCollPanel();
-  else editIssue(slug);
+  if (openEditor === false) {
+    if (currentLibTab === 'issues-scenes') renderIssuesScenesTable();
+  } else editIssue(slug);
 }
 function uniqueIssueSlug(base) {
   let candidate = base, n = 1;
@@ -3305,12 +4156,15 @@ function uniqueIssueSlug(base) {
 }
 async function deleteIssue(slug) {
   if (!confirm('Delete this issue? This cannot be undone.')) return;
-  await apiDeleteIssue(slug); await refreshIssuesList(); renderIssuesList();
+  await apiDeleteIssue(slug);
+  await refreshIssuesList();
+  fillLibIssueFilter();
+  renderIssuesList();
 }
 async function editIssue(slug) {
   state.editingIssueSlug = slug;
   state.issue = await apiGetIssue(slug);
-  document.getElementById('collectionsListView').classList.add('hidden');
+  document.getElementById('libraryListView').classList.add('hidden');
   document.getElementById('collectionEditorView').classList.add('hidden');
   document.getElementById('sceneEditorView').classList.add('hidden');
   document.getElementById('issueEditorView').classList.remove('hidden');
@@ -3333,7 +4187,7 @@ function renderIssueEditor() {
   const attachedNames = iss.sceneSlugs.map(s => (state.scenesList.find(x => x.slug === s) || {}).name || s);
   el.innerHTML = `
     <div class="scene-editor-header">
-      <button class="btn btn-ghost" onclick="backToIssuesList()">&larr; Back to Collections</button>
+      <button class="btn btn-ghost" onclick="backToIssuesList()">&larr; Back to Issues &amp; Scenes</button>
       <span id="issueSaveStatus" class="save-status"></span>
     </div>
     <label class="field-label">Issue Name</label>
@@ -3357,6 +4211,10 @@ function renderIssueEditor() {
 
     <label class="field-label">Notes <span class="gm-only-badge" style="background:var(--accent);">Social/Montage beats, prep notes, connecting narration</span></label>
     <textarea class="gm-notes-textarea" onchange="updateIssueField('notes', this.value)">${escHtml(iss.notes)}</textarea>
+
+    <div class="editor-footer-actions">
+      <button type="button" class="btn btn-danger" onclick="deleteIssueFromEditor()">Delete Issue</button>
+    </div>
   `;
 }
 function updateIssueField(field, value) { state.issue[field] = value; saveIssueDebounced(); }
@@ -3378,11 +4236,16 @@ function moveIssueScene(i, delta) {
 async function init() {
   document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
   document.querySelectorAll('.lib-tab-btn').forEach(b => b.addEventListener('click', () => switchLibTab(b.dataset.lib)));
-  document.querySelectorAll('.coll-tab-btn').forEach(b => b.addEventListener('click', () => switchCollTab(b.dataset.coll)));
   document.getElementById('addRowBtn').addEventListener('click', () => addRow(currentLibTab));
-  document.getElementById('collAddRowBtn').addEventListener('click', collAddRow);
   const libFilt = document.getElementById('libIssueFilter');
   if (libFilt) libFilt.addEventListener('change', () => renderLibraryTable(currentLibTab));
+  const libCollFilt = document.getElementById('libCollectionFilter');
+  if (libCollFilt) libCollFilt.addEventListener('change', () => {
+    fillLibIssueFilter();
+    renderLibraryTable(currentLibTab);
+  });
+  const libActive = document.getElementById('libActiveFilter');
+  if (libActive) libActive.addEventListener('change', () => renderLibraryTable(currentLibTab));
   const twistSev = document.getElementById('twistSeverityFilter');
   const twistEff = document.getElementById('twistEffectFilter');
   if (twistEff) {
@@ -3391,13 +4254,10 @@ async function init() {
   }
   if (twistSev) twistSev.addEventListener('change', () => renderLibraryTable('twists'));
   if (twistEff) twistEff.addEventListener('change', () => renderLibraryTable('twists'));
-  const collFilt = document.getElementById('collIssueFilter');
-  if (collFilt) collFilt.addEventListener('change', () => {
-    if (currentCollTab === 'locations') renderLibraryTable('locations');
-    else if (currentCollTab === 'scenes') renderScenesTable();
-  });
   document.getElementById('spawnType').addEventListener('change', refreshSpawnOptions);
   document.getElementById('spawnBtn').addEventListener('click', spawnToken);
+  const addAllBtn = document.getElementById('addAllPCsBtn');
+  if (addAllBtn) addAllBtn.addEventListener('click', addAllPCsToScene);
   document.getElementById('clearSceneBtn').addEventListener('click', () => {
     if (!state.scene || !confirm('Clear all tokens from the current scene?')) return;
     state.scene.tokens = [];
@@ -3411,7 +4271,8 @@ async function init() {
   document.getElementById('notesModalSave').addEventListener('click', saveNotes);
   document.getElementById('attackModalClose').addEventListener('click', closeAttack);
   document.getElementById('modModalClose').addEventListener('click', closeModCreate);
-  document.getElementById('villainRefBtn').addEventListener('click', openReferenceModal);
+  const vrBtn = document.getElementById('villainRefBtn');
+  if (vrBtn) vrBtn.addEventListener('click', openReferenceModal);
   document.getElementById('referenceModalClose').addEventListener('click', closeReferenceModal);
   document.getElementById('healthCalcClose').addEventListener('click', closeHealthCalc);
   document.getElementById('twistPickerClose').addEventListener('click', closeTwistPicker);
@@ -3426,8 +4287,8 @@ async function init() {
   await refreshScenesList();
   await refreshIssuesList();
   await refreshCollectionsList();
+  fillLibCollectionFilter();
   fillLibIssueFilter();
-  renderCurrentCollPanel();
   renderLibraryTable(currentLibTab);
   refreshSpawnOptions();
 

@@ -55,7 +55,7 @@ As long as you have no nearby allies in the scene, increase all damage you deal 
 ## Upgrades
 
 ### [I] [None] "Power Upgrade"
-Increase all power dice by one size. If any power would increase above d12
+Increase all power dice by one size. If any power would increase above d12, instead add another ability from the villain's archetype.
 
 ## Mastery
 

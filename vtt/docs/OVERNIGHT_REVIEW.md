@@ -180,13 +180,13 @@ after use); live `campaign/` untouched this cycle — every fix below lives in `
    constant; the note was just never updated. Fixed to point at both.
    - **Also made real progress on a previously-flagged, genuinely open rules discrepancy** (Time-Slinger's
      Health worked-example used Self-Discipline at d10, contradicting Personality.md's d8): confirmed
-     via `Volume1/heroes.csv`'s real published data that Self-Discipline **is** d8, not d10 — that part
+     via `Volume1/players.csv`'s real published data that Self-Discipline **is** d8, not d10 — that part
      of the discrepancy is now resolved. But corrected arithmetic (8+8+8+4=28) still doesn't match his
      recorded MaxHealth of 30, and every one of his stats is uniformly d8 (no hidden d10 anywhere), so
      a 2-point gap remains. Documented precisely what's now confirmed vs. still open, rather than
      overclaiming a full resolution — still needs a physical-book page check (pg.112-113) to fully close.
 3. **Retcon mechanic (Constructed Method) tested end-to-end** — swap-two-power-dice option, on a real
-   hero (Handyman): picked two real powers, saved, confirmed the swap landed correctly in heroes.csv
+   hero (Handyman): picked two real powers, saved, confirmed the swap landed correctly in players.csv
    (Signature Weaponry d10↔d8 Deduction).
 4. **Villain Upgrade/Mastery hide-on-multi-villain-or-Moderate rule re-verified against a second
    villain** (Baron Blade) in both the Read modal and the board's live ability list — correct in both
@@ -294,7 +294,7 @@ stack of problems, each hiding the next:
   is only ever used as a generic, severity-filtered reference library for the unrelated Hero
   Twist-Picker. Not a bug, just two same-named concepts — confirmed by reading the actual code path,
   not assumed.
-- **Dangling reference resilience**: deleted a hero (Lumen) from `heroes.csv` while a scene still had
+- **Dangling reference resilience**: deleted a hero (Lumen) from `players.csv` while a scene still had
   her token. Board rendered without crashing. Both `openAbilities()` and `openDiceRoller()` on the
   orphaned token degrade gracefully with the same clear toast ("No Library entry found for this
   token.") — consistent, GM-legible behavior, not a silent failure.
@@ -306,8 +306,8 @@ stack of problems, each hiding the next:
 
 ### Found and fixed
 - **`campaign/abilities.csv` has ~12 official Volume1 heroes' worth of orphaned ability rows** with no
-  matching `campaign/heroes.csv` entry (confirmed via set-difference: every non-real-campaign slug in
-  `abilities.csv`'s HeroSlug column has zero matching row in `heroes.csv`). Harmless — never surfaces
+  matching `campaign/players.csv` entry (confirmed via set-difference: every non-real-campaign slug in
+  `abilities.csv`'s HeroSlug column has zero matching row in `players.csv`). Harmless — never surfaces
   anywhere since nothing ever spawns a token for those slugs — likely leftover from an early
   data-seeding pass that copied Volume1's abilities wholesale. **Not deleted** — flagging for the user
   to clean up themselves rather than unilaterally trimming campaign data that wasn't obviously mine
@@ -365,7 +365,7 @@ should there be a shared entry point across builders?) rather than an urgent lat
      roll (−1) — impossible under any die. Checked the other two Red-d12 heroes (Aeon Girl, Muse) to
      rule out a systemic issue — both produce clean, sensible positive remainders (7 and 1), so this
      is isolated to Tachyon specifically, not a formula problem. Likely either a MaxHealth
-     transcription slip in `Volume1/heroes.csv` or a genuine book erratum — needs an actual page check
+     transcription slip in `Volume1/players.csv` or a genuine book erratum — needs an actual page check
      for just this one hero. Left as a small, standalone open item rather than guessed at.
 2. Cross-checked `retcon.csv` and `steps.csv` (previously-unchecked builder catalog files) against
    `03-8`'s Retcon options list and the app's own step descriptions — exact match, no issues.
@@ -537,7 +537,7 @@ Notion "Abilities" master database (616 rows, Green/Yellow/Red/Villain zones) an
 rulebook PDF directly via `pdftotext`. **My interpretation of "present in the Library," stated plainly
 so it can be corrected:** these seven CSVs are app-level template/reference data (same across every
 campaign), not the live board-facing per-character Library tables (`campaign/abilities.csv`,
-`campaign/heroes.csv`/`villains.csv` MD files) — those were already in scope for Cycles 0-4 and were
+`campaign/players.csv`/`villains.csv` MD files) — those were already in scope for Cycles 0-4 and were
 not touched again here except by reading them for context. `campaign/*` and all of `Volume1/` were not
 edited, per the task's explicit "never touch" list.
 
@@ -625,7 +625,7 @@ edited, per the task's explicit "never touch" list.
    no parsing of its own). **Then exercised the real save endpoints directly:**
    - `POST /api/builder/hero` with one newly-added Power Source ability (Techno-Absorb), the newly-added
      Archetype ability (Armored), and one fixed Red ability (Major Regeneration) — verified by reading
-     back the resulting scratch `heroes.csv`, `abilities.csv`, and `md/heroes/<slug>.md`: all three
+     back the resulting scratch `players.csv`, `abilities.csv`, and `md/heroes/<slug>.md`: all three
      landed correctly, including the `### [Type] "Name"` MD card format the Read-modal parser expects.
    - `POST /api/builder/villain` with one Approach ability (Mastermind's newly-added "Contingencies upon
      Contingencies"), one Archetype ability (Domain's renamed "Power Heeds My Call in All Forms"), one
