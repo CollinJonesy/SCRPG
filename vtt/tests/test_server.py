@@ -738,7 +738,7 @@ class TestActiveFlagAndMinionNotes(ServerTestCase):
 
     def test_npc_non_combat_and_hero_types_save(self):
         non = json.dumps({
-            'name': 'Shopkeep', 'type': 'Non-Combat', 'die': 'd8',
+            'name': 'Shopkeep', 'type': 'Bystander', 'die': 'd8',
             'npc': True, 'active': True, 'affiliation': 'Neutral',
         })
         hero = json.dumps({
@@ -751,7 +751,7 @@ class TestActiveFlagAndMinionNotes(ServerTestCase):
                                      headers={'Content-Type': 'application/json'})[0], 200)
         with (self.campaign / 'npcs.csv').open(encoding='utf-8') as fh:
             rows = {r['Slug']: r for r in csv.DictReader(fh)}
-        self.assertEqual(rows['shopkeep']['Type'], 'Non-Combat')
+        self.assertEqual(rows['shopkeep']['Type'], 'Bystander')
         self.assertEqual(rows['shopkeep'].get('Die') or '', '')
         self.assertEqual(rows['ally-cape']['Type'], 'Hero')
         self.assertEqual(rows['ally-cape']['Die'], 'd10')

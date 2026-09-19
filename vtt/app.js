@@ -208,7 +208,7 @@ function isPcHeroTokenGm(t) {
   return !!(state.heroes || []).find(h => h.Slug === t.slug);
 }
 function tokenTypeSortRank(t) {
-  // Hero, Villain, Lieutenant, Minion, Non-Combat
+  // Hero, Villain, Lieutenant, Minion, Bystander
   if (isNonCombatNpc(t)) return 4;
   if (t.kind === 'hero' || npcTypeOf(t) === 'Hero') return 0;
   if (t.kind === 'villain') return 1;
@@ -228,14 +228,14 @@ function sortNeutralTokens(tokens) {
     .sort((a, b) => tokenTypeSortRank(a) - tokenTypeSortRank(b) || byTokenName(a, b));
 }
 function tokenShowsBhd(t) {
-  // NPCs never get Boost/Hinder/Defend boxes; Non-Combat has no combat chrome at all.
+  // NPCs never get Boost/Hinder/Defend boxes; Bystander has no combat chrome at all.
   if (isNpcToken(t) || isNonCombatNpc(t)) return false;
   return true;
 }
 function tokenKindFromMinionRow(row) {
   const ty = String((row && row.Type) || '').trim();
   if (ty === 'Lieutenant') return 'lieutenant';
-  // Hero / Non-Combat / Minion (and unknown) use the minion token shell on the board.
+  // Hero / Bystander / Minion (and unknown) use the minion token shell on the board.
   return 'minion';
 }
 function isActiveFlag(v) {
@@ -252,7 +252,7 @@ function villainMaxHealthOf(t) {
   return Number(row.MaxHealth) || Number(t.maxHealth) || 0;
 }
 function sortEnemyTokens(tokens) {
-  // Non-Combat always last. Others by Type rank then name (Affiliation already filtered).
+  // Bystander always last. Others by Type rank then name (Affiliation already filtered).
   const combat = (tokens || []).filter(t => !isNonCombatNpc(t));
   const nonCombat = (tokens || []).filter(t => isNonCombatNpc(t)).sort(byTokenName);
   const heroes = combat.filter(t => t.kind === 'hero' || npcTypeOf(t) === 'Hero')
@@ -822,10 +822,10 @@ function renderLibraryTable(kind) {
       html += tdCheckbox(dataKind, idx, 'Active', row.Active === '' || row.Active == null ? 'true' : row.Active);
       html += tdAffiliation(dataKind, idx, row.Affiliation);
       if (dataKind === 'npcs') {
-        const ty = row.Type || 'Non-Combat';
+        const ty = row.Type || 'Bystander';
         html += `<td><select onchange="onCellChange('${dataKind}',${idx},'Type',this.value)">
           <option value="Hero" ${ty === 'Hero' ? 'selected' : ''}>Hero</option>
-          <option value="Non-Combat" ${ty === 'Non-Combat' ? 'selected' : ''}>Non-Combat</option>
+          <option value="Bystander" ${ty === 'Bystander' ? 'selected' : ''}>Bystander</option>
           <option value="Minion" ${ty === 'Minion' ? 'selected' : ''}>Minion</option>
           <option value="Lieutenant" ${ty === 'Lieutenant' ? 'selected' : ''}>Lieutenant</option>
         </select></td>`;
@@ -971,7 +971,7 @@ function addRow(kind) {
   row.Slug = uniqueLibSlug(dataKind, 'new-entry', null);
   if (dataKind === 'heroes' || dataKind === 'villains' || dataKind === 'minions' || dataKind === 'npcs' || dataKind === 'environments') row.Active = 'true';
   if (dataKind === 'minions') row.Type = 'Minion';
-  if (dataKind === 'npcs') row.Type = 'Non-Combat';
+  if (dataKind === 'npcs') row.Type = 'Bystander';
   row.Origin = 'custom';
   if (dataKind === 'heroes' || dataKind === 'villains' || dataKind === 'minions' || dataKind === 'npcs') {
     row.Affiliation = defaultAffiliation(dataKind);
@@ -1278,7 +1278,7 @@ function boardTwistsBtn(t) {
   return `<button type="button" class="btn btn-small btn-ghost" onclick="openTwistPicker('${t.id}')">Twists</button>`;
 }
 function boardBasicActionsHtml(t) {
-  // Non-Combat NPCs: no Attack / Overcome / BHD chrome.
+  // Bystander NPCs: no Attack / Overcome / BHD chrome.
   if (isNonCombatNpc(t)) return '';
   // Other NPCs: Hero type gets full basic hero actions; minion/lt-shaped NPCs Attack only.
   if (isNpcToken(t)) {
@@ -2904,7 +2904,6 @@ function renderToken(t, small) {
     t.npc = isNpcToken(t);
   }
   let body = `${state.turnMarks && state.turnMarks[t.id] ? `<div class="turn-badge">${state.turnMarks[t.id]}</div>` : ''}
-    ${t.npc ? '<div class="npc-badge">NPC</div>' : ''}
     <div class="mvc-plate"><span>${escHtml(t.name)}</span>
       <div class="token-controls"><button type="button" title="Remove from scene" onclick="removeToken('${t.id}')">✕</button></div>
     </div>`;

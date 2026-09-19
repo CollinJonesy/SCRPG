@@ -64,7 +64,7 @@ function locName(scene, locId) {
   return loc ? loc.name : '';
 }
 function bhdRowHtml(t, scene) {
-  // Match GM board: NPCs (especially Non-Combat) have no Boost/Hinder/Defend boxes.
+  // Match GM board: NPCs (especially Bystander) have no Boost/Hinder/Defend boxes.
   if (t && t.npc) return '';
   const n = bhdTotals(scene, t);
   return `<div class="bhd-row">
@@ -569,7 +569,7 @@ function villainMaxHealth(t) {
   return Number(row.MaxHealth) || Number(t.maxHealth) || 0;
 }
 function sortEnemyTokens(tokens) {
-  // Non-Combat last. Others by Type then name (list already affiliation-filtered).
+  // Bystander last. Others by Type then name (list already affiliation-filtered).
   const combat = (tokens || []).filter(t => !isNonCombatToken(t));
   const nonCombat = (tokens || []).filter(t => isNonCombatToken(t)).sort(byName);
   const ranked = combat.slice().sort((a, b) => tokenTypeSortRank(a) - tokenTypeSortRank(b) || byName(a, b));

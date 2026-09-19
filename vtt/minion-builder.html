@@ -83,7 +83,7 @@
         <label><input type="checkbox" class="perhero" value="2" onchange="setPerHero('2')"> 2 Ⓗ</label>
       </div>
     </div>
-    <div id="combatChromeNote" class="muted hidden">Non-Combat NPCs have no Boost, Hinder, Defend, Attack, or Overcome boxes on the board.</div>
+    <div id="combatChromeNote" class="muted hidden">Bystander NPCs have no Boost, Hinder, Defend, Attack, or Overcome boxes on the board.</div>
     <label>Faction</label><input id="faction" placeholder="Aliens, Citizens, etc.">
     <label>Description</label><textarea id="description"></textarea>
     <label>Abilities</label>
@@ -187,7 +187,7 @@ async function loadAppears(){
 function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }
 function onTypeChange(){
   const type=document.getElementById('type').value;
-  const nonCombat=type==='Non-Combat';
+  const nonCombat=type==='Bystander';
   const isLt=type==='Lieutenant';
   const isHero=type==='Hero';
   const dice=isLt?LT_DICE:MINION_DICE;
@@ -303,7 +303,7 @@ async function editRow(slug){
   const aff=document.getElementById('rowAffiliation'); if(aff) aff.value=(['Ally','Enemy','Neutral'].includes(r.Affiliation)?r.Affiliation:(NPC_MODE?'Neutral':'Enemy'));
   const npcEl=document.getElementById('rowNpc'); if(npcEl) npcEl.checked=NPC_MODE || isNpcFlag(r.NPC);
   document.getElementById('slug').value=slug;
-  document.getElementById('type').value=r.Type||(NPC_MODE?'Non-Combat':'Minion');
+  document.getElementById('type').value=r.Type||(NPC_MODE?'Bystander':'Minion');
   document.getElementById('faction').value=r.Faction||'';
   const md=r.md||await fetch('/api/md/minions/'+encodeURIComponent(slug)).then(x=>x.ok?x.text():'');
   let desc='', tac='', abs=[];
@@ -327,8 +327,8 @@ async function editRow(slug){
   document.getElementById('collPick').value=home?home.slug:'';
   onTypeChange();
   const ty=document.getElementById('type').value;
-  if (ty!=='Non-Combat') document.getElementById('die').value=(r.Die||'d8');
-  setPerHero((ty==='Lieutenant'||ty==='Hero'||ty==='Non-Combat')?'':(r.PerHero||'1'));
+  if (ty!=='Bystander') document.getElementById('die').value=(r.Die||'d8');
+  setPerHero((ty==='Lieutenant'||ty==='Hero'||ty==='Bystander')?'':(r.PerHero||'1'));
   fillAppearsBox();
   showForm();
 }
@@ -341,8 +341,8 @@ async function saveRow(){
   const faction=document.getElementById('faction').value.trim();
   const description=document.getElementById('description').value.trim();
   const tactics=document.getElementById('tactics').value.trim();
-  const perHero=(type==='Lieutenant'||type==='Hero'||type==='Non-Combat')?'':(currentPerHero()||'1');
-  const dieVal=type==='Non-Combat'?'':die;
+  const perHero=(type==='Lieutenant'||type==='Hero'||type==='Bystander')?'':(currentPerHero()||'1');
+  const dieVal=type==='Bystander'?'':die;
   const res=await fetch('/api/builder/minion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,slug,type,die:dieVal,faction,description,tactics,perHero,abilities,active:document.getElementById('rowActive')?document.getElementById('rowActive').checked:true,origin:(landMeta.find(x=>x.Slug===slug)||{}).origin||'custom',npc:NPC_MODE || !!(document.getElementById('rowNpc')&&document.getElementById('rowNpc').checked),affiliation:(document.getElementById('rowAffiliation')||{}).value||(NPC_MODE?'Neutral':'Enemy')})});
   const j=await res.json().catch(()=>({}));
   if(!res.ok){ document.getElementById('msg').textContent=j.error||'Save failed'; return; }
@@ -364,12 +364,12 @@ async function saveRow(){
 if (NPC_MODE){
   document.title='SCRPG NPC Builder';
   const h=document.getElementById('builderTitle'); if(h) h.textContent='NPC Builder';
-  const b=document.getElementById('builderBlurb'); if(b) b.textContent='Build Heroes or Non-Combat NPCs (also Minion/Lieutenant). Non-Combat has no Boost/Hinder/Defend/Attack/Overcome on the board.';
+  const b=document.getElementById('builderBlurb'); if(b) b.textContent='Build Heroes or Bystander NPCs (also Minion/Lieutenant). Bystander has no Boost/Hinder/Defend/Attack/Overcome on the board.';
   const w=document.getElementById('npcFlagWrap'); if(w) w.classList.remove('hidden');
   const npcEl=document.getElementById('rowNpc'); if(npcEl) npcEl.checked=true;
   const typeEl=document.getElementById('type');
   if (typeEl){
-    typeEl.innerHTML='<option>Hero</option><option>Non-Combat</option><option>Minion</option><option>Lieutenant</option>';
+    typeEl.innerHTML='<option>Hero</option><option>Bystander</option><option>Minion</option><option>Lieutenant</option>';
   }
 }
 loadLanding();

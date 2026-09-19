@@ -1,6 +1,6 @@
 Slug,Name,Type,Die,Faction,PerHero,Active,Origin,Affiliation
-bank-teller-2,Bank Teller,Non-Combat,,,,true,custom,Neutral
+bank-teller-2,Bank Teller,Bystander,,,,true,custom,Neutral
 diesel,Diesel,Lieutenant,d12,EMP,,true,custom,Ally
-marguerite,Marguerite,Non-Combat,d4,,,true,custom,Ally
-mr-chan,Mr. Chan,Non-Combat,d4,,,true,custom,Ally
-super-fan,Super Fan,Non-Combat,d4,,,true,custom,Neutral
+marguerite,Marguerite,Bystander,d4,,,true,custom,Ally
+mr-chan,Mr. Chan,Bystander,d4,,,true,custom,Ally
+super-fan,Super Fan,Bystander,d4,,,true,custom,Neutral

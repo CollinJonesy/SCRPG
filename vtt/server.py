@@ -775,7 +775,7 @@ def save_built_minion(campaign: Path, payload: dict) -> dict:
     row['Name'] = name
     kind = payload.get('type') or row.get('Type') or 'Minion'
     row['Type'] = kind
-    if kind == 'Non-Combat':
+    if kind == 'Bystander':
         row['Die'] = ''
         row['PerHero'] = ''
     else:

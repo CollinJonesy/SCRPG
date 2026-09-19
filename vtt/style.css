@@ -267,11 +267,7 @@ table.lib-table tr.lib-row-clickable td.no-row-nav { cursor: default; }
 .mvc-card.villain { border-color: #6e0b0b; }
 .mvc-card.minion { border-color: #e6ff00; width: 200px; }
 .mvc-card.lieutenant { border-color: #b45309; width: 200px; }
-.mvc-card .npc-badge {
-  position: absolute; top: 4px; left: 4px; z-index: 2;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-  background: #111; color: #e6ff00; padding: 2px 5px;
-}
+/* .npc-badge removed per request — no longer rendered on GM screen */
 .mvc-card.small { width: 200px; }
 .token .mvc-art { display: none !important; }
 .mvc-plate {

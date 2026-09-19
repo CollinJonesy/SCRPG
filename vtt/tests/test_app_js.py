@@ -114,12 +114,12 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn("if (isNonCombatNpc(t)) return '';", body)
         self.assertIn('function tokenShowsBhd', self.src)
         self.assertIn('if (tokenShowsBhd(t)) body += bhdRowHtml', self.src)
-        # NPC Type options include Hero + Non-Combat in Library
-        self.assertIn("value=\"Non-Combat\"", self.src)
+        # NPC Type options include Hero + Bystander in Library
+        self.assertIn("value=\"Bystander\"", self.src)
         self.assertIn("value=\"Hero\"", self.src)
         mb = (Path(__file__).resolve().parent.parent / 'minion-builder.html').read_text(encoding='utf-8')
         self.assertIn('Hero</option>', mb)
-        self.assertIn('Non-Combat</option>', mb)
+        self.assertIn('Bystander</option>', mb)
         self.assertIn("NPC_MODE?'Hero':'Minion'", mb)
 
     def test_sort_enemy_puts_non_combat_last(self):
