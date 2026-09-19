@@ -33,7 +33,7 @@ function isNonCombatToken(t) {
   if (!t) return false;
   if (t.nonCombat) return true;
   const row = (libNpcs || []).find(m => m.Slug === t.slug);
-  return !!row && /^non[-\s]?combat$/i.test(String(row.Type || ''));
+  return !!row && /^bystander$/i.test(String(row.Type || ''));
 }
 
 function ensureMods(scene) {

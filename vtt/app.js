@@ -183,7 +183,7 @@ function npcTypeOf(t) {
 function isNonCombatNpc(t) {
   if (!t) return false;
   if (t.nonCombat) return true;
-  return isNpcToken(t) && /^non[-\s]?combat$/i.test(npcTypeOf(t));
+  return isNpcToken(t) && /^bystander$/i.test(npcTypeOf(t));
 }
 function libRowForToken(t) {
   if (!t) return null;
