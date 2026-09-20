@@ -370,11 +370,14 @@ function scheduleFitHeroNames() {
 window.addEventListener('resize', scheduleFitHeroNames);
 
 /** Fit-to-viewport pass: PD must NEVER scroll. Scale the locations row down (floor 0.6)
- *  when its natural content height exceeds the available row height. Runs after every
- *  renderScene (via scheduleFitHeroNames) and on resize; idempotent per render. */
+ *  when its natural content height exceeds the available row height, and pin the row's
+ *  layout box to the available height with overflow hidden so nothing can scroll it.
+ *  Runs after every renderScene (via scheduleFitHeroNames) and on resize; idempotent. */
 function fitStageToViewport() {
   const row = document.getElementById('locationsRow');
   if (!row || row.classList.contains('hidden')) return;
+  row.style.height = '';
+  row.style.overflow = '';
   row.style.transform = '';
   row.style.transformOrigin = 'top center';
   const avail = row.clientHeight;
@@ -382,6 +385,8 @@ function fitStageToViewport() {
   if (!avail || !content) return;
   if (content > avail) {
     const k = Math.max(0.6, avail / content);
+    row.style.height = avail + 'px';
+    row.style.overflow = 'hidden';
     row.style.transform = `scale(${k})`;
   }
 }
@@ -454,7 +459,6 @@ function renderScene(scene) {
       ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars)}
     </section>`;
   }).join('') + (ko.length ? `<div class="mvc-ko">Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');
-  scheduleFitHeroNames();
 
   const chalEl = document.getElementById('displayChallenges');
   const visible = scene.challenges || [];
@@ -483,6 +487,9 @@ function renderScene(scene) {
       ${pathRows}${solutions}
     </div>`;
   }
+  // Fit AFTER challenges render so the row's available height accounts for the
+  // challenge board below it.
+  scheduleFitHeroNames();
 }
 
 function pathDisplayOutcome(p) {

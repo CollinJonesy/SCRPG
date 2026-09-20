@@ -69,7 +69,7 @@
     align-items: stretch;
     overflow: hidden;
   }
-  .locations-row { flex: 1 1 auto; min-height: 0; gap: 1vh; }
+  .locations-row { flex: 1 1 auto; min-height: 0; gap: 1vh; overflow: hidden; }
   .location-block { margin: 0; }
   .location-header {
     font-family: var(--font-display);
@@ -300,6 +300,23 @@
 </script>
 
 <div id="rollOverlay" class="hidden"></div>
+
+<!-- Card-shape comparison toggle: vertical (default) ↔ horizontal prototype. -->
+<button id="cardToggle" type="button" title="Toggle card shape (vertical ↔ horizontal)"
+  style="position:fixed;right:1vw;bottom:1vh;z-index:150;opacity:0.25;font-family:var(--font-body);font-size:clamp(10px,1.4vh,16px);padding:0.4vh 0.8vw;border-radius:1vh;border:1px solid #888;background:rgba(0,0,0,0.5);color:#ddd;cursor:pointer;">Card: V</button>
+<script>
+  (() => {
+    const btn = document.getElementById('cardToggle');
+    const params = new URLSearchParams(location.search);
+    const h = params.get('cards') === 'h';
+    btn.textContent = h ? 'Card: H' : 'Card: V';
+    btn.addEventListener('click', () => {
+      const p = new URLSearchParams(location.search);
+      if (p.get('cards') === 'h') p.delete('cards'); else p.set('cards', 'h');
+      location.href = location.pathname + (p.toString() ? '?' + p.toString() : '');
+    });
+  })();
+</script>
 
 <div id="displayFrame">
 <div id="displayStage">
