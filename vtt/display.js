@@ -336,23 +336,26 @@ function scheduleFitHeroNames() {
 }
 window.addEventListener('resize', scheduleFitHeroNames);
 
-/** Fit-to-viewport pass (view-box foundation): scale the entire 1920×1080 design
- *  space uniformly to fit the real viewport and center it. Nothing can render
- *  outside the box (#displayFrame clips), and everything inside scales together,
- *  so PD "takes care of itself" — no per-row pinning, no clip, no scroll. */
+/** Fit-to-viewport pass (view-box foundation): the view box is the full viewport
+ *  (edge to edge). Inside it, the locations row scales to EXACTLY fit its
+ *  available height — no floor, so a location can never be clipped or scrolled.
+ *  Runs after every renderScene (via scheduleFitHeroNames) and on resize. */
 function fitStageToViewport() {
-  const frame = document.getElementById('displayFrame');
-  const box = document.getElementById('pdViewBox');
-  if (!frame || !box) return;
-  const availW = frame.clientWidth;
-  const availH = frame.clientHeight;
-  if (!availW || !availH) return;
-  const k = Math.min(availW / 1920, availH / 1080);
-  const offsetX = Math.max(0, (availW - 1920 * k) / 2);
-  const offsetY = Math.max(0, (availH - 1080 * k) / 2);
-  box.style.transform = `scale(${k})`;
-  box.style.left = Math.round(offsetX) + 'px';
-  box.style.top = Math.round(offsetY) + 'px';
+  const row = document.getElementById('locationsRow');
+  if (!row || row.classList.contains('hidden')) return;
+  row.style.height = '';
+  row.style.overflow = '';
+  row.style.transform = '';
+  row.style.transformOrigin = 'top center';
+  const avail = row.clientHeight;
+  const content = row.scrollHeight;
+  if (!avail || !content) return;
+  if (content > avail) {
+    const k = avail / content;
+    row.style.height = avail + 'px';
+    row.style.overflow = 'hidden';
+    row.style.transform = `scale(${k})`;
+  }
 }
 
 let lastVisualSig = '';

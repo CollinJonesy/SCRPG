@@ -103,16 +103,16 @@
   }
   #displayFrame, #displayStage { position: relative; }
   #displayStage > * { position: relative; z-index: 1; }
-  /* ---- PD view box (foundation): a fixed 1920×1080 design space that is scaled
-     uniformly to fit the real viewport. Nothing can render outside it, and everything
-     inside scales together — layout in design px, fit via one transform. ---- */
+  /* ---- PD view box (foundation): the box IS the viewport (100vw × 100vh) with
+     overflow hidden, so nothing can render outside it. Content inside scales to
+     fit the available space (exact-fit pass), so PD takes care of itself and the
+     full screen is used edge to edge. ---- */
   #pdViewBox {
     position: absolute;
-    top: 0; left: 0;
-    width: 1920px;
-    height: 1080px;
-    transform-origin: top left;
-    /* scale + centering offsets are set by fitViewBox() in display.js */
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
   }
   .mvc-stage {
     /* Column budget is set per-layout inline (--mvc-cols + grid-template-columns):
