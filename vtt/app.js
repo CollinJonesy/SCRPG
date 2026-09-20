@@ -105,7 +105,7 @@ const ENVIRONMENTS_HEADERS = [
 ];
 const LOCATIONS_HEADERS = ['Slug','Name','EnvironmentSlug'];
 const TWISTS_HEADERS = ['Slug','Name','EffectType','Severity','Formula','Description'];
-const ABILITIES_HEADERS = ['Slug','Zone','Name','DisplayName','Type','GameText','RollType','DieSource','EffectDieHint'];
+const ABILITIES_HEADERS = ['Slug','Zone','Name','DisplayName','Type','GameText','RollType','DieSource','EffectDieHint','Mode'];
 const TWIST_EFFECT_TYPES = [
   'Story Consequence', 'Story Complication (Later)', 'Hinder', 'Boost (Enemies)',
   'Damage (Allies)', 'Defend (Enemies)', 'Add Threats', 'Create Challenge',
@@ -433,9 +433,16 @@ function setBhdDelta(tokenId, kind, typed) {
 }
 function bhdRowHtml(t, scene, interactive) {
   const n = bhdDisplay(scene, t);
-  const cell = (kind, label, val) => interactive
-    ? `<div class="bhd-stat ${kind}"><span onclick="openModCreate('${t.id}','${kind}')">${label}</span><input type="number" min="0" value="${val}" onclick="event.stopPropagation()" onchange="setBhdDelta('${t.id}','${kind}',this.value)"></div>`
-    : `<div class="bhd-stat ${kind}"><span>${label}</span><b>${val}</b></div>`;
+  // Modular hero modes can lock Boost/Hinder/Defend out (Recover never is).
+  const locked = (t.kind === 'hero' && interactive) ? modeLockedActions(t) : new Set();
+  const cell = (kind, label, val) => {
+    if (interactive && locked.has(kind)) {
+      return `<div class="bhd-stat ${kind} board-act-locked"><span onclick="event.stopPropagation();toast('${label} is locked in this mode')" title="Locked while this mode is active">${label} 🔒</span><input type="number" min="0" value="${val}" disabled></div>`;
+    }
+    return interactive
+      ? `<div class="bhd-stat ${kind}"><span onclick="openModCreate('${t.id}','${kind}')">${label}</span><input type="number" min="0" value="${val}" onclick="event.stopPropagation()" onchange="setBhdDelta('${t.id}','${kind}',this.value)"></div>`
+      : `<div class="bhd-stat ${kind}"><span>${label}</span><b>${val}</b></div>`;
+  };
   const hasHealth = t.kind === 'hero' || t.kind === 'villain';
   let html = `${cell('boost','BOOST', n.boost)}${cell('hinder','HINDER', n.hinder)}${cell('defend','DEFEND', n.defend)}`;
   if (hasHealth) {
@@ -1143,6 +1150,60 @@ function gyroAbilityZones(band) {
   return ['Green'];
 }
 const GYRO_ZONE_ORDER = { Green: 0, Yellow: 1, Red: 2, Out: 3 };
+
+/* ---- Modular hero modes ---- */
+// Modes are authored in Hero Builder and stored as a `## Modes` JSON section in
+// the hero's markdown (see save_built_hero). Each mode: { slug, name, zone,
+// powers: {Name: die}, lockedActions: [..], immobile, powerless, default }.
+// Ability rows in abilities.csv carry a `Mode` column equal to the mode slug for
+// mode-granted abilities; blank Mode = always available (Switch family, etc.).
+// Confirmed reading (Collin): a non-default mode consists ONLY of its picked
+// powers — unpicked powers are unavailable while that mode is active. Powerless
+// mode allows no abilities other than principle abilities.
+const ALWAYS_AVAILABLE_ABILITY_NAMES = ['Switch', 'Quick Switch', 'Emergency Switch'];
+let heroModesCache = {}; // slug -> modes array | null (null = fetched, none found)
+function parseModesMd(md) {
+  if (!md) return null;
+  const m = String(md).match(/##\s*Modes\s*\n+```json\n([\s\S]*?)```/);
+  if (!m) return null;
+  try {
+    const arr = JSON.parse(m[1]);
+    return Array.isArray(arr) && arr.length ? arr : null;
+  } catch (e) { return null; }
+}
+function loadHeroModes(t) {
+  const slug = (t.slug || '').trim();
+  if (!slug || heroModesCache[slug] !== undefined) return;
+  heroModesCache[slug] = null; // sentinel while fetching
+  apiReadMd('heroes', slug).then(text => {
+    heroModesCache[slug] = parseModesMd(text);
+    renderTokens();
+  });
+}
+function heroModesForToken(t) {
+  const slug = (t.slug || '').trim();
+  if (heroModesCache[slug] === undefined) loadHeroModes(t);
+  return heroModesCache[slug] || null;
+}
+function heroCurrentMode(t) {
+  const modes = heroModesForToken(t);
+  if (!modes) return null;
+  const cur = t.currentMode || 'default';
+  return modes.find(m => (m.slug || '') === cur) || modes.find(m => m.default) || modes[0] || null;
+}
+// Basic actions the CURRENT mode forbids: {attack, hinder, boost, defend, overcome}
+// (Recover is never locked by a mode in the book.)
+function modeLockedActions(t) {
+  const mode = heroCurrentMode(t);
+  const locked = new Set();
+  if (!mode) return locked;
+  (mode.lockedActions || []).forEach(a => locked.add(String(a).toLowerCase()));
+  return locked;
+}
+function heroModePowerMap(t) {
+  const mode = heroCurrentMode(t);
+  return (mode && mode.powers) || null;
+}
 function heroAbilityShownName(a) {
   const d = String((a && a.DisplayName) || '').trim();
   return d || String((a && a.Name) || '');
@@ -1163,11 +1224,20 @@ function heroAbilitiesForToken(t) {
   // abilities whose book shorthand said "can be chosen Green or Yellow"; the zone field
   // must be a real gyro zone for filtering + CSS to work).
   // Slug guard: only abilities actually chosen for this hero during Hero Builder.
+  // Modular mode gate: abilities with a `Mode` value are only usable while that
+  // mode is active on the token. Powerless mode: no abilities at all (principle
+  // abilities are not in the abilities.csv layer). Blank Mode = always available.
+  const mode = heroCurrentMode(t);
+  const curMode = mode ? (mode.slug || '') : '';
+  const powerless = !!(mode && mode.powerless);
   return sortHeroAbilitiesGyroAlpha((state.abilities || []).filter(a => {
     if (abilityOwnerSlug(a) !== (t.slug || '').trim()) return false;
+    if (powerless) return false;
     let z = (a.Zone || '').trim();
     if (z === 'Green/Yellow') { z = 'Green'; a.Zone = 'Green'; }
     if (z === 'Upgrade' || z === 'Mastery') return false;
+    const abMode = String(a.Mode || '').trim();
+    if (abMode) return abMode === curMode; // mode-granted: gated by active mode, not health band
     return zones.includes(z);
   }));
 }
@@ -1280,12 +1350,18 @@ function boardTwistsBtn(t) {
 function boardBasicActionsHtml(t) {
   // Bystander NPCs: no Attack / Overcome / BHD chrome.
   if (isNonCombatNpc(t)) return '';
+  // Modular hero modes can lock basic actions out (e.g. "You cannot Boost,
+  // Defend, or Overcome in this mode"). Locked buttons render disabled.
+  const locked = t.kind === 'hero' ? modeLockedActions(t) : new Set();
+  const lockBtn = (a) => locked.has(a.toLowerCase())
+    ? `<button type="button" class="btn btn-small btn-ghost board-act-locked" title="Locked while this mode is active" onclick="event.stopPropagation();toast('${a} is locked in this mode')">${a} 🔒</button>`
+    : boardActionBtn(t, a);
   // Other NPCs: Hero type gets full basic hero actions; minion/lt-shaped NPCs Attack only.
   if (isNpcToken(t)) {
     if (npcTypeOf(t) === 'Hero') {
-      return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}${boardTwistsBtn(t)}</div></div>`;
+      return `<div class="board-actions"><div class="board-actions-row">${lockBtn('Attack')}${lockBtn('Overcome')}${boardTwistsBtn(t)}</div></div>`;
     }
-    return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}</div></div>`;
+    return `<div class="board-actions"><div class="board-actions-row">${lockBtn('Attack')}</div></div>`;
   }
   if (t.kind === 'villain') {
     return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}${boardTwistsBtn(t)}</div></div>`;
@@ -1294,7 +1370,49 @@ function boardBasicActionsHtml(t) {
     return `<div class="board-actions"><div class="board-actions-row board-actions-row-2">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}</div></div>`;
   }
   // Hero (non-NPC): Attack, Overcome, Twists (tickers handle Boost/Hinder/Defend/Recover)
-  return `<div class="board-actions"><div class="board-actions-row">${boardActionBtn(t,'Attack')}${boardActionBtn(t,'Overcome')}${boardTwistsBtn(t)}</div></div>`;
+  return `<div class="board-actions"><div class="board-actions-row">${lockBtn('Attack')}${lockBtn('Overcome')}${boardTwistsBtn(t)}</div></div>`;
+}
+
+/* ---- Modular hero mode UI on the hero token ---- */
+function renderHeroModeHtml(t) {
+  const modes = heroModesForToken(t);
+  if (!modes || modes.length < 2) return '';
+  const cur = heroCurrentMode(t);
+  const curSlug = (cur && cur.slug) || 'default';
+  const opts = modes.map(m => {
+    const slug = m.slug || 'default';
+    const label = (m.default ? 'Default — ' : '') + (m.name || slug) + (m.immobile ? ' (immobile)' : '');
+    return `<option value="${escAttr(slug)}" ${slug === curSlug ? 'selected' : ''}>${escHtml(label)}</option>`;
+  }).join('');
+  // Mode powers: in non-default modes ONLY the picked powers exist; default shows
+  // the full library loadout, so only render the powers row for non-default modes.
+  const powerMap = heroModePowerMap(t);
+  let powersHtml = '';
+  if (powerMap && !cur.default) {
+    const chips = Object.entries(powerMap).map(([name, die]) =>
+      `<span class="mode-power-chip">${escHtml(name)} <b>${escHtml(die)}</b></span>`).join('');
+    powersHtml = `<div class="mode-powers">${chips || '<span class="mvc-empty">No powers in this mode.</span>'}</div>`;
+  }
+  const flags = [];
+  if (cur && cur.immobile) flags.push('Immobile');
+  if (cur && cur.powerless) flags.push('No abilities');
+  return `<div class="hero-mode-row">
+    <select class="hero-mode-select" title="Change mode" onchange="setHeroMode('${t.id}', this.value)">
+      ${opts}
+    </select>
+    ${flags.length ? `<span class="mode-flags">${flags.map(escHtml).join(' · ')}</span>` : ''}
+    ${powersHtml}
+  </div>`;
+}
+function setHeroMode(id, slug) {
+  const t = findTok(id);
+  if (!t) return;
+  const modes = heroModesForToken(t) || [];
+  const m = modes.find(x => (x.slug || '') === slug);
+  t.currentMode = slug || 'default';
+  saveSceneDebounced();
+  renderTokens();
+  toast(`${t.name}: mode → ${(m && m.name) || t.currentMode}${m && m.immobile ? ' (immobile)' : ''}`);
 }
 function abilityPopupText(ability) {
   if (!ability) return '';
@@ -1361,10 +1479,110 @@ function openHeroAbility(tokenId, idx) {
   const t = findTok(tokenId);
   const a = heroAbilitiesForToken(t)[idx];
   if (!a) return;
+  const name = heroAbilityShownName(a) || a.Name || '';
+  // Modular mode-change abilities get dedicated flows (mode picker inside the
+  // popup, mode change applied at the book's point in the resolution order).
+  if (/^quick switch$/i.test(name)) { openQuickSwitch(tokenId, a); return; }
+  if (/^emergency switch$/i.test(name)) { openEmergencySwitch(tokenId, a); return; }
   const types = abilityRollTypes(a);
-  const shown = { name: heroAbilityShownName(a) || a.Name, text: a.GameText || a.body || '', rollTypes: types, effectHint: a.EffectDieHint || '' };
+  const shown = { name, text: a.GameText || a.body || '', rollTypes: types, effectHint: a.EffectDieHint || '' };
   if (!types.length) { showAbilityReadOnly(t, shown.name, shown.text); return; }
+  if (/^switch$/i.test(name) || /^skirmish$/i.test(name)) {
+    shown.modeChange = { position: 'post', label: /^skirmish$/i.test(name) ? 'Change mode at end of turn' : 'Change mode (after the action resolves)' };
+  }
   openBoardAction(tokenId, types[0], shown);
+}
+function heroModeOptions(t, selected) {
+  const modes = heroModesForToken(t) || [];
+  const cur = t.currentMode || 'default';
+  return modes.map(m => {
+    const slug = m.slug || 'default';
+    const label = (m.default ? 'Default — ' : '') + (m.name || slug) + (slug === cur ? ' (current)' : '') + (m.immobile ? ' (immobile)' : '');
+    return `<option value="${escAttr(slug)}" ${slug === (selected || cur) ? 'selected' : ''}>${escHtml(label)}</option>`;
+  }).join('');
+}
+function openQuickSwitch(tokenId, ability) {
+  const t = findTok(tokenId);
+  if (!t) return;
+  boardActionState = { tokenId, action: null, ability: Object.assign({}, ability, { modeChange: { position: 'pre' } }), types: [] };
+  document.getElementById('abilitiesModalTitle').textContent = 'Quick Switch — ' + t.name;
+  document.getElementById('abilitiesModalBody').innerHTML = `
+    ${abilityPopupDescHtml(ability)}
+    <div class="board-act-block">
+      <div class="board-act-type-header field-label">1 · Destroy one bonus on you (resolve first)</div>
+      <p class="empty-hint">Destroy / remove one bonus on this hero as a normal board action after continuing.</p>
+      <div class="board-act-type-header field-label" style="margin-top:8px;">2 · Change modes (before the action)</div>
+      <label class="board-act-target">New mode <select id="modeChangeSel">${heroModeOptions(t)}</select></label>
+      <div class="board-act-type-header field-label" style="margin-top:8px;">3 · Take an action in the new mode</div>
+      <label class="board-act-target">Action <select id="quickSwitchAction">
+        ${['Attack','Defend','Boost','Hinder','Overcome','Recover'].map(x => `<option>${x}</option>`).join('')}
+      </select></label>
+    </div>
+    <div class="board-act-apply-gap"></div>
+    <button type="button" class="btn btn-accent" onclick="continueQuickSwitch()">Continue</button>`;
+  document.getElementById('abilitiesModal').classList.remove('hidden');
+}
+function continueQuickSwitch() {
+  const st = boardActionState;
+  if (!st) return;
+  const actor = findTok(st.tokenId);
+  const mode = (document.getElementById('modeChangeSel') || {}).value || 'default';
+  const action = (document.getElementById('quickSwitchAction') || {}).value || 'Attack';
+  // Step 1 of Quick Switch: destroy one bonus on this hero.
+  if (actor) {
+    const mods = ensureMods(state.scene);
+    const idx = mods.findIndex(m => m.kind === 'boost' && m.targetId === actor.id);
+    if (idx >= 0) {
+      mods.splice(idx, 1);
+      logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Quick Switch',
+        { name: actor.name }, `${actor.name}: destroyed one bonus on themselves (Quick Switch)`, {});
+    }
+  }
+  st.ability.modeChange.mode = mode;
+  openBoardAction(st.tokenId, action, st.ability);
+}
+function openEmergencySwitch(tokenId, ability) {
+  const t = findTok(tokenId);
+  if (!t) return;
+  boardActionState = { tokenId, action: null, ability, types: [], emergencySwitch: true };
+  document.getElementById('abilitiesModalTitle').textContent = 'Emergency Switch — ' + t.name;
+  document.getElementById('abilitiesModalBody').innerHTML = `
+    ${abilityPopupDescHtml(ability)}
+    <div class="board-act-block">
+      <div class="board-act-type-header field-label">Reaction — change to any mode when hit by an Attack</div>
+      <label class="board-act-target">New mode <select id="modeChangeSel">${heroModeOptions(t)}</select></label>
+      <div class="board-act-type-header field-label" style="margin-top:8px;">Cost (choose one)</div>
+      <label style="display:block;"><input type="radio" name="emergencyCost" value="damage" checked> Take extra damage equal to the Min die: <input type="number" id="emergencyDamage" min="0" value="0" style="width:64px;"></label>
+      <label style="display:block;"><input type="radio" name="emergencyCost" value="twist"> Take a minor twist</label>
+    </div>
+    <div class="board-act-apply-gap"></div>
+    <button type="button" class="btn btn-accent" onclick="commitEmergencySwitch()">Apply</button>`;
+  document.getElementById('abilitiesModal').classList.remove('hidden');
+}
+function commitEmergencySwitch() {
+  const st = boardActionState;
+  if (!st) return;
+  const t = findTok(st.tokenId);
+  if (!t) return;
+  const modes = heroModesForToken(t) || [];
+  const mode = (document.getElementById('modeChangeSel') || {}).value || 'default';
+  const m = modes.find(x => (x.slug || '') === mode);
+  t.currentMode = mode;
+  const costRadio = document.querySelector('input[name="emergencyCost"]:checked');
+  let costTxt = '';
+  if (costRadio && costRadio.value === 'damage') {
+    const dmg = Math.max(0, Number((document.getElementById('emergencyDamage') || {}).value) || 0);
+    if (dmg > 0) t.currentHealth = Math.max(0, (Number(t.currentHealth) || 0) - dmg);
+    costTxt = `took ${dmg} extra damage`;
+  } else {
+    costTxt = 'took a minor twist';
+  }
+  logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Emergency Switch',
+    { name: (m && m.name) || mode }, `${t.name}: Emergency Switch → ${(m && m.name) || mode}; ${costTxt}`, { mode, countsAsTurn: false });
+  saveSceneDebounced();
+  closeAbilities();
+  renderTokens();
+  toast(`${t.name}: Emergency Switch → ${(m && m.name) || mode} (${costTxt})`);
 }
 function openVillainAbility(tokenId, idx) {
   const t = findTok(tokenId);
@@ -1376,7 +1594,7 @@ function openVillainAbility(tokenId, idx) {
   openBoardAction(tokenId, types[0], shown);
 }
 function healthOrDieTargets() {
-  return (state.scene.tokens || []).filter(x => !x.ko && (x.kind === 'hero' || x.kind === 'villain' || x.kind === 'minion' || x.kind === 'lieutenant'));
+  return (state.scene.tokens || []).filter(x => !x.ko && !isNonCombatNpc(x) && (x.kind === 'hero' || x.kind === 'villain' || x.kind === 'minion' || x.kind === 'lieutenant'));
 }
 function openBoardAction(tokenId, action, ability) {
   const t = findTok(tokenId);
@@ -1403,12 +1621,19 @@ function openBoardAction(tokenId, action, ability) {
     </div>`;
   }).join('');
   const helpBits = types.map(k => actionHelpHtml(t, k)).filter(Boolean).join('');
+  // Mode-change abilities (Switch / Skirmish / Quick Switch): the popup offers the
+  // target mode; commitBoardAction applies it at the book's point in the order.
+  const modeChangeHtml = (ability && ability.modeChange)
+    ? `<div class="board-act-block"><div class="board-act-type-header field-label" style="margin-top:8px;">${escHtml(ability.modeChange.label || 'Change mode')}</div>
+       <label class="board-act-target">New mode <select id="modeChangeSel">${heroModeOptions(t, ability.modeChange.mode)}</select></label></div>`
+    : '';
   const el = document.getElementById('abilitiesModalBody');
   el.innerHTML = `
     ${ability ? abilityPopupDescHtml(ability) : ''}
     ${ability && ability.effectHint ? `<p class="empty-hint">Effect die hint: ${escHtml(ability.effectHint)}</p>` : ''}
     <div id="boardActHelp">${helpBits}</div>
     ${blocks}
+    ${modeChangeHtml}
     <div class="board-act-apply-gap"></div>
     <button type="button" class="btn btn-accent" onclick="commitBoardAction()">Apply</button>`;
   document.getElementById('abilitiesModal').classList.remove('hidden');
@@ -1420,6 +1645,24 @@ function commitBoardAction() {
   if (!actor) return;
   const types = (st.types && st.types.length) ? st.types : [st.action];
   const abilityName = (st.ability && st.ability.name) || ('Basic ' + (types[0] || st.action));
+  // Mode change ordering: 'pre' resolves before the action rows (Quick Switch —
+  // the follow-up action uses the NEW mode), 'post' after them (Switch / Skirmish —
+  // bonuses created by the action belong to the OLD mode).
+  const applyModeChange = () => {
+    const mc = st.ability && st.ability.modeChange;
+    if (!mc) return;
+    const sel = document.getElementById('modeChangeSel');
+    const mode = (mc.mode || (sel && sel.value) || '').trim();
+    if (!mode) return;
+    const modes = heroModesForToken(actor) || [];
+    const m = modes.find(x => (x.slug || '') === mode);
+    actor.currentMode = mode;
+    logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Mode Change',
+      { name: (m && m.name) || mode }, `${actor.name}: mode → ${(m && m.name) || mode} (${abilityName})`, { mode, ability: abilityName, countsAsTurn: false });
+    toast(`${actor.name}: mode → ${(m && m.name) || mode}`);
+  };
+  const modeFirst = st.ability && st.ability.modeChange && st.ability.modeChange.position === 'pre';
+  if (modeFirst) applyModeChange();
   let applied = 0;
   types.forEach((action, i) => {
     const effectEl = document.getElementById('boardActEffect_' + i);
@@ -1446,6 +1689,8 @@ function commitBoardAction() {
   });
   if (!applied) { toast('Pick a target with Health or a Minion die.'); return; }
   if (types.includes('Overcome') && applied) toast(`${abilityName}: applied`);
+  if (!modeFirst) applyModeChange();
+  saveSceneDebounced();
   closeAbilities();
   renderTokens();
 }
@@ -2504,7 +2749,7 @@ function renderChallengeEditRow(c, idx) {
           <div class="challenge-path-row">
             <input type="text" value="${escAttr(p.label)}" onchange="updatePathField(${idx},${pi},'label',this.value)">
             <label class="empty-hint" style="display:flex;align-items:center;gap:6px;white-space:nowrap;">Boxes
-              <input type="number" min="1" step="1" class="needed-input" value="${Number(p.successesNeeded)||1}" onchange="updatePathField(${idx},${pi},'successesNeeded',Math.max(1, parseInt(this.value,10)||1))">
+              <input type="number" min="1" max="5" step="1" class="needed-input" value="${Math.min(5, Math.max(1, Number(p.successesNeeded)||1))}" onchange="updatePathField(${idx},${pi},'successesNeeded',Math.min(5, Math.max(1, parseInt(this.value,10)||1)))">
             </label>
             <label class="hidden-toggle" style="margin:0;white-space:nowrap;"><input type="checkbox" ${p.hidden ? 'checked' : ''} onchange="updatePathField(${idx},${pi},'hidden',this.checked)"> Hide from Player Display</label>
             <button class="btn btn-small btn-ghost" onclick="removePath(${idx},${pi})">✕</button>
@@ -2609,20 +2854,37 @@ async function renderSceneNotesPanel() {
   if (!panel) return;
   panel.innerHTML = '<p class="empty-hint">Loading scene notes...</p>';
 
+  const slug = state.activeSlug || (state.scene && state.scene.__slug);
+  if (!slug) {
+    panel.innerHTML = '<p class="empty-hint">Load a scene to see its notes.</p>';
+    return;
+  }
+
   try {
-    const res = await fetch('/api/scene-notes');
+    // Server resolves the scene's notes folder from the slug — the folder is
+    // named after the scene's display name (campaign/scenes/<Name>/*.md).
+    const res = await fetch('/api/scene-notes/' + encodeURIComponent(slug));
+    if (!res.ok) {
+      panel.innerHTML = '<p class="empty-hint">No notes found for this scene.</p>';
+      return;
+    }
     const data = await res.json();
+    const entries = Object.entries(data.notes || {});
+    if (!entries.length) {
+      panel.innerHTML = `<p class="empty-hint">No notes yet for ${escHtml(data.name || 'this scene')}.</p>`;
+      return;
+    }
     let html = '';
-    for (const [filename, content] of Object.entries(data)) {
-      const title = filename.replace('.md', '');
+    for (const [filename, content] of entries) {
+      const title = filename === 'notes.md' ? 'Notes' : filename.replace(/\.md$/, '');
       html += `<details style="margin-bottom:16px;" open>
         <summary style="font-family:var(--font-display);font-size:17px;cursor:pointer;padding:4px 0;color:var(--accent);">${escHtml(title)}</summary>
         <div style="padding:8px 12px;background:var(--ink);border:1px solid #333;border-radius:4px;margin-top:6px;">${renderMarkdownLite(content || '')}</div>
       </details>`;
     }
-    panel.innerHTML = html || '<p class="empty-hint">No .md files found in campaign/scenes/.</p>';
+    panel.innerHTML = html;
   } catch (e) {
-    panel.innerHTML = '<p class="empty-hint">Error loading notes (server may need /api/scene-notes endpoint).</p>';
+    panel.innerHTML = '<p class="empty-hint">Error loading notes (server may need the /api/scene-notes endpoint).</p>';
     console.error(e);
   }
 }
@@ -2817,6 +3079,8 @@ function attachTouchDrag(card, tokenId) {
   let shadow = null;
   card.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') return;
+    const tok = findTok(tokenId);
+    if (tok && tok.kind === 'hero' && heroCurrentMode(tok)?.immobile) { toast('Immobile in this mode'); return; }
     e.preventDefault();
     shadow = card.cloneNode(true);
     shadow.classList.add('token-drag-shadow');
@@ -2903,17 +3167,38 @@ function renderToken(t, small) {
   if ((t.kind === 'minion' || t.kind === 'lieutenant') && !t.npc) {
     t.npc = isNpcToken(t);
   }
+  // Immobile mode (e.g. Destroyer Mode): the token cannot be moved.
+  const immobile = t.kind === 'hero' && !!heroCurrentMode(t)?.immobile;
+  card.draggable = !immobile;
   let body = `${state.turnMarks && state.turnMarks[t.id] ? `<div class="turn-badge">${state.turnMarks[t.id]}</div>` : ''}
-    <div class="mvc-plate"><span>${escHtml(t.name)}</span>
-      <div class="token-controls"><button type="button" title="Remove from scene" onclick="removeToken('${t.id}')">✕</button></div>
+    <div class="mvc-plate token-header" onclick="toggleToken(this)" style="cursor:pointer;"><span>${escHtml(t.name)}</span>
+      <div class="token-controls"><button type="button" title="Remove from scene" onclick="event.stopImmediatePropagation();removeToken('${t.id}')">✕</button></div>
     </div>`;
-  if (t.kind === 'hero' || t.kind === 'villain') body += renderHealthBlock(t, heroRow);
-  if ((t.kind === 'minion' || t.kind === 'lieutenant') && !isNonCombatNpc(t)) body += renderDieBlock(t);
-  if (tokenShowsBhd(t)) body += bhdRowHtml(t, state.scene, true);
-  body += boardAbilityListHtml(t);
-  body += boardBasicActionsHtml(t);
+  const content = document.createElement('div');
+  content.className = 'token-content';
+  content.style.display = 'block'; // default expanded
+  if (t.kind === 'hero' || t.kind === 'villain') content.innerHTML += renderHealthBlock(t, heroRow);
+  if ((t.kind === 'minion' || t.kind === 'lieutenant') && !isNonCombatNpc(t)) content.innerHTML += renderDieBlock(t);
+  if (tokenShowsBhd(t)) content.innerHTML += bhdRowHtml(t, state.scene, true);
+  if (t.kind === 'hero') {
+    const modeHtml = renderHeroModeHtml(t);
+    if (modeHtml) content.innerHTML += modeHtml;
+  }
+  content.innerHTML += boardAbilityListHtml(t);
+  content.innerHTML += boardBasicActionsHtml(t);
+
   card.innerHTML = body;
+  card.appendChild(content);
   return card;
+}
+
+function toggleToken(header) {
+  const card = header.parentElement;
+  const content = card.querySelector('.token-content');
+  if (!content) return;
+  const hidden = content.style.display === 'none';
+  content.style.display = hidden ? 'block' : 'none';
+  header.style.opacity = hidden ? '1' : '0.6';
 }
 
 function renderHealthBlock(t, heroRow) {
@@ -2985,7 +3270,10 @@ function spawnToken() {
     const kind = tokenKindFromMinionRow(row);
     tok = {
       id: uid('tok'), kind, slug, name: row.Name, locationId: locId,
-      currentDie: Number((row.Die || 'd6').replace('d','')) || 6, ko: false,
+      ...(fromNpcLib && /^bystander$/i.test(String(row.Type || '')) ? {} : {
+        currentDie: Number((row.Die || 'd6').replace('d','')) || 6,
+      }),
+      ko: false,
       npc: fromNpcLib,
       nonCombat: fromNpcLib && /^non[-\s]?combat$/i.test(String(row.Type || '')),
       affiliation: String(row.Affiliation || (fromNpcLib ? 'Neutral' : 'Enemy')),
@@ -3185,6 +3473,7 @@ function closeAttack() { document.getElementById('attackModal').classList.add('h
 function openModCreate(tokenId, kind) {
   const t = findTok(tokenId);
   if (!t || !state.scene) return;
+  if (t.kind === 'hero' && modeLockedActions(t).has(kind)) { toast(kind + ' is locked in this mode'); return; }
   const title = kind === 'boost' ? 'Boost' : kind === 'hinder' ? 'Hinder' : 'Defend';
   document.getElementById('modModalTitle').textContent = title + ' — ' + t.name;
   const sameLoc = state.scene.tokens.filter(x => !x.ko && x.locationId === t.locationId);
@@ -4302,6 +4591,22 @@ async function init() {
     }
   }
   renderBoard();
+
+  // TV Mode toggle (defaults ON, updates the Player Display link)
+  const tvToggle = document.getElementById('tvModeToggle');
+  if (tvToggle) {
+    tvToggle.checked = true;
+    updatePlayerDisplayLink();
+    tvToggle.addEventListener('change', updatePlayerDisplayLink);
+  }
+}
+
+function updatePlayerDisplayLink() {
+  const link = document.getElementById('playerDisplayLink');
+  const toggle = document.getElementById('tvModeToggle');
+  if (!link || !toggle) return;
+  const on = toggle.checked;
+  link.href = `/display.html?tv=${on ? '1' : '0'}`;
 }
 
 document.addEventListener('DOMContentLoaded', init);

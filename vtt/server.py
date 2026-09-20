@@ -144,7 +144,7 @@ DEFAULT_TWISTS = [
     ('meanwhile-vehicle-sabotaged', 'Vehicle Sabotaged', 'Story Complication (Later)', 'Any', '', 'Meanwhile: someone sabotages your vehicle.'),
 ]
 
-ABILITIES_HEADERS = ['Slug', 'Zone', 'Name', 'DisplayName', 'Type', 'GameText', 'RollType', 'DieSource', 'EffectDieHint']
+ABILITIES_HEADERS = ['Slug', 'Zone', 'Name', 'DisplayName', 'Type', 'GameText', 'RollType', 'DieSource', 'EffectDieHint', 'Mode']
 
 CSV_FILES = {'heroes': ('players.csv', HEROES_HEADERS),
              'villains': ('villains.csv', VILLAINS_HEADERS),
@@ -477,6 +477,7 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
                 'RollType': roll,
                 'DieSource': a.get('dieSource') or '',
                 'EffectDieHint': a.get('effectDieHint') or '',
+                'Mode': a.get('mode') or '',
             })
         ab_path = _upsert_actor_abilities(campaign, slug, ab_entries)
 
@@ -507,6 +508,11 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
             if payload.get(k) and not state.get(k):
                 state[k] = payload[k]
         md_lines += ['## Builder', '', '```json', json.dumps(state, indent=2), '```', '']
+        # Modular hero modes: structured JSON section the board reads to enforce
+        # per-mode power sets, basic-action lockouts, immobile and powerless rules.
+        modes = payload.get('modes')
+        if isinstance(modes, list) and modes:
+            md_lines += ['## Modes', '', '```json', json.dumps(modes, indent=2), '```', '']
         md_path.write_text('\n'.join(md_lines), encoding='utf-8')
 
     obsidian_path = None
@@ -1134,16 +1140,36 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 text = p.read_text(encoding='utf-8') if p.exists() else 'null'
                 return self._send_text(text, 200, 'application/json')
 
-            if path == '/api/scene-notes':
-                notes_dir = campaign / 'scenes'
+            if path.startswith('/api/scene-notes/'):
+                # Scene Notes live in a folder named after the scene's display
+                # name (e.g. campaign/scenes/"Montage #1"/notes.md). The name is
+                # resolved from the scene's own JSON so no client-supplied string
+                # is ever used to build a filesystem path.
+                slug = path.rsplit('/', 1)[-1]
+                p = scenes_dir / (slug + '.json')
+                if not p.exists():
+                    return self._send_text('not found', 404)
+                try:
+                    name = str(json.loads(p.read_text(encoding='utf-8')).get('name') or '').strip()
+                except Exception:
+                    name = ''
                 notes = {}
-                if notes_dir.exists():
-                    for p in sorted(notes_dir.glob('*.md')):
+                folder = None
+                if name and name not in ('.', '..') and '/' not in name and '\0' not in name:
+                    candidate = scenes_dir / name
+                    if candidate.is_dir():
+                        folder = candidate
+                    else:
+                        # Case-insensitive fallback in case the folder's casing differs.
+                        folder = next((d for d in sorted(scenes_dir.iterdir())
+                                       if d.is_dir() and d.name.lower() == name.lower()), None)
+                if folder:
+                    for md in sorted(folder.glob('*.md')):
                         try:
-                            notes[p.name] = p.read_text(encoding='utf-8')
+                            notes[md.name] = md.read_text(encoding='utf-8')
                         except Exception:
-                            notes[p.name] = ''
-                return self._send_text(json.dumps(notes), 200, 'application/json')
+                            notes[md.name] = ''
+                return self._send_text(json.dumps({'name': name, 'notes': notes}), 200, 'application/json')
 
             if path == '/api/rules':
                 items = []

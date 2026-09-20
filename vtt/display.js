@@ -164,16 +164,17 @@ function sortAllyTokens(tokens) {
  *   5-slot PC hero bank | blank at column 6 | remaining width (4 cols) for others.
  * Still exactly 10 stage columns — never expands past 10.
  */
-function pdMvcSideHtml(label, cls, tokens, scene, span, count) {
+function pdMvcSideHtml(label, cls, tokens, scene, span, count, hideHealthBars = false) {
   const n = tokens.length;
   // Side width on the 10-col stage (capped).
   const colSpan = Math.max(1, Math.min(10, span != null ? span : Math.min(Math.max(n, 1), 10)));
   // Row capacity = side width, NOT token count — extras wrap to the next row.
   const colCount = Math.max(1, Math.min(10, count != null ? count : colSpan));
   // Player Display: no Allies / Neutral / Enemies section headers on locations.
+  const cards = tokens.map(t => renderFighterCard(t, scene, hideHealthBars)).join('');
   return `
     <div class="mvc-side ${cls}" style="--mvc-count:${colCount};grid-column:span ${colSpan}">
-      <div class="mvc-row">${tokens.map(t => renderFighterCard(t, scene)).join('')}</div>
+      <div class="mvc-row">${cards}</div>
     </div>`;
 }
 /** Split a column budget across present groups (proportional, each ≥1). */
@@ -210,7 +211,7 @@ function pdAllocateSpans(groups, budget) {
   }
   return present;
 }
-function pdMvcStageHtml(allies, neutrals, enemies, scene) {
+function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false) {
   const a = allies || [];
   const n = neutrals || [];
   const e = enemies || [];
@@ -233,11 +234,11 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene) {
       { label: 'ENEMIES', cls: 'enemies', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Enemy') },
     ], 4);
     const parts = [
-      pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5),
+      pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5, hideHealthBars),
       '<div class="mvc-blank" aria-hidden="true"></div>',
     ];
     rightGroups.forEach(g => {
-      parts.push(pdMvcSideHtml(g.label, g.cls, g.tokens, scene, g.span, g.span));
+      parts.push(pdMvcSideHtml(g.label, g.cls, g.tokens, scene, g.span, g.span, hideHealthBars));
     });
     return `<div class="mvc-stage layout-hero-sep" style="--mvc-cols:10">${parts.join('')}</div>`;
   }
@@ -248,30 +249,30 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene) {
   const parts = [];
   if (hasA && hasN && hasE) {
     layoutClass = 'layout-ane';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 3, 3));
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 2, 2));
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5));
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 3, 3, hideHealthBars));
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 2, 2, hideHealthBars));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5, hideHealthBars));
   } else if (hasA && hasN && !hasE) {
     layoutClass = 'layout-an';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5));
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5));
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5, hideHealthBars));
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5, hideHealthBars));
   } else if (hasA && !hasN && hasE) {
     layoutClass = 'layout-ae';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5));
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5));
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5, hideHealthBars));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5, hideHealthBars));
   } else if (!hasA && hasN && hasE) {
     layoutClass = 'layout-ne';
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5));
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5));
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5, hideHealthBars));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5, hideHealthBars));
   } else if (hasA) {
     layoutClass = 'layout-a';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 10, 10));
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 10, 10, hideHealthBars));
   } else if (hasN) {
     layoutClass = 'layout-n';
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 10, 10));
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 10, 10, hideHealthBars));
   } else {
     layoutClass = 'layout-e';
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 10, 10));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 10, 10, hideHealthBars));
   }
   return `<div class="mvc-stage ${layoutClass}" style="--mvc-cols:10">${parts.join('')}</div>`;
 }
@@ -360,6 +361,8 @@ function renderScene(scene) {
     if (stage) { stage.classList.remove('scene-bg-host'); stage.style.backgroundImage = ''; }
     return;
   }
+
+  const hideHealthBars = ['social', 'montage'].includes((scene.sceneType || '').toLowerCase());
   document.getElementById('displaySceneName').textContent = scene.name;
   document.getElementById('displayTrackerRow').innerHTML = trackerStarsHtml(scene.tracker);
 
@@ -404,7 +407,7 @@ function renderScene(scene) {
 
     return `<section class="location-block">
       <div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
-      ${pdMvcStageHtml(allies, neutrals, enemies, scene)}
+      ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars)}
     </section>`;
   }).join('') + (ko.length ? `<div class="mvc-ko">Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');
   scheduleFitHeroNames();
@@ -616,25 +619,56 @@ function lieutenantHealthBar(startingDie, currentDie) {
   if (!hit) return { pct: 0, band: 'out' };
   return { pct: hit[0], band: hit[1] };
 }
-function renderFighterCard(t, scene) {
+function renderFighterCard(t, scene, hideHealthBars = false) {
   let meter = '';
-  if (t.kind === 'villain') {
-    const row = libVillains.find(v => v.Slug === t.slug) || {};
-    const maxHealth = Number(row.MaxHealth) || Number(t.maxHealth) || 20;
-    const currentHealth = Number(t.currentHealth) || maxHealth;
-    const { pct, band } = villainHealthBar(currentHealth, maxHealth);
-    meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
-  } else if (t.kind === 'lieutenant') {
-    const row = libRowForToken(t) || {};
-    const { pct, band } = lieutenantHealthBar(row.Die, t.currentDie);
-    meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
+  if (!hideHealthBars) {
+    if (t.kind === 'villain') {
+      const row = libVillains.find(v => v.Slug === t.slug) || {};
+      const maxHealth = Number(row.MaxHealth) || Number(t.maxHealth) || 20;
+      const currentHealth = Number(t.currentHealth) || maxHealth;
+      const { pct, band } = villainHealthBar(currentHealth, maxHealth);
+      meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
+    } else if (t.kind === 'lieutenant') {
+      const row = libRowForToken(t) || {};
+      const { pct, band } = lieutenantHealthBar(row.Die, t.currentDie);
+      meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
+    }
   }
+  const modeBadge = heroModeBadge(t);
   return `<div class="mvc-card ${t.kind}">
     <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
     <div class="mvc-plate">${escHtml(t.name)}</div>
+    ${modeBadge}
     ${meter}
     ${bhdRowHtml(t, scene)}
   </div>`;
+}
+
+/* ---- Modular hero modes (Player Display): passive mode name only. ---- */
+let pdModesCache = {};
+function pdModesFor(t) {
+  const slug = (t.slug || '').trim();
+  if (t.kind !== 'hero' || !slug) return Promise.resolve(null);
+  if (pdModesCache[slug] !== undefined) return Promise.resolve(pdModesCache[slug]);
+  pdModesCache[slug] = null;
+  return fetch(`/api/md/heroes/${encodeURIComponent(slug)}`)
+    .then(r => r.ok ? r.text() : '')
+    .then(text => {
+      const m = String(text).match(/##\s*Modes\s*\n+```json\n([\s\S]*?)```/);
+      let modes = null;
+      if (m) { try { const a = JSON.parse(m[1]); if (Array.isArray(a) && a.length) modes = a; } catch (e) {} }
+      pdModesCache[slug] = modes;
+      return modes;
+    })
+    .catch(() => null);
+}
+function heroModeBadge(t) {
+  const cur = t.currentMode;
+  if (t.kind !== 'hero' || !cur || cur === 'default') return '';
+  const modes = pdModesCache[(t.slug || '').trim()];
+  const m = Array.isArray(modes) ? modes.find(x => (x.slug || '') === cur) : null;
+  const label = (m && m.name) || cur;
+  return `<div class="mode-badge">${escHtml(label)}</div>`;
 }
 
 async function poll() {
@@ -646,7 +680,15 @@ async function poll() {
       await fetchLibrary();
       const sceneRes = await fetch(`/api/scenes/${encodeURIComponent(active.slug)}`);
       if (!sceneRes.ok) renderScene(null);
-      else renderScene(await sceneRes.json());
+      else {
+        const scene = await sceneRes.json();
+        // Prime the modular-modes cache for any hero in a non-default mode; the
+        // next tick renders the resolved mode name.
+        (scene.tokens || []).forEach(t => {
+          if (t.kind === 'hero' && t.currentMode && pdModesCache[(t.slug || '').trim()] === undefined) pdModesFor(t);
+        });
+        renderScene(scene);
+      }
     }
   } catch (e) {
     // transient network hiccup — keep last rendered state, try again next tick

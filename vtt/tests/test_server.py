@@ -225,16 +225,47 @@ class TestActiveSceneAndRevealedRoll(ServerTestCase):
 
 
 class TestSceneNotesApi(ServerTestCase):
-    def test_scene_notes_returns_md_files_only(self):
+    def _make_scene(self, slug, name):
         scenes = self.campaign / 'scenes'
         scenes.mkdir(exist_ok=True)
-        (scenes / 'The_Cozy_Thimble.md').write_text('# Cozy\nHello', encoding='utf-8')
-        (scenes / 'ignore-me.json').write_text('{}', encoding='utf-8')
-        status, data = self.request('GET', '/api/scene-notes')
+        (scenes / (slug + '.json')).write_text(json.dumps({'name': name}), encoding='utf-8')
+
+    def test_returns_notes_from_scene_named_folder_only(self):
+        self._make_scene('montage-1', 'Montage #1')
+        self._make_scene('the-cozy-thimble', 'The Cozy Thimble')
+        scenes = self.campaign / 'scenes'
+        (scenes / 'Montage #1').mkdir()
+        (scenes / 'Montage #1' / 'notes.md').write_text('# Montage\nContent', encoding='utf-8')
+        (scenes / 'The Cozy Thimble').mkdir()
+        (scenes / 'The Cozy Thimble' / 'notes.md').write_text('Other scene', encoding='utf-8')
+        (scenes / 'stray.md').write_text('flat file should be ignored', encoding='utf-8')
+        status, data = self.request('GET', '/api/scene-notes/montage-1')
         self.assertEqual(status, 200)
-        notes = json.loads(data)
-        self.assertEqual(notes.get('The_Cozy_Thimble.md'), '# Cozy\nHello')
-        self.assertNotIn('ignore-me.json', notes)
+        payload = json.loads(data)
+        self.assertEqual(payload['name'], 'Montage #1')
+        self.assertEqual(payload['notes'], {'notes.md': '# Montage\nContent'})
+
+    def test_case_insensitive_folder_match(self):
+        self._make_scene('hub-police-arrive', 'Hub Police Arrive')
+        scenes = self.campaign / 'scenes'
+        (scenes / 'hub police arrive').mkdir()
+        (scenes / 'hub police arrive' / 'notes.md').write_text('Wrong-case folder', encoding='utf-8')
+        status, data = self.request('GET', '/api/scene-notes/hub-police-arrive')
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertEqual(payload['notes'], {'notes.md': 'Wrong-case folder'})
+
+    def test_scene_without_notes_folder_returns_empty_notes(self):
+        self._make_scene('the-cozy-thimble', 'The Cozy Thimble')
+        status, data = self.request('GET', '/api/scene-notes/the-cozy-thimble')
+        self.assertEqual(status, 200)
+        payload = json.loads(data)
+        self.assertEqual(payload['name'], 'The Cozy Thimble')
+        self.assertEqual(payload['notes'], {})
+
+    def test_unknown_scene_returns_404(self):
+        status, _ = self.request('GET', '/api/scene-notes/does-not-exist')
+        self.assertEqual(status, 404)
 
 
 class TestBackgroundsApi(ServerTestCase):
@@ -370,6 +401,48 @@ class TestHeroBuilder(ServerTestCase):
         self.assertEqual(zones['Hit & Run'], 'Green')
         self.assertEqual(zones['Run Down'], 'Yellow')
         self.assertEqual(zones['Legacy Shorthand'], 'Green')
+
+    def test_save_hero_writes_modular_modes_and_ability_mode_link(self):
+        payload = json.dumps({
+            'name': 'Gearshift',
+            'archetype': 'Modular',
+            'powers': [
+                {'name': 'Energy Blast', 'die': 'd10'},
+                {'name': 'Flight', 'die': 'd8'},
+                {'name': 'Force Field', 'die': 'd8'},
+                {'name': 'Density Control', 'die': 'd6'},
+            ],
+            'abilities': [
+                {'zone': 'Green', 'name': 'Switch', 'type': 'A',
+                 'text': 'Boost yourself using [power/quality]. Then change modes.'},
+                {'zone': 'Yellow', 'name': 'Bombardment', 'type': 'A', 'mode': 'modular-bombardment',
+                 'text': 'Defend yourself using [power]. You may Attack one target with your Max die.'},
+            ],
+            'modes': [
+                {'slug': 'default', 'name': 'Default Mode', 'zone': 'Green', 'default': True,
+                 'powers': {'Energy Blast': 'd10', 'Flight': 'd8', 'Force Field': 'd8', 'Density Control': 'd6'},
+                 'lockedActions': [], 'immobile': False, 'powerless': False},
+                {'slug': 'modular-bombardment', 'name': 'Bombardment Mode', 'zone': 'Yellow', 'default': False,
+                 'powers': {'Energy Blast': 'd12', 'Flight': 'd6', 'Force Field': 'd6'},
+                 'lockedActions': ['Boost', 'Hinder', 'Overcome'], 'immobile': False, 'powerless': False},
+                {'slug': 'powerless', 'name': 'Powerless Mode', 'zone': '', 'default': False,
+                 'powers': {'Flight': 'd6', 'Force Field': 'd10'},
+                 'lockedActions': [], 'immobile': False, 'powerless': True},
+            ],
+        })
+        status, data = self.request(
+            'POST', '/api/builder/hero', body=payload,
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200, data)
+        md = (self.campaign / 'md' / 'heroes' / 'gearshift.md').read_text(encoding='utf-8')
+        self.assertIn('## Modes', md)
+        self.assertIn('modular-bombardment', md)
+        self.assertIn('Powerless Mode', md)
+        with (self.campaign / 'abilities.csv').open(encoding='utf-8') as f:
+            rows = list(csv.DictReader(f))
+        modes = {r['Name']: r.get('Mode', '') for r in rows if (r.get('Slug') or '') == 'gearshift'}
+        self.assertEqual(modes['Switch'], '')
+        self.assertEqual(modes['Bombardment'], 'modular-bombardment')
 
     def test_save_hero_requires_name(self):
         status, data = self.request(

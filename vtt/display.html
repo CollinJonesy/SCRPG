@@ -160,6 +160,20 @@
     border: 0.15vh solid #000;
   }
   .mvc-art img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .mode-badge {
+    font-family: var(--font-body);
+    font-size: clamp(9px, 1.3vh, 14px);
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    padding: 0.2vh 0.5vw;
+    border-radius: 1vh;
+    background: rgba(180,83,9,.25);
+    border: 1px solid #b45309;
+    color: #ffd9b0;
+    margin-top: 0.2vh;
+    text-align: center;
+  }
   .mvc-plate {
     font-family: var(--font-body);
     font-weight: 700;
@@ -260,6 +274,14 @@
 </style>
 </head>
 <body>
+<script>
+  // TV Mode: default ON for casting. Use ?tv=0 to disable.
+  const params = new URLSearchParams(location.search);
+  const tv = params.get('tv');
+  if (tv !== '0') {
+    document.body.classList.add('tv-mode');
+  }
+</script>
 
 <div id="rollOverlay" class="hidden"></div>
 

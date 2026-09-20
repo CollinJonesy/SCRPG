@@ -37,9 +37,9 @@ class TestDisplayJsContracts(unittest.TestCase):
         """Default assortment: fixed 10-col Ally3 / Neutral2 / Enemy5."""
         body = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
         self.assertIn("layoutClass = 'layout-ane'", body)
-        self.assertIn("pdMvcSideHtml('ALLIES', 'allies', a, scene, 3, 3)", body)
-        self.assertIn("pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 2, 2)", body)
-        self.assertIn("pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5)", body)
+        self.assertIn("pdMvcSideHtml('ALLIES', 'allies', a, scene, 3, 3, hideHealthBars)", body)
+        self.assertIn("pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 2, 2, hideHealthBars)", body)
+        self.assertIn("pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5, hideHealthBars)", body)
         self.assertIn('--mvc-cols:10', body)
         # Stage is always 10 fixed columns in CSS
         self.assertIn('repeat(10, minmax(0, 1fr))', self.html)
@@ -69,7 +69,7 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('totalTokens < 10', body)
         self.assertIn('useHeroSep', body)
         self.assertIn('layout-hero-sep', body)
-        self.assertIn("pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5)", body)
+        self.assertIn("pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5, hideHealthBars)", body)
         self.assertIn('mvc-blank', body)
         self.assertIn('.mvc-blank', self.html)
 

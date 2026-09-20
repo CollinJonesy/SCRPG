@@ -235,6 +235,7 @@
       <option value="Neutral">Neutral</option>
     </select>
     <label>Alias</label><input type="text" id="alias" placeholder="e.g. Jordan Veil">
+    <label><input type="checkbox" id="playerControlled" checked> Player-controlled Hero</label>
     <label>Player</label><input type="text" id="player" placeholder="e.g. Cherise">
     <label>Gender / Age / Height</label>
     <div style="display:flex;gap:6px"><input type="text" id="gender" placeholder="Gender"><input type="text" id="age" placeholder="Age"><input type="text" id="height" placeholder="Height"></div>
@@ -492,7 +493,7 @@ const state={bg:null,ps:null,ar:null,pe:null,reds:[],retcon:null,method:"Constru
   arPow:{}, arQual:{}, arSlots:[], arPrinciple:"", arAbilities:[], arYellowAbilities: new Set(),
   peQual:{}, peCustom:"", peOutBind:"", health:null, abBinds:{}, abNames:{}, powNames:{}, qualNames:{}, retconSpec:{}, reqDie:"",
   psReq:{mode:'',die:'',name:''}, arReq:{mode:'',die:'',name:''},
-  modPair:null, modD6:[], modGreen:"", modYellow:[], modRed:"", modPowerless:false,
+  modPair:null, modD6:[], modGreen:"", modYellow:[], modRed:"", modPowerless:false, modModes:{}, modPowerlessPowers:null,
   freePow:{}, freeQual:{},
   guidedRolls:{bg:null,ps:null,ar:null,pe:null},
   f:{name:"",alias:"",player:"",gender:"",age:"",height:"",eyes:"",hair:"",skin:"",build:"",costume:"",notes:""}};
@@ -1132,7 +1133,7 @@ function renderArGrid(){
     const d=document.createElement('div'); d.className='opt'+(sel.ar===i?' sel':'');
     const req=[ar.required_power,ar.required_quality].filter(Boolean).join(' / ')||'—';
     d.innerHTML=`<b>#${catalogN(ar)} ${ar.name}</b><small>Req: ${req}${ar.principle_category?` · <i>${ar.principle_category}</i>`:''}</small><small>${ar.offered||''}</small>`;
-    d.onclick=()=>guidedGuard('ar', ar, ()=>{ if(sel.ar!==i){ sel.ar=i; state.arPow={}; state.arQual={}; state.arSlots=[]; state.arPrinciple=''; state.arAbilities=[]; state.arYellowAbilities=new Set(); state.arReq={mode:'',die:'',name:''}; state.modPair=null; state.modD6=[]; state.modGreen=''; state.modYellow=[]; state.modRed=''; state.modPowerless=false; state.guidedRolls.pe=null; } [...g.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); onPick(); });
+    d.onclick=()=>guidedGuard('ar', ar, ()=>{ if(sel.ar!==i){ sel.ar=i; state.arPow={}; state.arQual={}; state.arSlots=[]; state.arPrinciple=''; state.arAbilities=[]; state.arYellowAbilities=new Set(); state.arReq={mode:'',die:'',name:''}; state.modPair=null; state.modD6=[]; state.modGreen=''; state.modYellow=[]; state.modRed=''; state.modPowerless=false; state.modModes={}; state.modPowerlessPowers=null; state.guidedRolls.pe=null; } [...g.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); onPick(); });
     g.appendChild(d);
   });
   markGuidedOpts(g,'ar',CAT.archetypes);
@@ -1155,6 +1156,84 @@ function syncModularAbs(){
   if(state.modRed) keep.push(state.modRed);
   state.arAbilities=keep;
 }
+/* ---- Modular mode construction (rulebook pp. 96–98) ----
+   Each non-default mode picks N powers from the DEFAULT mode and applies a fixed
+   die pattern to them (relative to their default-mode dice, clamped d4–d12),
+   plus locks out basic actions. A mode consists ONLY of its picked powers
+   (confirmed reading): everything else is unavailable while it is active. */
+const MOD_DIE_LADDER=['d4','d6','d8','d10','d12'];
+const escHtml=escLand, escAttr=escLand; // same escaping helper, app.js-style names
+const MOD_MODE_RULES={
+  'modular-debilitator':  { name:'Debilitator',   zone:'Green',  count:4, pattern:['same','down','up','up'],    locks:['Boost','Defend','Overcome'] },
+  'modular-improvement':  { name:'Improvement',   zone:'Green',  count:4, pattern:['same','same','up','up'],    locks:['Attack','Hinder'] },
+  'modular-scout':        { name:'Scout',         zone:'Green',  count:4, pattern:['same','same','down','up'],  locks:['Attack','Boost'] },
+  'modular-analysis':     { name:'Analysis',      zone:'Yellow', count:4, pattern:['same','same','up','up'],    locks:['Attack','Defend'] },
+  'modular-bombardment':  { name:'Bombardment',   zone:'Yellow', count:3, pattern:['down','down','d12'],        locks:['Boost','Hinder','Overcome'] },
+  'modular-regeneration': { name:'Regeneration',  zone:'Yellow', count:2, pattern:['same','up2'],               locks:['Attack','Hinder'] },
+  'modular-skirmish':     { name:'Skirmish',      zone:'Yellow', count:4, pattern:['same','down','up','up'],    locks:['Boost','Defend','Overcome'] },
+  'modular-stalwart':     { name:'Stalwart',      zone:'Yellow', count:4, pattern:['same','down','down','up2'], locks:['Hinder','Overcome'] },
+  'modular-destroyer':    { name:'Destroyer',     zone:'Red',    count:3, pattern:['same','same','up'],         locks:['Boost'], immobile:true },
+  'modular-hunter-killer':{ name:'Hunter/Killer', zone:'Red',    count:2, pattern:['up','up'],                  locks:['Defend','Overcome'] },
+  'modular-shield':       { name:'Shield',        zone:'Red',    count:4, pattern:['same','same','up','up'],    locks:['Attack'] },
+};
+function modStepDie(die, step){
+  const i=MOD_DIE_LADDER.indexOf(String(die||'d6').toLowerCase());
+  if(i<0) return 'd6';
+  if(step==='d12') return 'd12';
+  if(step==='up2') return MOD_DIE_LADDER[Math.min(4,i+2)];
+  if(step==='up') return MOD_DIE_LADDER[Math.min(4,i+1)];
+  if(step==='down') return MOD_DIE_LADDER[Math.max(0,i-1)];
+  return MOD_DIE_LADDER[i];
+}
+function modModeIsComplete(slug){
+  const rule=MOD_MODE_RULES[slug]; if(!rule) return true;
+  const mm=(state.modModes||{})[slug]; if(!mm||!mm.powers) return false;
+  const names=Object.values(mm.powers);
+  return names.length===rule.count && names.every(n=>!!n) && new Set(names).size===rule.count;
+}
+function modAllModesComplete(){
+  const picked=[state.modGreen, state.modRed].filter(Boolean).concat(state.modYellow||[]);
+  return picked.every(s=>modModeIsComplete(s));
+}
+function modDefaultPowers(){ return assignedPow(); }
+function modPowerlessComplete(){
+  const p=state.modPowerlessPowers;
+  return !!(p && p.d6 && p.d10 && p.d6!==p.d10);
+}
+function renderModModeEditor(wrap, slug){
+  const rule=MOD_MODE_RULES[slug]; if(!rule) return;
+  const mm=(state.modModes||{})[slug]||{powers:{}};
+  const powers=modDefaultPowers();
+  const names=Object.keys(powers);
+  const slotLabel=step=>step==='d12'?'set to d12':step==='up2'?'+2 sizes':step==='up'?'+1 size':step==='down'?'−1 size':'same die';
+  const rows=rule.pattern.map((step,i)=>{
+    const cur=(mm.powers[step+'_'+i])||'';
+    const other=Object.entries(mm.powers).filter(([k])=>k!==step+'_'+i).map(([,v])=>v);
+    const opts=names.filter(n=>!other.includes(n)||n===cur);
+    const die=cur?modStepDie(powers[cur],step):'';
+    return `<div class="assign-row"><span class="aq">${escAttr(slotLabel(step))}</span>
+      <select data-mmslot="${slug}" data-mmkey="${step+'_'+i}" class="dq"><option value="">— pick power —</option>
+      ${opts.map(n=>`<option value="${escAttr(n)}" ${n===cur?'selected':''}>${escHtml(n)}</option>`).join('')}</select>
+      <span class="muted">${die?`→ ${die}`:''}</span></div>`;
+  }).join('');
+  wrap.insertAdjacentHTML('beforeend', `<div class="assign-head">Build ${escHtml(rule.name)} Mode (${rule.zone}) — pick ${rule.count} power${rule.count>1?'s':''} from Default Mode · cannot ${rule.locks.join(', ')}${rule.immobile?' · immobile':''}</div>${rows}`);
+}
+function renderModPowerlessEditor(wrap){
+  const p=state.modPowerlessPowers||{};
+  const powers=modDefaultPowers();
+  const names=Object.keys(powers);
+  const sel=(slot,die)=>`<div class="assign-row"><span class="aq">${die}</span>
+    <select data-mpslot="${slot}" class="dq"><option value="">— pick power —</option>
+    ${names.filter(n=>n===p[slot]||n!==p.d6&&n!==p.d10).map(n=>`<option value="${escAttr(n)}" ${n===p[slot]?'selected':''}>${escHtml(n)}</option>`).join('')}</select></div>`;
+  wrap.insertAdjacentHTML('beforeend', `<div class="assign-head">Powerless Mode (optional, free) — one power at d6, another at d10; no abilities except principles</div>
+    <label style="display:block;margin:6px 0;"><input type="checkbox" id="modPowerlessChk" ${state.modPowerless?'checked':''}> Include a Powerless Mode</label>
+    ${state.modPowerless?sel('d6','d6')+sel('d10','d10'):''}`);
+  const chk=wrap.querySelector('#modPowerlessChk');
+  if(chk) chk.onchange=()=>{ state.modPowerless=chk.checked; if(!chk.checked) state.modPowerlessPowers=null; onPick(); };
+  wrap.querySelectorAll('select[data-mpslot]').forEach(s=>{
+    s.onchange=()=>{ state.modPowerlessPowers=state.modPowerlessPowers||{}; state.modPowerlessPowers[s.dataset.mpslot]=s.value; onPick(); };
+  });
+}
 function renderModular(el){
   const pair= (state.modPair!=null) ? CAT.archetypes[state.modPair] : null;
   const wrap=document.createElement('div');
@@ -1168,7 +1247,7 @@ function renderModular(el){
     const d=document.createElement('div');
     d.className='opt'+(state.modPair===i?' sel':'');
     d.innerHTML=`<b>${ar.name}</b><small>${ar.principle_category||''}</small>`;
-    d.onclick=()=>{ state.modPair=i; state.arSlots=[]; state.arPow={}; state.arQual={}; state.modD6=[]; onPick(); };
+    d.onclick=()=>{ state.modPair=i; state.arSlots=[]; state.arPow={}; state.arQual={}; state.modD6=[]; state.modModes={}; state.modPowerlessPowers=null; onPick(); };
     grid.appendChild(d);
   });
   if(!pair){ wrap.insertAdjacentHTML('beforeend','<div class="err">Pick the archetype to modularize first.</div>'); return; }
@@ -1219,11 +1298,23 @@ function renderModular(el){
   }
   wrap.insertAdjacentHTML('beforeend', catKeyHtml()+
     `<div class="assign-head">Automatic</div>${auto.map(a=>modeCard(a,'auto',0)).join('')}
-     <div class="muted">Default mode uses the paired archetype’s dice and has no extra ability. Optional powerless mode: notes.</div>
+     <div class="muted">Default mode uses the paired archetype’s dice and has no extra ability.</div>
      <div class="assign-head">One extra Green mode</div>${gModes.map(a=>modeCard(a,'g',1)).join('')}
      <div class="assign-head">Two Yellow modes</div>${yModes.map(a=>modeCard(a,'y',2)).join('')}
-     <div class="assign-head">One Red mode</div>${rModes.map(a=>modeCard(a,'r',1)).join('')}
-     <div class="muted">Per-mode die bumps (which powers grow/shrink) live on the auxiliary sheet / notes.</div>`);
+     <div class="assign-head">One Red mode</div>${rModes.map(a=>modeCard(a,'r',1)).join('')}`);
+  // Per-mode construction editors: power picks + die pattern per chosen mode.
+  const pickedModes=[state.modGreen, state.modRed].filter(Boolean).concat(state.modYellow||[]);
+  pickedModes.forEach(s=>renderModModeEditor(wrap, s));
+  renderModPowerlessEditor(wrap);
+  wrap.querySelectorAll('select[data-mmslot]').forEach(s=>{
+    s.onchange=()=>{
+      const slug=s.dataset.mmslot, key=s.dataset.mmkey;
+      state.modModes=state.modModes||{};
+      state.modModes[slug]=state.modModes[slug]||{powers:{}};
+      state.modModes[slug].powers[key]=s.value;
+      onPick();
+    };
+  });
   if(pair.principle_category){
     const princ=CAT.principles.filter(p=>p.category===pair.principle_category);
     wrap.insertAdjacentHTML('beforeend', `<label>Principle from ${pair.name} (${pair.principle_category})</label>
@@ -2065,7 +2156,7 @@ function saveToVtt(){
   const pe=currentPe();
   const abilities=[];
   (state.psAbilities||[]).forEach(s=>{ const a=CAT.psAbilities.find(x=>x.slug===s); if(a){ const shown=abilityDisplayName(s,a.name); const zone=(a.zone==='Green/Yellow')?'Green':a.zone; abilities.push({zone,name:a.name,displayName:shown===a.name?'':shown,type:a.type,text:fillBind(a.game_text, state.abBinds[s])}); } });
-  (state.arAbilities||[]).forEach(s=>{ const a=CAT.arAbilities.find(x=>x.slug===s); if(a){ const shown=abilityDisplayName(s,a.name); const zone=archetypeZoneFor(a,s); abilities.push({zone,name:a.name,displayName:shown===a.name?'':shown,type:a.type,text:fillBind(a.game_text, state.abBinds[s])}); } });
+  (state.arAbilities||[]).forEach(s=>{ const a=CAT.arAbilities.find(x=>x.slug===s); if(a){ const shown=abilityDisplayName(s,a.name); const zone=archetypeZoneFor(a,s); abilities.push({zone,name:a.name,displayName:shown===a.name?'':shown,type:a.type,text:fillBind(a.game_text, state.abBinds[s]), mode: MOD_MODE_RULES[s]?s:''}); } });
   state.reds.forEach(k=>{
     const a=RED_ABILITIES[+k.slice(1)];
     if(a){ const shown=abilityDisplayName('red-'+k.slice(1), a[0]); abilities.push({zone:"Red", name:a[0], displayName:shown===a[0]?'':shown, type:a[1], text:fillBind(a[2], state.abBinds['red-'+k.slice(1)])}); }
@@ -2085,8 +2176,42 @@ function saveToVtt(){
     const pr=CAT.principles.find(p=>p.slug===slug);
     if(pr) princ.push({name:pr.name, roleplay:pr.roleplay||'', minorTwist:pr.minor_twist||'', majorTwist:pr.major_twist||''});
   });
+  // Modular hero: build the structured modes list (default + chosen modes +
+  // optional powerless). Powers are stored absolute per mode; board reads this
+  // from the hero's `## Modes` MD section.
+  let modes=null;
+  const ar=currentAr();
+  if(ar && ar.slug==='modular'){
+    if(!modAllModesComplete()){ alert('Every chosen Modular mode needs its full set of distinct powers picked.'); return; }
+    if(state.modPowerless && !modPowerlessComplete()){ alert('Powerless Mode needs one power at d6 and a different power at d10.'); return; }
+    const defaultPowers={};
+    powers.forEach(p=>{ defaultPowers[p.name]=p.die; });
+    modes=[{ slug:'default', name:'Default Mode', zone:'Green', default:true,
+      powers:defaultPowers, lockedActions:[], immobile:false, powerless:false }];
+    const addMode=(slug)=>{
+      const rule=MOD_MODE_RULES[slug]; if(!rule) return;
+      const mm=(state.modModes||{})[slug]||{powers:{}};
+      const pmap={};
+      Object.entries(mm.powers).forEach(([key,name])=>{
+        if(!name) return;
+        const step=key.split('_')[0];
+        pmap[name]=modStepDie(defaultPowers[name], step);
+      });
+      modes.push({ slug, name:rule.name+' Mode', zone:rule.zone, default:false,
+        powers:pmap, lockedActions:rule.locks.slice(), immobile:!!rule.immobile, powerless:false });
+    };
+    if(state.modGreen) addMode(state.modGreen);
+    (state.modYellow||[]).forEach(s=>addMode(s));
+    if(state.modRed) addMode(state.modRed);
+    if(state.modPowerless && state.modPowerlessPowers){
+      modes.push({ slug:'powerless', name:'Powerless Mode', zone:'', default:false,
+        powers:{ [state.modPowerlessPowers.d6]:'d6', [state.modPowerlessPowers.d10]:'d10' },
+        lockedActions:[], immobile:false, powerless:true });
+    }
+  }
   const payload={
-    name:state.f.name, alias:state.f.alias, player:state.f.player,
+    name:state.f.name, alias:state.f.alias,
+    player: document.getElementById('playerControlled') && !document.getElementById('playerControlled').checked ? '' : state.f.player,
     background: currentBg()?currentBg().name:"",
     powerSource: currentPs()?currentPs().name:"",
     archetype: currentAr()?currentAr().name:"",
@@ -2095,6 +2220,7 @@ function saveToVtt(){
     out: pe?(state.peOutBind?(pe.out_ability||'').replace(/\[quality\]/ig,state.peOutBind).replace(/\[power\]/ig,state.peOutBind):(pe.out_ability||'')):"",
     maxHealth: state.health?state.health[0]:"",
     powers, qualities, abilities, principles: princ,
+    modes,
     active: document.getElementById('heroActive') ? document.getElementById('heroActive').checked : true,
     affiliation: (document.getElementById('heroAffiliation')||{}).value || 'Ally',
     origin: (heroLand.find(x=>x.Slug===(state.f && state.f.slug))||heroLand.find(x=>x.Name===state.f.name)||{}).origin || (BOOK_HERO_SLUGS.has(slugify(state.f.name||'')) ? 'premade' : 'custom'),
@@ -2254,6 +2380,7 @@ function snapshotBuilder(){
     arAbilities: state.arAbilities||[], arYellowAbilities: [...yellowSet()], arReq: state.arReq||{mode:'',die:'',name:''},
     modPairSlug: (state.modPair!=null && CAT.archetypes[state.modPair])?CAT.archetypes[state.modPair].slug:'',
     modD6: state.modD6||[], modGreen: state.modGreen||'', modYellow: state.modYellow||[], modRed: state.modRed||'', modPowerless: !!state.modPowerless,
+    modModes: state.modModes||{}, modPowerlessPowers: state.modPowerlessPowers||null,
     peCustom: state.peCustom||'', peOutBind: state.peOutBind||'', peQual: state.peQual||{},
     reds: state.reds||[], retcon: state.retcon, retconSpec: state.retconSpec||{}, abBinds: state.abBinds||{}, abNames: state.abNames||{}, powNames: state.powNames||{}, qualNames: state.qualNames||{}, health: state.health,
     method: state.method||'Constructed',
@@ -2270,7 +2397,7 @@ function resetHeroForm(){
   state.arReq={mode:'',die:'',name:''};
   state.peQual={}; state.peCustom=''; state.peOutBind='';
   state.health=null; state.abBinds={}; state.abNames={}; state.powNames={}; state.qualNames={}; state.retconSpec={}; state.reds=[]; state.retcon=null;
-  state.modPair=null; state.modD6=[]; state.modGreen=''; state.modYellow=[]; state.modRed=''; state.modPowerless=false;
+  state.modPair=null; state.modD6=[]; state.modGreen=''; state.modYellow=[]; state.modRed=''; state.modPowerless=false; state.modModes={}; state.modPowerlessPowers=null;
   state.freePow={}; state.freeQual={};
   state.guidedRolls={bg:null,ps:null,ar:null,pe:null};
   state.f={name:'',alias:'',player:'',gender:'',age:'',height:'',eyes:'',hair:'',skin:'',build:'',costume:'',notes:''};
@@ -2279,6 +2406,7 @@ function resetHeroForm(){
   });
   const ac=document.getElementById('heroActive'); if(ac) ac.checked=true;
   const aff=document.getElementById('heroAffiliation'); if(aff) aff.value='Ally';
+  const pc=document.getElementById('playerControlled'); if(pc) pc.checked=true;
 }
 function applyBuilderState(st){
   if(!st||typeof st!=='object') return;
@@ -2307,6 +2435,8 @@ function applyBuilderState(st){
   state.modYellow=Array.isArray(st.modYellow)?st.modYellow.slice():[];
   state.modRed=st.modRed||'';
   state.modPowerless=!!st.modPowerless;
+  state.modModes=(st.modModes && typeof st.modModes==='object')?st.modModes:{};
+  state.modPowerlessPowers=(st.modPowerlessPowers && typeof st.modPowerlessPowers==='object')?st.modPowerlessPowers:null;
   state.peCustom=st.peCustom||'';
   state.peOutBind=st.peOutBind||'';
   state.peQual=Object.assign({}, st.peQual||{});
@@ -2431,6 +2561,7 @@ async function editHeroRow(slug){
   const aff=document.getElementById('heroAffiliation'); if(aff) aff.value=(['Ally','Enemy','Neutral'].includes(r.Affiliation)?r.Affiliation:'Ally');
   const a=document.getElementById('alias'); if(a) a.value=r.Alias||'';
   const p=document.getElementById('player'); if(p) p.value=r.Player||'';
+  const pc=document.getElementById('playerControlled'); if(pc) pc.checked=!!String(r.Player||'').trim();
   state.f.name=r.Name||''; state.f.alias=r.Alias||''; state.f.player=r.Player||'';
   applyHeroIssues(heroIssueIndex.filter(i=>(i.heroSlugs||[]).includes(slug)).map(i=>i.slug));
   renderBgGrid(); renderPsGrid(); renderArGrid(); renderPeGrid();

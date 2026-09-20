@@ -84,6 +84,17 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('280px 1fr 280px', main)
         self.assertIn('function renderSceneNotesPanel', self.src)
 
+    def test_scene_notes_fetches_only_current_scene(self):
+        """Panel fetches /api/scene-notes/<slug> for the active scene, not all notes."""
+        start = self.src.index('async function renderSceneNotesPanel')
+        end = self.src.index('function toggleCollapsible')
+        body = self.src[start:end]
+        self.assertIn('/api/scene-notes/', body)
+        self.assertIn('encodeURIComponent', body)
+        self.assertIn('state.activeSlug', body)
+        # The old dump-everything call is gone
+        self.assertNotIn("fetch('/api/scene-notes')", body)
+
     def test_villain_token_actions_are_attack_overcome_twists(self):
         start = self.src.index('function boardBasicActionsHtml')
         end = self.src.index('function abilityPopupText')
@@ -113,14 +124,14 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('isNonCombatNpc(t)', body)
         self.assertIn("if (isNonCombatNpc(t)) return '';", body)
         self.assertIn('function tokenShowsBhd', self.src)
-        self.assertIn('if (tokenShowsBhd(t)) body += bhdRowHtml', self.src)
-        # NPC Type options include Hero + Bystander in Library
+        self.assertIn('if (tokenShowsBhd(t)) content.innerHTML += bhdRowHtml', self.src)
+        # NPC Type options include Bystander in Library; Heroes use Hero Builder.
         self.assertIn("value=\"Bystander\"", self.src)
-        self.assertIn("value=\"Hero\"", self.src)
         mb = (Path(__file__).resolve().parent.parent / 'minion-builder.html').read_text(encoding='utf-8')
-        self.assertIn('Hero</option>', mb)
+        self.assertNotIn('<option>Hero</option>', mb)
         self.assertIn('Bystander</option>', mb)
-        self.assertIn("NPC_MODE?'Hero':'Minion'", mb)
+        self.assertIn("NPC_MODE?'Bystander':'Minion'", mb)
+        self.assertIn('!isNonCombatNpc(x)', self.src)
 
     def test_sort_enemy_puts_non_combat_last(self):
         start = self.src.index('function sortEnemyTokens')
@@ -182,3 +193,40 @@ class TestAppJsContracts(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestModularHeroModes(unittest.TestCase):
+    """Modular archetype: mode data, token gating, and ability-popup mode changes."""
+    def setUp(self):
+        self.src = APP.read_text(encoding='utf-8')
+
+    def test_modes_md_parser_and_cache_exist(self):
+        self.assertIn('function parseModesMd', self.src)
+        self.assertIn('##\\s*Modes', self.src)
+        self.assertIn('function heroModesForToken', self.src)
+        self.assertIn('function heroCurrentMode', self.src)
+
+    def test_ability_filter_gates_by_active_mode(self):
+        self.assertIn('const abMode = String(a.Mode || \'\').trim();', self.src)
+        self.assertIn('return abMode === curMode;', self.src)
+        self.assertIn('if (powerless) return false;', self.src)
+
+    def test_token_renders_mode_ui_and_locked_actions(self):
+        self.assertIn('function renderHeroModeHtml', self.src)
+        self.assertIn('function setHeroMode', self.src)
+        self.assertIn('hero-mode-select', self.src)
+        self.assertIn('board-act-locked', self.src)
+        self.assertIn('function modeLockedActions', self.src)
+        # Immobile blocks both mouse and touch drag paths.
+        self.assertIn("card.draggable = !immobile;", self.src)
+        self.assertIn("heroCurrentMode(tok)?.immobile", self.src)
+
+    def test_popup_mode_change_ordering(self):
+        self.assertIn("openQuickSwitch(tokenId, a)", self.src)
+        self.assertIn("openEmergencySwitch(tokenId, a)", self.src)
+        self.assertIn("position: 'post'", self.src)
+        self.assertIn("position: 'pre'", self.src)
+        self.assertIn("if (modeFirst) applyModeChange();", self.src)
+        self.assertIn("if (!modeFirst) applyModeChange();", self.src)
+        self.assertIn('continueQuickSwitch', self.src)
+        self.assertIn('commitEmergencySwitch', self.src)
