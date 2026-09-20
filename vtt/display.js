@@ -37,11 +37,11 @@ function isNonCombatToken(t) {
 }
 
 /* ---- PD session-prep layout (closed design) ---- */
-// Column budgets for the grouped role layout: Players 1 / Bystanders 1 / Threats 2.
-// Horizontal cards (?cards=h prototype adopted as the shipped card shape).
+// Column budgets for the grouped role layout: Players 1 / Bystanders 2 / Threats 3 = 6 total.
+// Horizontal cards are the shipped card shape.
 const PD_ALLY_COLS = 1;
-const PD_BYSTANDER_COLS = 1;
-const PD_THREAT_COLS = 2;
+const PD_BYSTANDER_COLS = 2;
+const PD_THREAT_COLS = 3;
 
 function ensureMods(scene) {
   if (!scene) return [];
@@ -165,7 +165,7 @@ function sortAllyTokens(tokens) {
  * mvc-row uses the side's span as column count so extras WRAP).
  *
  * Grouped role layout (only layout): Players PD_ALLY_COLS (1) /
- * Bystanders PD_BYSTANDER_COLS (1) / Threats PD_THREAT_COLS (2). Groups are
+ * Bystanders PD_BYSTANDER_COLS (2) / Threats PD_THREAT_COLS (3). Groups are
  * by ROLE: PCs, Bystander NPCs, and one combined Threats group. Stage grid
  * width = sum of present side spans so columns fill the width. Cards are
  * always horizontal (portrait left, vertical health bar, Name/BHD right).
@@ -235,8 +235,8 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
   const parts = [];
   let cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;
   const rSum = presentIdx.reduce((s, i) => s + ratios[i], 0);
-  const spans = presentIdx.map(i => Math.max(1, Math.round((4 * ratios[i]) / rSum)));
-  // Fix rounding so spans sum exactly to the 4-col budget (shrink largest on overflow, grow largest on underflow)
+  const spans = presentIdx.map(i => Math.max(1, Math.round((6 * ratios[i]) / rSum)));
+  // Fix rounding so spans sum exactly to the 6-col budget (shrink largest on overflow, grow largest on underflow)
   let sum = spans.reduce((a, b) => a + b, 0);
   while (sum > cols) {
     const biggest = spans.indexOf(Math.max(...spans));
@@ -303,8 +303,14 @@ function fitHeroNamePlates() {
   document.querySelectorAll('.mvc-row').forEach(row => {
     const plates = [...row.querySelectorAll('.mvc-card .mvc-plate')];
     if (!plates.length) return;
-    let shared = 24;
-    plates.forEach(el => { shared = Math.min(shared, fitNameSize(el, ctx, 24)); });
+    // Font scales with the space available: the ceiling grows with the column
+    // width (cell ≈ row width / --mvc-count), so wide columns get big type and
+    // narrow columns still shrink to fit. Floor stays at the old 24px baseline.
+    const colCount = Math.max(1, parseInt(getComputedStyle(row.parentElement).getPropertyValue('--mvc-count')) || 1);
+    const colWidth = row.clientWidth / colCount;
+    const hi = Math.min(Math.max(24, Math.round(colWidth * 0.2)), 72);
+    let shared = hi;
+    plates.forEach(el => { shared = Math.min(shared, fitNameSize(el, ctx, hi)); });
     // Numbers match token name. Labels: at most name−2, and shrink further to fit cell width (no clip).
     const labelCap = Math.max(7, shared - 2);
     plates.forEach(el => {
@@ -345,7 +351,10 @@ function fitStageToViewport() {
   const content = row.scrollHeight;
   if (!avail || !content) return;
   if (content > avail) {
-    const k = Math.max(0.6, avail / content);
+    // Scale to exactly fit so a location can never be clipped off-screen —
+    // no legibility floor: hiding a whole location is worse than smaller type,
+    // and the per-box font scaling below keeps type as large as the box allows.
+    const k = avail / content;
     row.style.height = avail + 'px';
     row.style.overflow = 'hidden';
     row.style.transform = `scale(${k})`;

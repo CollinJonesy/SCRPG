@@ -33,13 +33,13 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('function isNonCombatToken', self.src)
         self.assertIn("/api/csv/npcs", self.src)
 
-    def test_pd_default_is_4_col_roles_1_1_2(self):
-        """Grouped role layout: Players 1 / Bystanders 1 / Threats 2 — 4 total columns."""
+    def test_pd_default_is_6_col_roles_1_2_3(self):
+        """Grouped role layout: Players 1 / Bystanders 2 / Threats 3 — 6 total columns."""
         body = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
         # Tunable constants exist and default to the closed design
         self.assertIn('const PD_ALLY_COLS = 1;', self.src)
-        self.assertIn('const PD_BYSTANDER_COLS = 1;', self.src)
-        self.assertIn('const PD_THREAT_COLS = 2;', self.src)
+        self.assertIn('const PD_BYSTANDER_COLS = 2;', self.src)
+        self.assertIn('const PD_THREAT_COLS = 3;', self.src)
         # Grouped layout renders every present group with its computed span (loop, not per-case literals)
         self.assertIn('presentIdx.forEach((i, k) => {', body)
         self.assertIn('pdMvcSideHtml(label, cls, tokensArr, scene, spans[k], spans[k], hideHealthBars)', body)
@@ -75,16 +75,25 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('let enemies = sortEnemyTokens(here.filter(t => !isPcHeroToken(t) && !isNonCombatToken(t)));', body)
 
     def test_pd_fit_to_viewport_never_scrolls(self):
-        """A fit-to-viewport pass scales the locations row (floor 0.6) and runs after every render + resize."""
+        """A fit-to-viewport pass scales the locations row to exactly fit (no clip) and runs after every render + resize."""
         self.assertIn('function fitStageToViewport', self.src)
         fit = self.src[self.src.index('function fitStageToViewport'):]
         fit = fit[:fit.index('\nfunction ', 10)] if '\nfunction ' in fit[10:] else fit
-        self.assertIn('Math.max(0.6, avail / content)', fit)
+        # Exact-fit scale — a location must never be clipped off-screen
+        self.assertIn('const k = avail / content;', fit)
         self.assertIn("row.style.transform = `scale(${k})`", fit)
+        self.assertIn("row.style.overflow = 'hidden'", fit)
         # Wired into the post-render hook alongside name fitting
         sched = self.src[self.src.index('function scheduleFitHeroNames'):self.src.index('function fitStageToViewport')]
         self.assertIn('fitHeroNamePlates();', sched)
         self.assertIn('fitStageToViewport();', sched)
+
+    def test_pd_font_scales_with_cell_space(self):
+        """fitHeroNamePlates grows/shrinks type with the column width (cell-derived ceiling)."""
+        fit = self.src[self.src.index('function fitHeroNamePlates'):self.src.index('function scheduleFitHeroNames')]
+        self.assertIn("getPropertyValue('--mvc-count')", fit)
+        self.assertIn('colWidth * 0.2', fit)
+        self.assertIn('Math.max(24', fit)  # 24px baseline floor, grows with cell
 
     def test_pd_horizontal_card_is_shipped_shape(self):
         """Horizontal card (portrait left, vertical bar, Name/BHD right) is the only card shape; no toggle."""

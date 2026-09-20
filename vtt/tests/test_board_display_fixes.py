@@ -104,7 +104,7 @@ class TestBoardDisplayFixes(unittest.TestCase):
         self.assertNotIn('useHeroSep', DISP)
         self.assertNotIn('layout-hero-sep', DISP)
         # Budget is always the 4-column design (redistribution, not 10-col stretch)
-        self.assertIn('Math.max(1, Math.round((4 * ratios[i]) / rSum))', DISP)
+        self.assertIn('Math.max(1, Math.round((6 * ratios[i]) / rSum))', DISP)
         self.assertNotIn("pdMvcSideHtml('ALLIES', 'allies', a, scene, 10, 10, hideHealthBars)", DISP)
         # Row capacity capped — never token-count columns
         side = DISP[DISP.index('function pdMvcSideHtml'):DISP.index('function pdAllocateSpans')]
