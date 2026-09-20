@@ -1,0 +1,9 @@
+step,slug,name,printed_page,notes
+1,backgrounds,Backgrounds,49,Pool A: assign quality dice. Pool B: dice to Power Source (glyphs).
+2,power-sources,Power Sources,57,Assign powers; pick Yellow/Green abilities; dice to Archetype (glyphs).
+3,archetypes,Archetypes,73,Required power/quality; Green then Yellow; principle category; dice to Personality (glyphs).
+4,personalities,Personalities,101,Status dice GYRO; Out ability; custom quality; unlocks Step 5.
+5,red-abilities,Red Abilities,106,Pick 2. Gated by category ownership.
+6,retcon,Retcon,112,Pick one.
+7,health,Health,113,8 + max Red status + max Athletic power or Mental quality + roll-or-4 (glyph die). Then health_chart.csv.
+8,finishing-touches,Finishing Touches,114,"Name, alias, description, rename abilities. No catalog rows."

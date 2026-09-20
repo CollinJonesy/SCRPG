@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Issue Builder</title>
+<style>
+  :root{--ink:#1a1a2e;--card:#fff;--bg:#eef1f6;--line:#d4d9e3;--accent:#3d5a80;}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0}
+  header{background:linear-gradient(120deg,#1b3a4b,#3d5a80);color:#fff;padding:16px 22px}
+  header h1{margin:0;font-size:1.35rem}
+  header p{margin:4px 0 0;opacity:.9;font-size:.85rem}
+  .wrap{max-width:960px;margin:0 auto;padding:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
+  input,textarea,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  textarea{min-height:64px;resize:none;overflow-y:hidden;field-sizing:content}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer}
+  .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
+  .ghost.sel{background:var(--accent);color:#fff}
+  .tiny{padding:6px 8px;font-size:.8rem}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .hidden{display:none}
+  table{width:100%;border-collapse:collapse;font-size:.86rem}
+  th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+  tr{cursor:pointer}
+  tr:hover{background:#eef4fa}
+  .chk{display:block;font-weight:400;margin:4px 0}
+  .muted{color:#888;font-size:.8rem}
+  .ok{color:#2e7d32}
+</style>
+</head>
+<body>
+<header>
+  <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#d6e8ff;font-size:.8rem;text-decoration:none">← All builders</a></p>
+  <h1>Issue Builder</h1>
+  <p>An Issue is a session. Filter by Collection. Roster is filtered by that Collection.</p>
+</header>
+<div class="wrap">
+  <div id="landing" class="panel">
+    <div class="actions" style="margin-top:0">
+      <button class="btn" type="button" onclick="startNew()">+ New Issue</button>
+      <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="activeOnlyBtn" onclick="setActiveOnly(!activeOnly)">Active Only</button>
+      <select id="collFilter" onchange="renderList()" style="max-width:220px"><option value="">All collections</option></select>
+    </div>
+    <p class="muted" id="empty">Loading…</p>
+    <table class="hidden" id="tbl"><thead><tr><th>Collection</th><th>Issue</th><th>Heroes</th><th>Villains</th><th>Scenes</th></tr></thead><tbody id="body"></tbody></table>
+  </div>
+  <div id="form" class="panel hidden">
+    <label>Collection</label>
+    <select id="collPick" onchange="onCollPick()"></select>
+    <label>Name</label><input id="name">
+    <label><input type="checkbox" id="rowActive" checked> Active</label>
+    <label>Slug</label><input id="slug" placeholder="auto from name">
+    <label>Notes</label><textarea id="notes" placeholder="Social beats, connecting narration, prep."></textarea>
+    <label>Heroes in this Issue</label>
+    <div id="heroBox" class="muted">Choose a collection first.</div>
+    <label>Villains in this Issue</label>
+    <div id="vilBox" class="muted">Choose a collection first.</div>
+    <label>Minions / Lieutenants in this Issue</label>
+    <div id="minBox" class="muted">Choose a collection first.</div>
+    <label>Scenes (in order)</label>
+    <div id="scList"></div>
+    <div class="actions">
+      <select id="scAdd" style="flex:1"></select>
+      <button class="ghost" type="button" onclick="addScene()">Add scene</button>
+    </div>
+    <div class="actions">
+      <button class="btn" type="button" onclick="saveIssue()">Save Issue</button>
+      <button class="ghost" type="button" onclick="showList()">Back to list</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+</div>
+<script src="/collection-picker.js"></script>
+<script>
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
+let issues=[], villains=[], heroes=[], minions=[], scenes=[], sceneSlugs=[], editing=null, originFilter='all', collections=[], activeOnly=true;
+function isActiveRow(r){
+  const v=r && (r.active!=null?r.active:r.Active); if(v===''||v==null) return true;
+  const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+}
+function setActiveOnly(v){
+  activeOnly=!!v;
+  const btn=document.getElementById('activeOnlyBtn');
+  if(btn) btn.classList.toggle('sel', activeOnly);
+  renderList();
+}
+let selH=[], selV=[], selM=[];
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function slugify(n){return (n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'issue';}
+function parseCsv(text){
+  const lines=text.trim().split(/\r?\n/); const h=parseRow(lines[0]||'');
+  return lines.slice(1).map(l=>{
+    const c=parseRow(l), o={}; h.forEach((k,i)=>o[k]=c[i]||''); return o;
+  }).filter(r=>r.Slug);
+}
+function parseRow(l){
+  const c=[],cur={v:'',q:false};
+  for (let i=0;i<l.length;i++){
+    const ch=l[i];
+    if (ch==='"'){ if (cur.q && l[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){c.push(cur.v);cur.v='';continue;}
+    cur.v+=ch;
+  }
+  c.push(cur.v);
+  return c;
+}
+function collectionForIssue(issueSlug){
+  return collections.filter(c=>(c.issueSlugs||[]).includes(issueSlug));
+}
+function collectionNameForIssue(issueSlug){
+  return collectionForIssue(issueSlug).map(c=>c.name||c.slug).join(', ') || '—';
+}
+async function boot(){
+  const [il, vcsv, hcsv, mcsv, ncsv, sl, cl] = await Promise.all([
+    fetch('/api/issues').then(r=>r.json()),
+    fetch('/api/csv/villains').then(r=>r.text()),
+    fetch('/api/csv/heroes').then(r=>r.text()),
+    fetch('/api/csv/minions').then(r=>r.text()),
+    fetch('/api/csv/npcs').then(r=>r.text()).catch(()=>''),
+    fetch('/api/scenes').then(r=>r.json()),
+    fetch('/api/collections').then(r=>r.json()).catch(()=>[])
+  ]);
+  scenes=sl||[];
+  collections=cl||[];
+  villains=parseCsv(vcsv);
+  heroes=parseCsv(hcsv);
+  minions=parseCsv(mcsv).concat(parseCsv(ncsv).map(r=>({...r, Name:(r.Name||'')+' (NPC)'})));
+  issues=await Promise.all((il||[]).map(async i=>{
+    const full=await fetch('/api/issues/'+i.slug).then(r=>r.json());
+    return {slug:i.slug, name:i.name, ...full,
+      villainSlugs: full.villainSlugs||[], heroSlugs: full.heroSlugs||[], minionSlugs: full.minionSlugs||[],
+      sceneSlugs: full.sceneSlugs||[], origin:'custom'};
+  }));
+  const cf=document.getElementById('collFilter');
+  const keep=cf.value;
+  cf.innerHTML='<option value="">All collections</option>'+collections.map(c=>`<option value="${esc(c.slug)}">${esc(c.name||c.slug)}</option>`).join('');
+  cf.value=keep;
+  const cp=document.getElementById('collPick');
+  fillCollectionSelect(cp, collections, 'Choose a collection…');
+  renderList();
+}
+function setOrigin(o){
+  originFilter=o;
+  document.querySelectorAll('.origin-btn').forEach(b=>b.classList.toggle('sel', b.dataset.origin===o));
+  renderList();
+}
+function renderList(){
+  document.getElementById('landing').classList.remove('hidden');
+  document.getElementById('form').classList.add('hidden');
+  const empty=document.getElementById('empty'), tbl=document.getElementById('tbl'), body=document.getElementById('body');
+  const want=document.getElementById('collFilter').value;
+  let rows=issues;
+  if (originFilter!=='all') rows=rows.filter(i=>i.origin===originFilter);
+  if (activeOnly) rows=rows.filter(isActiveRow);
+  if (want){
+    const coll=collections.find(c=>c.slug===want);
+    const set=new Set((coll&&coll.issueSlugs)||[]);
+    rows=rows.filter(i=>set.has(i.slug));
+  }
+  if (!issues.length){ empty.textContent='No issues yet.'; empty.classList.remove('hidden'); tbl.classList.add('hidden'); return; }
+  if (!rows.length){ empty.textContent='No issues match this filter.'; empty.classList.remove('hidden'); tbl.classList.add('hidden'); return; }
+  empty.classList.add('hidden'); tbl.classList.remove('hidden');
+  body.innerHTML=rows.map(i=>{
+    const hn=(i.heroSlugs||[]).map(s=>(heroes.find(v=>v.Slug===s)||{}).Name||s).join(', ');
+    const vn=(i.villainSlugs||[]).map(s=>(villains.find(v=>v.Slug===s)||{}).Name||s).join(', ');
+    const sc=(i.sceneSlugs||[]).map(s=>(scenes.find(x=>x.slug===s)||{}).name||s).join(', ');
+    return `<tr onclick="edit('${esc(i.slug)}')"><td>${esc(collectionNameForIssue(i.slug))}</td><td>${esc(i.name)}</td><td>${esc(hn)}</td><td>${esc(vn)}</td><td>${esc(sc)}</td></tr>`;
+  }).join('');
+}
+function rosterSets(collSlug){
+  const coll=collections.find(c=>c.slug===collSlug);
+  const h=new Set(), v=new Set(), m=new Set();
+  ((coll&&coll.issueSlugs)||[]).forEach(is=>{
+    const iss=issues.find(x=>x.slug===is);
+    if (!iss) return;
+    (iss.heroSlugs||[]).forEach(s=>h.add(s));
+    (iss.villainSlugs||[]).forEach(s=>v.add(s));
+    (iss.minionSlugs||[]).forEach(s=>m.add(s));
+  });
+  return {h,v,m};
+}
+function startNew(){ editing=null; document.getElementById('name').value=''; document.getElementById('slug').value=''; document.getElementById('notes').value=''; document.getElementById('collPick').value=''; sceneSlugs=[]; selH=[]; selV=[]; selM=[]; fillForm(); showForm(); }
+function showList(){ renderList(); }
+function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }
+async function onCollPick(){
+  const sel=document.getElementById('collPick');
+  await resolveCollectionPick(sel, collections, 'Choose a collection…');
+  fillForm();
+}
+function fillForm(){
+  const coll=document.getElementById('collPick').value;
+  const box=(id, rows, selected, empty)=>{
+    document.getElementById(id).innerHTML=rows.map(r=>`<label class="chk"><input type="checkbox" value="${esc(r.Slug)}" ${selected.includes(r.Slug)?'checked':''}> ${esc(r.Name)}${r.Type?' ('+esc(r.Type)+')':''}</label>`).join('')||`<span class="muted">${empty}</span>`;
+  };
+  let h=heroes, v=villains, m=minions;
+  if (coll){
+    const sets=rosterSets(coll);
+    if (sets.h.size) h=heroes.filter(x=>sets.h.has(x.Slug)||selH.includes(x.Slug));
+    if (sets.v.size) v=villains.filter(x=>sets.v.has(x.Slug)||selV.includes(x.Slug));
+    if (sets.m.size) m=minions.filter(x=>sets.m.has(x.Slug)||selM.includes(x.Slug));
+  }
+  box('heroBox', h, selH, coll?'No heroes in this collection yet — showing none until someone is assigned.':'Choose a collection first.');
+  box('vilBox', v, selV, coll?'No villains in this collection yet.':'Choose a collection first.');
+  box('minBox', m, selM, coll?'No minions in this collection yet.':'Choose a collection first.');
+  if (!coll){
+    document.getElementById('heroBox').innerHTML='<span class="muted">Choose a collection first.</span>';
+    document.getElementById('vilBox').innerHTML='<span class="muted">Choose a collection first.</span>';
+    document.getElementById('minBox').innerHTML='<span class="muted">Choose a collection first.</span>';
+  }
+  renderScenes();
+}
+function renderScenes(){
+  document.getElementById('scList').innerHTML=sceneSlugs.map((s,i)=>{
+    const n=(scenes.find(x=>x.slug===s)||{}).name||s;
+    return `<div style="display:flex;gap:6px;align-items:center;margin:4px 0"><span style="flex:1">${i+1}. ${esc(n)}</span>
+      <button class="ghost" type="button" onclick="moveSc(${i},-1)">↑</button>
+      <button class="ghost" type="button" onclick="moveSc(${i},1)">↓</button>
+      <button class="ghost" type="button" onclick="sceneSlugs.splice(${i},1);renderScenes()">×</button></div>`;
+  }).join('')||'<p class="muted">No scenes attached.</p>';
+  const used=new Set(sceneSlugs);
+  document.getElementById('scAdd').innerHTML='<option value="">Add a scene…</option>'+scenes.filter(s=>!used.has(s.slug)).map(s=>`<option value="${esc(s.slug)}">${esc(s.name)}</option>`).join('');
+}
+function addScene(){ const v=document.getElementById('scAdd').value; if(!v) return; sceneSlugs.push(v); renderScenes(); }
+function moveSc(i,d){ const j=i+d; if(j<0||j>=sceneSlugs.length) return; [sceneSlugs[i],sceneSlugs[j]]=[sceneSlugs[j],sceneSlugs[i]]; renderScenes(); }
+async function edit(slug){
+  const i=issues.find(x=>x.slug===slug); if(!i) return;
+  editing=slug;
+  document.getElementById('name').value=i.name||'';
+  const ac=document.getElementById('rowActive'); if(ac) ac.checked=isActiveRow(i);
+  document.getElementById('slug').value=slug;
+  document.getElementById('notes').value=i.notes||'';
+  const home=collectionForIssue(slug)[0];
+  document.getElementById('collPick').value=home?home.slug:'';
+  sceneSlugs=[...(i.sceneSlugs||[])];
+  selH=[...(i.heroSlugs||[])]; selV=[...(i.villainSlugs||[])]; selM=[...(i.minionSlugs||[])];
+  fillForm();
+  showForm();
+}
+async function saveIssue(){
+  const name=document.getElementById('name').value.trim();
+  if(!name){ document.getElementById('msg').textContent='Name required.'; return; }
+  const collSlug=document.getElementById('collPick').value;
+  if(!collSlug){ document.getElementById('msg').textContent='Choose a collection first.'; return; }
+  const slug=editing || document.getElementById('slug').value.trim() || slugify(name);
+  const villainSlugs=[...document.querySelectorAll('#vilBox input:checked')].map(c=>c.value);
+  const heroSlugs=[...document.querySelectorAll('#heroBox input:checked')].map(c=>c.value);
+  const minionSlugs=[...document.querySelectorAll('#minBox input:checked')].map(c=>c.value);
+  const body={name, notes:document.getElementById('notes').value, sceneSlugs, villainSlugs, heroSlugs, minionSlugs, active:document.getElementById('rowActive')?document.getElementById('rowActive').checked:true};
+  await fetch('/api/issues/'+encodeURIComponent(slug),{method:'PUT', body:JSON.stringify(body,null,2)});
+  for (const c of collections){
+    const full=await fetch('/api/collections/'+encodeURIComponent(c.slug)).then(r=>r.json()).catch(()=>null);
+    if (!full) continue;
+    const set=new Set(full.issueSlugs||[]);
+    if (c.slug===collSlug) set.add(slug); else set.delete(slug);
+    full.issueSlugs=[...set];
+    await fetch('/api/collections/'+encodeURIComponent(c.slug),{method:'PUT', body:JSON.stringify(full,null,2)});
+  }
+  document.getElementById('msg').innerHTML='<span class="ok">Saved '+esc(slug)+'</span>';
+  await boot();
+  showList();
+}
+boot();
+bindAutoGrow();
+</script>
+</body>
+</html>

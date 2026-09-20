@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Villain Builder</title>
+<style>
+  :root{--ink:#1a1a2e;--card:#fff;--bg:#eef1f6;--line:#d4d9e3;--accent:#8b1e3f;--ok:#2e7d32;--bad:#c62828;}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0}
+  header{background:linear-gradient(120deg,#6b132c,#c0392b);color:#fff;padding:16px 22px}
+  header h1{margin:0;font-size:1.35rem}
+  header p{margin:4px 0 0;opacity:.9;font-size:.85rem}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px}
+  details.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px}
+  details.panel > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+  details.panel > summary::-webkit-details-marker{display:none}
+  details.panel > summary::before{content:'▸';color:var(--accent);font-weight:700}
+  details.panel[open] > summary::before{content:'▾'}
+  details.panel h2{margin:0;font-size:1.05rem;display:inline}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .panel h2{margin:0 0 10px;font-size:1.05rem}
+  #wizard.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+  #wizard.hidden{display:none}
+  #wizard .span2{grid-column:1/-1}
+  .wiz-bar{grid-column:1/-1;position:sticky;top:0;z-index:6;background:var(--bg);padding:6px 0 10px;display:flex;gap:8px;flex-wrap:wrap}
+  @media (max-width:960px){ #wizard.cols{grid-template-columns:1fr} }
+  .hint{font-size:.8rem;color:#555;margin:0 0 10px;background:#fdeeee;padding:8px 10px;border-radius:8px;border-left:3px solid var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+  .opt{border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;background:#fafbff;font-size:.84rem}
+  .opt:hover{border-color:var(--accent)}
+  .opt.sel{background:#fde8e8;border-color:var(--accent);box-shadow:0 0 0 2px rgba(139,30,63,.2)}
+  .opt b{display:block}
+  .opt small{color:#555;display:block;margin-top:2px}
+  .ab{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;font-size:.84rem}
+  .ab.sel{background:#fde8e8;border-color:var(--accent)}
+  .ab .gt{color:#444;margin-top:4px;font-size:.8rem}
+  label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
+  input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  textarea{min-height:64px;resize:none;overflow-y:hidden;field-sizing:content}
+  .demo{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+  .row{display:grid;grid-template-columns:1fr 90px 36px;gap:6px;align-items:end;margin-bottom:6px}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:.9rem}
+  .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
+  .ghost.sel{background:var(--accent);color:#fff}
+  .tiny{padding:6px 8px;font-size:.8rem}
+  .muted{color:#888;font-size:.76rem}
+  .ok{color:var(--ok)} .err{color:var(--bad);font-size:.84rem;margin-top:8px}
+  .pill{display:inline-block;background:#eee;border-radius:12px;padding:2px 8px;font-size:.74rem;margin:2px}
+  .sum .r{display:flex;justify-content:space-between;border-bottom:1px dotted #eee;padding:3px 0;font-size:.88rem}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .hidden{display:none}
+  .ics label{display:inline;font-weight:400;margin-right:8px}
+  table.land{width:100%;border-collapse:collapse;font-size:.86rem}
+  table.land th,table.land td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+  table.land tr{cursor:pointer}
+  .look-grid{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin:8px 0}
+  .look-grid img{width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#ddd}
+</style>
+</head>
+<body>
+<header>
+  <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#ffd6d0;font-size:.8rem;text-decoration:none">← All builders</a></p>
+  <h1>Villain Builder</h1>
+  <p>New and Edit use this same form. Sections collapse; two columns on a wide screen.</p>
+</header>
+<div class="wrap">
+
+<div id="landing">
+  <div class="panel">
+    <div class="actions" style="margin-top:0">
+      <button class="btn" type="button" onclick="startNew()">+ New Villain</button>
+      <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="activeOnlyBtn" onclick="setActiveOnly(!activeOnly)">Active Only</button>
+      <select id="issueFilter" onchange="renderLanding()" style="max-width:220px"><option value="">All issues</option></select>
+    </div>
+    <p class="muted" id="landEmpty">Loading…</p>
+    <table class="land hidden" id="landTable">
+      <thead><tr><th>Name</th><th>Approach</th><th>Archetype</th><th>Health</th><th>Origin</th><th>Issues</th></tr></thead>
+      <tbody id="landBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="wizard" class="hidden cols">
+  <div class="wiz-bar">
+    <button class="ghost tiny" type="button" onclick="showLanding()">← List</button>
+    <button class="ghost tiny" type="button" onclick="setOpen(false)">Collapse all</button>
+    <button class="ghost tiny" type="button" onclick="setOpen(true)">Expand all</button>
+  </div>
+  <details class="panel" open>
+    <summary><h2>1 · Concept &amp; demographics</h2></summary>
+    <div class="hint">Archives villain page: Name, Alias, physical attributes. Biography and Capabilities come in Finishing Touches.</div>
+    <label>Villain Name *</label><input id="name">
+    <label><input type="checkbox" id="villainActive" checked> Active in Library</label>
+    <label>Affiliation</label>
+    <select id="villainAffiliation">
+      <option value="Ally">Ally</option>
+      <option value="Enemy" selected>Enemy</option>
+      <option value="Neutral">Neutral</option>
+    </select>
+    <label>Alias</label><input id="alias">
+    <label>Slug</label><input id="slug" placeholder="auto from name">
+    <div class="demo">
+      <div><label>Gender</label><input id="gender"></div>
+      <div><label>Age</label><input id="age"></div>
+      <div><label>Height</label><input id="height"></div>
+      <div><label>Eyes</label><input id="eyes"></div>
+      <div><label>Hair</label><input id="hair"></div>
+      <div><label>Skin</label><input id="skin"></div>
+      <div><label>Build</label><input id="build"></div>
+    </div>
+    <label>Costume / Equipment</label><input id="costume">
+    <label>Appears in Collections</label>
+    <select id="collPick" onchange="fillIssueBox()"><option value="">Choose a collection…</option></select>
+    <div id="issueBox" class="muted">Choose a collection to see its Issues.</div>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>Look &amp; references</h2></summary>
+    <div class="hint">Portrait is the token face (same slot as Library). Extra images are look-dev only. Notes/URLs for “looks like Taskmaster,” comic issues, etc.</div>
+    <label>Portrait</label>
+    <input type="file" accept="image/*" id="portraitFile" onchange="onPortrait(this.files[0])">
+    <div class="look-grid" id="portraitPrev"></div>
+    <label>Reference images</label>
+    <input type="file" accept="image/*" multiple id="refFiles" onchange="onRefs(this.files)">
+    <div class="look-grid" id="refPrev"></div>
+    <label>Look notes</label>
+    <textarea id="lookNotes" placeholder="Face never shown. Photographic reflexes. Taskmaster energy, cheaper costume."></textarea>
+    <label>References (URLs, issues, files)</label>
+    <textarea id="refsNotes" placeholder="One per line. Avengers #196, Pinterest board, Drive folder…"></textarea>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>2 · Approach</h2></summary>
+    <div class="hint" id="apHint">Pick an Approach. Its ability list appears here — choose the book number, then map [power]/[quality].</div>
+    <div class="grid" id="apGrid"></div>
+    <div id="apAbs"></div>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>3 · Powers</h2></summary>
+    <div id="powRows"></div>
+    <button class="ghost tiny" type="button" onclick="addPQ('pow')">+ Power</button>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>4 · Qualities</h2></summary>
+    <div class="hint">Last quality can be the roleplaying quality (custom name).</div>
+    <div id="qualRows"></div>
+    <button class="ghost tiny" type="button" onclick="addPQ('qual')">+ Quality</button>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>6–7 · Archetype &amp; Status</h2></summary>
+    <div class="hint" id="arHint">Status dice come from the Archetype. Loner is d10 / d8 / d6 (0 / 1–2 / 3+ other villains).</div>
+    <div class="grid" id="arGrid"></div>
+    <div id="statusPreview" class="muted"></div>
+    <div id="arAbs"></div>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>9 · Upgrade <span class="muted">(optional, max 1)</span></h2></summary>
+    <div class="hint">Select, don’t type. Health bonus is automatic. Power/Quality Upgrade bumps dice for you.</div>
+    <div class="grid" id="upGrid"></div>
+    <div id="upPreview" class="muted"></div>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>10 · Mastery <span class="muted">(optional, max 1 — all Inherent / Overcome)</span></h2></summary>
+    <div class="grid" id="maGrid"></div>
+  </details>
+
+  <details class="panel" open>
+    <summary><h2>11 · Health</h2></summary>
+    <div class="hint">(Ⓗ × 5) + Approach + Archetype + selected Upgrade health.</div>
+    <label>Heroes in the game (Ⓗ)</label>
+    <input id="heroCount" type="number" min="1" max="12" value="5" oninput="renderSum()">
+    <div id="sum" class="sum"></div>
+  </details>
+
+  <details class="panel span2" open>
+    <summary><h2>Finishing Touches</h2></summary>
+    <div class="hint">Rename abilities (book catalog name stays the key). Biography, Capabilities, and Upgrades match the Archives prose headers.</div>
+    <div id="renameBox"></div>
+    <label>Biography</label><textarea id="bio"></textarea>
+    <label>Capabilities and Motivations</label><textarea id="caps"></textarea>
+    <label>Upgrades</label><textarea id="upgradeNotes" placeholder="How they grow between appearances. Archives “Upgrades” paragraph — not the mechanical pick above."></textarea>
+    <div class="actions">
+      <button class="btn" type="button" onclick="saveVillain()">Save to Library</button>
+      <button class="ghost" type="button" onclick="showLanding()">Back to list</button>
+    </div>
+    <div id="saveMsg"></div>
+  </details>
+</div>
+</div>
+
+<script src="/collection-picker.js"></script>
+<script>
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
+const ICONS = ['Attack','Defend','Boost','Hinder','Overcome','Recover'];
+const DICE = ['d4','d6','d8','d10','d12'];
+const V_GYRO = {100:[25,26,1],95:[70,25,1],90:[66,23,1],85:[60,22,1],80:[55,21,1],75:[50,20,1],70:[50,18,1],65:[45,18,1],60:[41,17,1],55:[38,17,1],50:[35,16,1],45:[32,16,1],40:[30,15,1],35:[27,13,1],30:[23,12,1],25:[20,10,1],20:[16,8,1],15:[11,6,1]};
+
+let approaches=[], archetypes=[], powers=[], qualities=[];
+let apAbs=[], arAbs=[], upgrades=[], masteries=[];
+let selAp=null, selAr=null, selUp=null, selMa=null;
+let pq={pow:[], qual:[]};
+let pickedAp=new Set(), pickedAr=new Set();
+let binds={}, displayNames={}, iconPicks={};
+let editingSlug=null;
+let pendingPortrait=null, pendingRefs=[];
+let landMeta=[], issueIndex=[], originFilter='all', activeOnly=true;
+function isActiveRow(r){
+  const v=r && r.Active; if(v===''||v==null) return true;
+  const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+}
+function setActiveOnly(v){
+  activeOnly=!!v;
+  const btn=document.getElementById('activeOnlyBtn');
+  if(btn) btn.classList.toggle('sel', activeOnly);
+  renderLanding();
+}
+
+function setOpen(on){ document.querySelectorAll('#wizard details.panel').forEach(d=>d.open=!!on); }
+function setOrigin(o){
+  originFilter=o;
+  document.querySelectorAll('.origin-btn').forEach(b=>b.classList.toggle('sel', b.dataset.origin===o));
+  renderLanding();
+}
+let collections=[], pickedIssues=[];
+function selectedIssues(){ return pickedIssues.slice(); }
+async function fillIssueBox(){
+  const el=document.getElementById('issueBox');
+  const sel=document.getElementById('collPick');
+  if (!sel) return;
+  await resolveCollectionPick(sel, collections, 'Choose a collection…');
+  if (!collections.length){ el.innerHTML='No collections yet.'; return; }
+  const slug=sel.value;
+  if (!slug){ el.innerHTML='Choose a collection to see its Issues.'; return; }
+  const coll=collections.find(c=>c.slug===slug)||{};
+  const slugs=coll.issueSlugs||[];
+  if (!slugs.length){ el.innerHTML='No issues in this collection.'; return; }
+  el.innerHTML=slugs.map(s=>{
+    const i=issueIndex.find(x=>x.slug===s)||{slug:s,name:s};
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(i.name)}</span><input type="checkbox" value="${esc(s)}" ${pickedIssues.includes(s)?'checked':''} onchange="togglePickedIssue(this)"></div>`;
+  }).join('');
+}
+function togglePickedIssue(cb){
+  if (cb.checked){ if (!pickedIssues.includes(cb.value)) pickedIssues.push(cb.value); }
+  else pickedIssues=pickedIssues.filter(s=>s!==cb.value);
+}
+
+function onPortrait(file){
+  pendingPortrait=file||null;
+  const el=document.getElementById('portraitPrev');
+  if (!file){ el.innerHTML=''; return; }
+  el.innerHTML=`<img alt="portrait" src="${URL.createObjectURL(file)}">`;
+}
+function onRefs(files){
+  pendingRefs=[...pendingRefs, ...files];
+  renderRefPrev();
+}
+function renderRefPrev(){
+  const el=document.getElementById('refPrev');
+  el.innerHTML=pendingRefs.map(f=>`<img alt="ref" src="${URL.createObjectURL(f)}">`).join('');
+}
+function showBg(el, key){
+  const img=document.createElement('img');
+  img.alt=key; img.src='/api/backgrounds/'+encodeURIComponent(key)+'?t='+Date.now();
+  img.onerror=()=>img.remove();
+  el.appendChild(img);
+}
+
+function floors(max){
+  max=Number(max)||0;
+  if (V_GYRO[max]) return {GreenFloor:V_GYRO[max][0], YellowFloor:V_GYRO[max][1], RedFloor:V_GYRO[max][2]};
+  const keys=Object.keys(V_GYRO).map(Number).sort((a,b)=>a-b);
+  let k=keys[0];
+  for (const x of keys) if (max>=x) k=x;
+  const row=V_GYRO[k];
+  const s=max/k;
+  return {GreenFloor:Math.round(row[0]*s), YellowFloor:Math.round(row[1]*s), RedFloor:1};
+}
+
+async function loadCsv(name){
+  const res=await fetch('/builder/catalog/'+name);
+  const text=await res.text();
+  const lines=text.trim().split(/\r?\n/);
+  const headers=parseRow(lines[0]);
+  return lines.slice(1).map(line=>{
+    const cells=parseRow(line), out={};
+    headers.forEach((h,i)=>out[h]=cells[i]||'');
+    return out;
+  });
+}
+function parseRow(line){
+  const cells=[]; let cur='', q=false;
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (q && line[i+1]==='"'){ cur+='"'; i++; } else { q=!q; } continue; }
+    if (ch===',' && !q){ cells.push(cur); cur=''; continue; }
+    cur+=ch;
+  }
+  cells.push(cur); return cells;
+}
+function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function showLanding(){ document.getElementById('landing').classList.remove('hidden'); document.getElementById('wizard').classList.add('hidden'); loadLanding(); }
+function showWizard(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('wizard').classList.remove('hidden'); }
+
+async function loadLanding(){
+  const [csvText, il, cl] = await Promise.all([
+    fetch('/api/csv/villains').then(r=>r.text()),
+    fetch('/api/issues').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/collections').then(r=>r.json()).catch(()=>[])
+  ]);
+  collections = cl||[];
+  const cp=document.getElementById('collPick');
+  if (cp) fillCollectionSelect(cp, collections, 'Choose a collection…');
+  issueIndex = await Promise.all((il||[]).map(async i=>{
+    const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>({}));
+    return {slug:i.slug, name:i.name||i.slug, villainSlugs: full.villainSlugs||[]};
+  }));
+  const sel=document.getElementById('issueFilter');
+  const keep=sel.value;
+  sel.innerHTML='<option value="">All issues</option>'+issueIndex.map(i=>`<option value="${esc(i.slug)}">${esc(i.name)}</option>`).join('');
+  sel.value=keep;
+  const lines=csvText.trim().split(/\r?\n/);
+  const headers=parseRow(lines[0]||'');
+  const rows=lines.slice(1).map(l=>{const c=parseRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).filter(r=>r.Slug);
+  landMeta = await Promise.all(rows.map(async r=>{
+    const md=await fetch('/api/md/villains/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
+    const origin = (r.Origin==='premade'||r.Origin==='custom') ? r.Origin : ((md.includes('## Builder') || md.includes('## Overview')) ? 'custom' : 'premade');
+    let issues=[];
+    try {
+      const st=(md.match(/## Builder[\s\S]*?```json\s*([\s\S]*?)```/)||[])[1];
+      if (st) issues=JSON.parse(st).issues||[];
+    } catch(e) {}
+    issueIndex.forEach(i=>{ if ((i.villainSlugs||[]).includes(r.Slug) && !issues.includes(i.slug)) issues.push(i.slug); });
+    return {...r, origin, issues};
+  }));
+  applyPickedIssues([]);
+  renderLanding();
+}
+function applyPickedIssues(list){
+  pickedIssues=(list||[]).slice();
+  const home=collections.find(c=>(c.issueSlugs||[]).some(s=>pickedIssues.includes(s)));
+  const sel=document.getElementById('collPick');
+  if (sel) sel.value=home?home.slug:'';
+  fillIssueBox();
+}
+function renderLanding(){
+  const empty=document.getElementById('landEmpty');
+  const table=document.getElementById('landTable');
+  const body=document.getElementById('landBody');
+  const want=document.getElementById('issueFilter').value;
+  let rows=landMeta;
+  if (originFilter!=='all') rows=rows.filter(r=>r.origin===originFilter);
+  if (activeOnly) rows=rows.filter(isActiveRow);
+  if (want) rows=rows.filter(r=>(r.issues||[]).includes(want));
+  if (!landMeta.length){ empty.classList.remove('hidden'); empty.textContent='No villains in this campaign yet.'; table.classList.add('hidden'); return; }
+  if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No villains match this filter.'; table.classList.add('hidden'); return; }
+  empty.classList.add('hidden'); table.classList.remove('hidden');
+  body.innerHTML=rows.map(r=>`<tr onclick="editVillain('${esc(r.Slug)}')"><td>${esc(r.Name)}</td><td>${esc(r.Approach)}</td><td>${esc(r.Archetype)}</td><td>${esc(r.MaxHealth)}</td><td>${esc(r.origin)}</td><td>${esc((r.issues||[]).map(s=>(issueIndex.find(i=>i.slug===s)||{}).name||s).join(', '))}</td></tr>`).join('');
+}
+
+function startNew(){
+  editingSlug=null; resetForm(); showWizard();
+}
+
+function resetForm(){
+  ['name','alias','slug','gender','age','height','eyes','hair','skin','build','costume','bio','caps','lookNotes','refsNotes','upgradeNotes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('heroCount').value='5';
+  const ac=document.getElementById('villainActive'); if(ac) ac.checked=true;
+  const aff=document.getElementById('villainAffiliation'); if(aff) aff.value='Enemy';
+  selAp=selAr=selUp=selMa=null; pickedAp=new Set(); pickedAr=new Set();
+  binds={}; displayNames={}; iconPicks={};
+  pq={pow:[{name:'',die:'d8'}], qual:[{name:'',die:'d8'}]};
+  pendingPortrait=null; pendingRefs=[];
+  document.getElementById('portraitPrev').innerHTML='';
+  document.getElementById('refPrev').innerHTML='';
+  const pf=document.getElementById('portraitFile'); if (pf) pf.value='';
+  const rf=document.getElementById('refFiles'); if (rf) rf.value='';
+  applyPickedIssues([]);
+  renderAll();
+}
+
+function renderAll(){
+  document.getElementById('apGrid').innerHTML=approaches.map(r=>opt(r,'ap', selAp&&selAp.slug===r.slug)).join('');
+  document.getElementById('arGrid').innerHTML=archetypes.map(r=>opt(r,'ar', selAr&&selAr.slug===r.slug)).join('');
+  document.getElementById('upGrid').innerHTML=upgrades.map(r=>`<div class="opt ${selUp&&selUp.slug===r.slug?'sel':''}" onclick="pickUp('${r.slug}')"><b>${esc(r.name)}</b><small>+${r.health} Health${r.ability_name?` · ${esc(r.ability_name)}`:''}</small><small>${esc(r.game_text||r.effect)}</small></div>`).join('');
+  document.getElementById('maGrid').innerHTML=masteries.map(r=>`<div class="opt ${selMa&&selMa.slug===r.slug?'sel':''}" onclick="pickMa('${r.slug}')"><b>${esc(r.name)}</b><small>I · Overcome</small><small>${esc(r.game_text)}</small></div>`).join('');
+  renderPQ(); renderApAbs(); renderArAbs(); renderSum(); renderRename();
+}
+function opt(r,kind,sel){
+  const extra=kind==='ap'?`Health ${r.health} · pick ${r.ability_picks}`:`Health ${Number(r.health)>=0?'+':''}${r.health}`;
+  return `<div class="opt ${sel?'sel':''}" onclick="pick('${kind}','${r.slug}')"><b>${esc(r.name)}</b><small>${extra}</small></div>`;
+}
+
+function pick(kind, slug){
+  if (kind==='ap'){ selAp=approaches.find(r=>r.slug===slug); pickedAp=new Set(); }
+  else { selAr=archetypes.find(r=>r.slug===slug); pickedAr=new Set();
+    if (selAr && selAr.mandatory_ability){
+      const mand=arAbs.find(a=>a.parent===selAr.slug && a.name===selAr.mandatory_ability);
+      if (mand) pickedAr.add(mand.slug);
+    }
+  }
+  renderAll();
+}
+function pickUp(slug){
+  selUp = (selUp && selUp.slug===slug) ? null : upgrades.find(r=>r.slug===slug);
+  applyUpgradeBumps();
+  renderAll();
+}
+function pickMa(slug){ selMa = (selMa && selMa.slug===slug) ? null : masteries.find(r=>r.slug===slug); renderAll(); }
+
+function bumpDie(d, dir){
+  const i=DICE.indexOf(d); if (i<0) return d;
+  return DICE[Math.max(0, Math.min(DICE.length-1, i+dir))];
+}
+function applyUpgradeBumps(){
+  // preview only in sum; actual bump applied on save from current dice
+}
+
+function addPQ(kind){ const cap=kind==='pow'?5:6; if (pq[kind].length>=cap) return; pq[kind].push({name:'',die:'d8'}); renderPQ(); renderApAbs(); renderArAbs(); renderRename(); }
+function rmPQ(kind,i){ pq[kind].splice(i,1); renderPQ(); }
+function renderPQ(){
+  for (const kind of ['pow','qual']){
+    const el=document.getElementById(kind==='pow'?'powRows':'qualRows');
+    const list=kind==='pow'?'powersList':'qualitiesList';
+    const title=kind==='pow'?'Power':'Quality';
+    el.innerHTML=pq[kind].map((p,i)=>`
+      <div class="row">
+        <div><label>${title} ${i+1}</label><input list="${list}" value="${esc(p.name)}" oninput="pq.${kind}[${i}].name=this.value;renderApAbs();renderArAbs();renderRename()"></div>
+        <div><label>Die</label><select onchange="pq.${kind}[${i}].die=this.value">${DICE.map(d=>`<option ${p.die===d?'selected':''}>${d}</option>`).join('')}</select></div>
+        <button class="ghost tiny" type="button" onclick="rmPQ('${kind}',${i})">×</button>
+      </div>`).join('') || '<p class="muted">None yet.</p>';
+  }
+}
+
+function pqOptions(bind){
+  const items=[];
+  if (bind!=='quality') pq.pow.filter(x=>x.name).forEach(x=>items.push({g:'Power',n:x.name}));
+  if (bind!=='power') pq.qual.filter(x=>x.name).forEach(x=>items.push({g:'Quality',n:x.name}));
+  return items;
+}
+function fillText(tmpl, bindVal){
+  if (!bindVal) return tmpl;
+  return tmpl.replace(/\[power\/quality\]/gi,'['+bindVal+']')
+             .replace(/\[power\]/gi,'['+bindVal+']')
+             .replace(/\[quality\]/gi,'['+bindVal+']');
+}
+
+function renderPickList(kind){
+  const parent=kind==='ap'?selAp:selAr;
+  const list=kind==='ap'?apAbs:arAbs;
+  const picked=kind==='ap'?pickedAp:pickedAr;
+  const cap=parent?Number(parent.ability_picks||2):0;
+  const rows=parent?list.filter(a=>a.parent===parent.slug):[];
+  const box=document.getElementById(kind==='ap'?'apAbs':'arAbs');
+  if (!parent){ box.innerHTML=''; return; }
+  const extra=kind==='ar'&&parent.mandatory_ability?` Mandatory: ${parent.mandatory_ability}.`:'';
+  box.innerHTML=`<p class="hint" style="margin-top:10px">Choose ${cap} of the following (${picked.size}/${cap}).${extra} Text-layer recovery — ${rows.length} listed.</p>`+
+    rows.map(a=>{
+      const on=picked.has(a.slug);
+      const items=pqOptions(a.bind);
+      const bindSel = a.bind==='none' ? '' : `<label>Map ${a.bind}</label>
+        <select onchange="binds['${a.slug}']=this.value;renderRename()">
+          <option value="">—</option>
+          ${items.map(it=>`<option ${binds[a.slug]===it.n?'selected':''} value="${esc(it.n)}">${esc(it.g)}: ${esc(it.n)}</option>`).join('')}
+        </select>`;
+      const ic=(a.icons||'').replaceAll('/',' · ') || 'None';
+      return `<div class="ab ${on?'sel':''}">
+        <label><input type="checkbox" ${on?'checked':''} onchange="togAb('${kind}','${a.slug}',this.checked)"> <b>${esc(a.name)}</b> <span class="muted">[${a.type}] ${esc(ic)}</span></label>
+        <div class="gt">${esc(fillText(a.game_text, binds[a.slug]))}</div>
+        ${on?bindSel:''}
+      </div>`;
+    }).join('');
+}
+function togAb(kind, slug, on){
+  const picked=kind==='ap'?pickedAp:pickedAr;
+  const parent=kind==='ap'?selAp:selAr;
+  const cap=Number(parent.ability_picks||2);
+  if (on){
+    if (picked.size>=cap && !picked.has(slug)){ renderPickList(kind); return; }
+    picked.add(slug);
+  } else picked.delete(slug);
+  renderPickList(kind); renderRename(); renderSum();
+}
+function renderApAbs(){ renderPickList('ap'); }
+function renderArAbs(){ renderPickList('ar'); }
+
+function selectedAbs(){
+  const out=[];
+  const push=(set, list)=>{
+    for (const slug of set){
+      const a=list.find(x=>x.slug===slug); if (!a) continue;
+      const ics=(a.icons||'').split('/').filter(Boolean);
+      out.push({
+        catalog:a.slug, name: displayNames[a.slug]||a.name, type:a.type,
+        icons: ics.length?ics.join(', '):'None',
+        text: fillText(a.game_text, binds[a.slug]),
+        engine:a.engine||'', bind:binds[a.slug]||''
+      });
+    }
+  };
+  push(pickedAp, apAbs); push(pickedAr, arAbs);
+  return out;
+}
+
+function renderRename(){
+  const abs=selectedAbs();
+  document.getElementById('renameBox').innerHTML = abs.length
+    ? '<h3 class="muted" style="margin:0 0 8px">Abilities</h3>'+abs.map(a=>`<label>${esc(a.catalog)} → display name</label><input value="${esc(a.name)}" oninput="displayNames['${a.catalog}']=this.value">`).join('')
+    : '<p class="muted">Pick abilities first.</p>';
+}
+
+function healthParts(){
+  const H=Number(document.getElementById('heroCount').value)||5;
+  const ap=selAp?Number(selAp.health):0;
+  const ar=selAr?Number(selAr.health):0;
+  const up=selUp?Number(selUp.health)||0:0;
+  return {H,ap,ar,up,max:(H*5)+ap+ar+up};
+}
+function parseSlots(s){ if(!s) return []; return s.split(';').filter(Boolean).map(p=>{const [label,die]=p.split('|'); return {label:(label||'').trim(), die:(die||'').trim()};}); }
+
+function renderSum(){
+  const p=healthParts();
+  const fl=(selAr && selAr.status_model==='health')?floors(p.max):{};
+  const slots=selAr?parseSlots(selAr.status_slots):[];
+  document.getElementById('sum').innerHTML=`
+    <div class="r"><span>Ⓗ × 5</span><span>${p.H} × 5 = ${p.H*5}</span></div>
+    <div class="r"><span>Approach</span><span>${selAp?selAp.name+' +'+p.ap:'—'}</span></div>
+    <div class="r"><span>Archetype</span><span>${selAr?selAr.name+' '+(p.ar>=0?'+':'')+p.ar:'—'}</span></div>
+    <div class="r"><span>Upgrade</span><span>${selUp?selUp.name+' +'+p.up:0}</span></div>
+    <div class="r"><span><b>Max Health</b></span><span><b>${p.max}</b></span></div>
+    ${fl.GreenFloor?`<div class="r"><span>GYRO floors</span><span>G ${fl.GreenFloor} / Y ${fl.YellowFloor} / R ${fl.RedFloor}</span></div>`:''}`;
+  document.getElementById('statusPreview').innerHTML = selAr
+    ? `Status: <b>${selAr.status_model}</b> `+(selAr.status_model==='health'
+        ? `Green ${selAr.green_die} / Yellow ${selAr.yellow_die} / Red ${selAr.red_die}`
+        : slots.map(s=>`<span class="pill">${s.label} = ${s.die}</span>`).join(' '))
+    : '';
+  document.getElementById('upPreview').textContent = selUp ? (selUp.game_text||'') : '';
+}
+
+function diceAfterUpgrade(list, effect){
+  if (effect!=='power_bump' && effect!=='quality_bump') return list;
+  return list.map((x,i)=>{
+    if (effect==='quality_bump' && i===list.length-1) return x; // RP quality last
+    const nd=bumpDie(x.die,1);
+    return {...x, die:nd, capped: x.die==='d12'};
+  });
+}
+
+function payload(){
+  const p=healthParts();
+  const fl=(selAr && selAr.status_model==='health')?floors(p.max):{};
+  let pow=pq.pow.filter(x=>x.name), qual=pq.qual.filter(x=>x.name);
+  if (selUp && selUp.effect==='power_bump') pow=diceAfterUpgrade(pow,'power_bump');
+  if (selUp && selUp.effect==='quality_bump') qual=diceAfterUpgrade(qual,'quality_bump');
+  const upgrade = selUp ? {
+    name: displayNames[selUp.slug] || selUp.ability_name || selUp.name, type: selUp.type||'I',
+    icons: selUp.icons||'None', text: selUp.game_text, health: Number(selUp.health)||0, catalog: selUp.slug
+  } : null;
+  const mastery = selMa ? { name: displayNames[selMa.slug]||selMa.name, type:'I', icons:'Overcome', text: selMa.game_text, catalog: selMa.slug } : null;
+  return {
+    name: document.getElementById('name').value.trim(),
+    slug: editingSlug || document.getElementById('slug').value.trim(),
+    alias: document.getElementById('alias').value.trim(),
+    gender: document.getElementById('gender').value.trim(),
+    age: document.getElementById('age').value.trim(),
+    height: document.getElementById('height').value.trim(),
+    eyes: document.getElementById('eyes').value.trim(),
+    hair: document.getElementById('hair').value.trim(),
+    skin: document.getElementById('skin').value.trim(),
+    build: document.getElementById('build').value.trim(),
+    costume: document.getElementById('costume').value.trim(),
+    lookNotes: document.getElementById('lookNotes').value.trim(),
+    references: document.getElementById('refsNotes').value.trim(),
+    biography: document.getElementById('bio').value.trim(),
+    capabilities: document.getElementById('caps').value.trim(),
+    upgradeNotes: document.getElementById('upgradeNotes').value.trim(),
+    approach: selAp?selAp.name:'', archetype: selAr?selAr.name:'',
+    heroCount: p.H, maxHealth: p.max,
+    greenFloor: fl.GreenFloor||'', yellowFloor: fl.YellowFloor||'', redFloor: fl.RedFloor||'',
+    greenStatusDie: (selAr&&selAr.status_model==='health')?selAr.green_die:'',
+    yellowStatusDie: (selAr&&selAr.status_model==='health')?selAr.yellow_die:'',
+    redStatusDie: (selAr&&selAr.status_model==='health')?selAr.red_die:'',
+    statusSlots: selAr?parseSlots(selAr.status_slots):[],
+    powers: pow, qualities: qual,
+    abilities: selectedAbs(),
+    upgrade, mastery,
+    active: document.getElementById('villainActive') ? document.getElementById('villainActive').checked : true,
+    affiliation: (document.getElementById('villainAffiliation')||{}).value || 'Enemy',
+    origin: (landMeta.find(x=>x.Slug===editingSlug)||{}).origin || 'custom',
+    builderState: {
+      ap: selAp?selAp.slug:null,
+      ar: selAr?selAr.slug:null,
+      pickedAp: [...pickedAp],
+      pickedAr: [...pickedAr],
+      binds, displayNames,
+      up: selUp?selUp.slug:null,
+      ma: selMa?selMa.slug:null,
+      heroCount: p.H,
+      origin: (landMeta.find(x=>x.Slug===editingSlug)||{}).origin || 'custom',
+      issues: selectedIssues()
+    }
+  };
+}
+
+async function saveVillain(){
+  const msg=document.getElementById('saveMsg');
+  msg.textContent='Saving…';
+  const res=await fetch('/api/builder/villain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});
+  const data=await res.json().catch(()=>({}));
+  if (!res.ok){ msg.innerHTML=`<div class="err">${data.error||res.status}</div>`; return; }
+  const slug=data.slug;
+  if (pendingPortrait){
+    await fetch('/api/backgrounds/'+encodeURIComponent('portrait-villain-'+slug), {
+      method:'PUT', body: pendingPortrait, headers:{'Content-Type': pendingPortrait.type||'image/png'}
+    });
+  }
+  for (let i=0;i<pendingRefs.length;i++){
+    const f=pendingRefs[i];
+    await fetch('/api/backgrounds/'+encodeURIComponent('ref-villain-'+slug+'-'+(i+1)), {
+      method:'PUT', body:f, headers:{'Content-Type': f.type||'image/png'}
+    });
+  }
+  await syncIssueVillains(slug, selectedIssues());
+  msg.innerHTML=`<div class="ok">Saved ${slug}</div>`;
+  showLanding();
+}
+async function syncIssueVillains(vslug, selected){
+  for (const i of issueIndex){
+    const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>null);
+    if (!full) continue;
+    const set=new Set(full.villainSlugs||[]);
+    if (selected.includes(i.slug)) set.add(vslug); else set.delete(vslug);
+    full.villainSlugs=[...set];
+    if (!Array.isArray(full.sceneSlugs)) full.sceneSlugs=[];
+    if (!Array.isArray(full.heroSlugs)) full.heroSlugs=[];
+    if (!Array.isArray(full.minionSlugs)) full.minionSlugs=[];
+    await fetch('/api/issues/'+encodeURIComponent(i.slug),{method:'PUT', body:JSON.stringify(full,null,2)});
+  }
+}
+
+function stripBrackets(s){ return (s||'').replace(/\[[^\]]+\]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+function matchCatalog(list, name, text){
+  if (!name) return null;
+  const n=(name||'').toLowerCase();
+  let hit=list.find(a=>a.name.toLowerCase()===n);
+  if (hit) return hit;
+  const nt=stripBrackets(text);
+  if (nt.length>20){
+    hit=list.find(a=>stripBrackets(a.game_text).slice(0,80)===nt.slice(0,80));
+    if (hit) return hit;
+  }
+  hit=list.find(a=>n.includes(a.name.toLowerCase()) || a.name.toLowerCase().includes(n));
+  return hit||null;
+}
+function parseMdSection(md, title){
+  const re=new RegExp('## '+title+'\\n\\n([\\s\\S]*?)(?:\\n## |$)');
+  const m=md.match(re);
+  return m?m[1].trim():'';
+}
+function parseCards(block){
+  const cards=[];
+  const parts=block.split(/^### /m).slice(1);
+  for (const p of parts){
+    const hm=p.match(/^\[([ARI?])\]\s*\[([^\]]*)\]\s*"([^"]+)"\n?([\s\S]*)/);
+    if (!hm) continue;
+    cards.push({type:hm[1], icons:hm[2], name:hm[3].trim(), text:(hm[4]||'').trim()});
+  }
+  return cards;
+}
+function restoreFromMd(md){
+  const stM=md.match(/## Builder[\s\S]*?```json\s*([\s\S]*?)```/);
+  if (stM){
+    try {
+      const st=JSON.parse(stM[1]);
+      selAp=approaches.find(a=>a.slug===st.ap)||selAp;
+      selAr=archetypes.find(a=>a.slug===st.ar)||selAr;
+      pickedAp=new Set(st.pickedAp||[]);
+      pickedAr=new Set(st.pickedAr||[]);
+      binds=st.binds||{};
+      displayNames=st.displayNames||{};
+      selUp=upgrades.find(u=>u.slug===st.up)||null;
+      selMa=masteries.find(m=>m.slug===st.ma)||null;
+      if (st.heroCount) document.getElementById('heroCount').value=st.heroCount;
+      applyPickedIssues(st.issues||[]);
+      return;
+    } catch (e) {}
+  }
+  const abs=parseCards(parseMdSection(md,'Abilities'));
+  pickedAp=new Set(); pickedAr=new Set(); binds={}; displayNames={};
+  for (const c of abs){
+    const inAp=selAp?apAbs.filter(a=>a.parent===selAp.slug):[];
+    const inAr=selAr?arAbs.filter(a=>a.parent===selAr.slug):[];
+    const hit=matchCatalog(inAp,c.name,c.text)||matchCatalog(inAr,c.name,c.text)||matchCatalog(apAbs.concat(arAbs),c.name,c.text);
+    if (!hit) continue;
+    if (selAp && hit.parent===selAp.slug) pickedAp.add(hit.slug);
+    else if (selAr && hit.parent===selAr.slug) pickedAr.add(hit.slug);
+    if (c.name!==hit.name) displayNames[hit.slug]=c.name;
+    const bm=(c.text||'').match(/\[([^\]]+)\]/);
+    if (bm && hit.bind!=='none') binds[hit.slug]=bm[1];
+  }
+  const ups=parseCards(parseMdSection(md,'Upgrades'));
+  if (ups[0]) selUp=matchCatalog(upgrades, ups[0].name, ups[0].text)||upgrades.find(u=>u.name===ups[0].name)||null;
+  if (selUp && ups[0] && ups[0].name!==selUp.name && ups[0].name!==selUp.ability_name) displayNames[selUp.slug]=ups[0].name;
+  const mas=parseCards(parseMdSection(md,'Mastery'));
+  if (mas[0]) selMa=matchCatalog(masteries, mas[0].name, mas[0].text)||masteries.find(m=>m.name===mas[0].name)||null;
+  if (selMa && mas[0] && mas[0].name!==selMa.name) displayNames[selMa.slug]=mas[0].name;
+  applyPickedIssues(issueIndex.filter(i=>(i.villainSlugs||[]).includes(editingSlug)).map(i=>i.slug));
+}
+
+async function editVillain(slug){
+  startNew(); editingSlug=slug;
+  const csv=await (await fetch('/api/csv/villains')).text();
+  const lines=csv.trim().split(/\r?\n/); const headers=parseRow(lines[0]);
+  const row=lines.slice(1).map(l=>{const c=parseRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).find(r=>r.Slug===slug);
+  if (!row) return;
+  document.getElementById('name').value=row.Name||'';
+  const ac=document.getElementById('villainActive'); if(ac) ac.checked=isActiveRow(row);
+  const aff=document.getElementById('villainAffiliation'); if(aff) aff.value=(['Ally','Enemy','Neutral'].includes(row.Affiliation)?row.Affiliation:'Enemy');
+  document.getElementById('slug').value=row.Slug||'';
+  selAp=approaches.find(a=>a.name===row.Approach)||null;
+  selAr=archetypes.find(a=>a.name===row.Archetype)||null;
+  pq.pow=[]; pq.qual=[];
+  for (let i=1;i<=5;i++) if (row['Power'+i]) pq.pow.push({name:row['Power'+i], die:row['PowerDie'+i]||'d8'});
+  for (let i=1;i<=6;i++) if (row['Quality'+i]) pq.qual.push({name:row['Quality'+i], die:row['QualityDie'+i]||'d8'});
+  if (!pq.pow.length) pq.pow=[{name:'',die:'d8'}];
+  if (!pq.qual.length) pq.qual=[{name:'',die:'d8'}];
+  const md=await (await fetch('/api/md/villains/'+slug)).text();
+  const setIf=(id,val)=>{ if (val && val!=='—' && !val.startsWith('_')) document.getElementById(id).value=val.trim(); };
+  [['gender','Gender'],['age','Age'],['height','Height'],['eyes','Eyes'],['hair','Hair'],['skin','Skin'],['build','Build'],['costume','Costume/Equipment']].forEach(([id,lab])=>{
+    const m=md.match(new RegExp('\\*\\*'+lab.replace('/','\\/')+':\\*\\* (.*)'));
+    if (m) setIf(id, m[1]);
+  });
+  const bio=parseMdSection(md,'Biography');
+  const caps=parseMdSection(md,'Capabilities and Motivations');
+  const alias=(md.match(/\*\*Alias:\*\* (.*)/)||[])[1];
+  if (bio) setIf('bio', bio);
+  if (caps) setIf('caps', caps);
+  const upn=parseMdSection(md,'Upgrade Summary');
+  if (upn) setIf('upgradeNotes', upn);
+  if (alias) setIf('alias', alias);
+  const look=parseMdSection(md,'Look');
+  const refs=parseMdSection(md,'References');
+  if (look) setIf('lookNotes', look);
+  if (refs) setIf('refsNotes', refs);
+  restoreFromMd(md);
+  document.getElementById('portraitPrev').innerHTML='';
+  document.getElementById('refPrev').innerHTML='';
+  showBg(document.getElementById('portraitPrev'), 'portrait-villain-'+slug);
+  const keys=await (await fetch('/api/backgrounds')).json().catch(()=>[]);
+  (keys||[]).filter(k=>k.startsWith('ref-villain-'+slug+'-')).sort().forEach(k=>showBg(document.getElementById('refPrev'), k));
+  renderAll();
+}
+
+(async ()=>{
+  [approaches, archetypes, powers, qualities, apAbs, arAbs, upgrades, masteries] = await Promise.all([
+    loadCsv('villain_approaches.csv'), loadCsv('villain_archetypes.csv'),
+    loadCsv('powers.csv'), loadCsv('qualities.csv'),
+    loadCsv('villain_approach_abilities.csv'), loadCsv('villain_archetype_abilities.csv'),
+    loadCsv('villain_upgrades.csv'), loadCsv('villain_masteries.csv')
+  ]);
+  const dl=document.createElement('div');
+  dl.innerHTML=`<datalist id="powersList">${powers.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>
+                <datalist id="qualitiesList">${qualities.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>`;
+  document.body.appendChild(dl);
+  await loadLanding();
+})();
+bindAutoGrow();
+</script>
+</body>
+</html>

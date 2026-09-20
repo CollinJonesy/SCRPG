@@ -1,0 +1,2512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Hero Builder — Constructed Method</title>
+<style>
+  :root{--green:#2e7d32;--yellow:#f9a825;--red:#c62828;--ink:#1a1a2e;--card:#fff;--bg:#eef1f6;--line:#d4d9e3;--accent:#5b3fa6;--lock:#b71c1c;}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:0}
+  header{background:linear-gradient(120deg,var(--accent),#8e54e9);color:#fff;padding:16px 22px;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+  header h1{margin:0;font-size:1.45rem}
+  header p{margin:4px 0 0;opacity:.9;font-size:.85rem}
+  .wrap{max-width:1280px;margin:0 auto;padding:16px}
+  .creator-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+  .sidecar{position:sticky;top:calc(var(--nav-h, 0px) + 8px);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.05);max-height:calc(100vh - var(--nav-h, 0px) - 16px);overflow:auto}
+  .sidecar h3{margin:0 0 8px;font-size:1rem}
+  .sidecar .side-kicker{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#6b6280;margin-bottom:6px}
+  .side-block{font-size:.82rem;line-height:1.4;margin:0 0 10px}
+  .side-block b{display:block;margin-bottom:2px}
+  .die-row-chips{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px}
+  .qual-group{margin:8px 0;padding:8px;background:#f7f5fc;border-radius:8px}
+  .qual-group h4{margin:0 0 6px;font-size:.78rem;color:#4527a0}
+  @media (max-width:960px){ .creator-layout{grid-template-columns:1fr} .sidecar{position:static} }
+  .methods{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .mbtn{padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:#fff;color:var(--accent);cursor:pointer;font-size:.88rem;font-weight:600}
+  .mbtn.active{background:var(--accent);color:#fff}
+  .mbtn.stub{opacity:.6;border-style:dashed}
+  .nav-sticky{position:sticky;top:0;z-index:40;background:var(--bg);padding:8px 0 10px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+  .steps{display:flex;gap:6px;flex-wrap:wrap;margin:0}
+  .step-pill{padding:6px 11px;border-radius:20px;background:#fff;border:1px solid var(--line);font-size:.78rem;cursor:pointer}
+  .step-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .step-pill.done{background:var(--green);color:#fff;border-color:var(--green)}
+  .panel[data-step]{scroll-margin-top:calc(var(--nav-h, 108px) + 8px)}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .panel h2{margin:0 0 10px;font-size:1.1rem;display:flex;align-items:center;gap:8px}
+  .hint{font-size:.8rem;color:#555;margin:0 0 10px;background:#f3f0ff;padding:8px 10px;border-radius:8px;border-left:3px solid var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:9px}
+  .opt{border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;background:#fafbff;transition:.12s;font-size:.85rem}
+  .opt:hover{border-color:var(--accent)}
+  .opt.sel{background:#e8f5e9;border-color:var(--green);box-shadow:0 0 0 2px rgba(46,125,50,.25)}
+  .opt.guided-hit{box-shadow:0 0 0 2px rgba(91,63,166,.35)}
+  .opt.guided-miss{opacity:.42;filter:grayscale(.15)}
+  .guided-box{background:#f7f5fc;border:1px dashed var(--accent);border-radius:10px;padding:10px 12px;margin:0 0 10px;font-size:.85rem}
+  .guided-box .die-row-chips{margin:6px 0}
+  .opt b{display:block;margin-bottom:2px}
+  .opt small{color:#555;line-height:1.25;display:block}
+  .die{display:inline-block;min-width:28px;padding:1px 5px;border-radius:5px;background:#222;color:#fff;font-size:.75rem;font-weight:700;text-align:center;margin:1px}
+  .rollbtn{background:var(--accent);color:#fff;border:none;padding:9px 15px;border-radius:8px;cursor:pointer;font-size:.9rem;margin-top:6px}
+  label{font-size:.83rem;display:block;margin:9px 0 3px;font-weight:600}
+  input[type=text],textarea,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:.88rem;font-family:inherit}
+  textarea{resize:none;min-height:50px;overflow-y:hidden;field-sizing:content}
+  .zone{display:inline-block;padding:1px 7px;border-radius:5px;color:#fff;font-size:.72rem;font-weight:700}
+  .zG{background:var(--green)}.zY{background:var(--yellow);color:#222}.zR{background:var(--red)}
+  .summary{font-size:.86rem;line-height:1.5}
+  .summary .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dotted #eee}
+  .summary .row span:last-child{text-align:right;font-weight:600}
+  .sheet{background:#fff;padding:18px;border:2px solid var(--ink);border-radius:10px;font-size:.86rem;line-height:1.5}
+  .sheet h2{border-bottom:3px solid var(--accent);padding-bottom:5px}
+  .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}
+  .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent);padding:8px 13px;border-radius:8px;cursor:pointer;font-size:.84rem}
+  .pill{display:inline-block;background:#eee;border-radius:12px;padding:2px 8px;font-size:.74rem;margin:2px}
+  .err{color:var(--red);font-size:.82rem;margin-top:6px}
+  .muted{color:#888;font-size:.76rem}
+  .lock{color:var(--lock);font-size:.8rem;margin:2px 0}
+  .ok{color:var(--green);font-size:.8rem}
+  .gate{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:8px 10px;margin:5px 0;font-size:.82rem}
+  .cat-tag{font-size:.68rem;padding:1px 6px;border-radius:4px;background:#ede7f6;color:#4527a0;margin-left:4px}
+  .hidden{display:none}
+  table.land{width:100%;border-collapse:collapse;font-size:.86rem}
+  table.land th,table.land td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+  table.land tr{cursor:pointer}
+  table.land tr:hover{background:#f3f0ff}
+  .ghost.sel{background:var(--accent);color:#fff}
+  .tiny{padding:6px 8px;font-size:.8rem}
+  table.redtbl{width:100%;border-collapse:collapse;font-size:.8rem}
+  table.redtbl th,table.redtbl td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+  table.redtbl th{background:#f3f0ff}
+  .red-yes{color:var(--green);font-weight:700}
+  .red-no{color:var(--lock);font-weight:700}
+  /* Die assign: Background row is canonical. 2–3 picks on ONE row.
+     Chip + stretching dropdown (placeholder text visible). Never column-stack,
+     never space-between gap, never a 64px die-sized select, never --assign-col. */
+  #bgAssign,#psAssign,#arAssign,#peAssign,#modAssignBox{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+  .assign-head{font-size:.82rem;color:#5b5570;margin-bottom:8px}
+  .assign-grid{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:stretch;gap:10px;width:100%}
+  .assign-row{display:flex;flex:1 1 0;align-items:center;gap:8px;min-width:0;font-size:.86rem}
+  .assign-row .aq{flex:0 0 auto;font-weight:700;white-space:nowrap}
+  .assign-row small{color:#8a83a0;font-weight:400}
+  .assign-row select.dq,.assign-row input.dq{flex:1 1 auto;min-width:0;width:auto;padding:6px 8px;border:1px solid var(--line);border-radius:6px;text-align:left;text-align-last:left}
+  .assign-row.tok{font-style:italic;color:#8a83a0;flex-wrap:wrap;gap:6px}
+  .assign-row.tok span{background:#f3f0ff;padding:2px 7px;border-radius:6px}
+  .ab{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 auto 10px;font-size:.84rem;max-width:640px;border-left:6px solid #bbb;background:#fff}
+  .ab.sel{box-shadow:0 0 0 2px rgba(91,63,166,.25)}
+  .ab .ab-name{font-size:1.02rem;font-weight:700;text-align:center;margin:0 0 4px}
+  .ab .ab-meta{text-align:center;color:#6b6280;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}
+  .ab .gt{color:#444;margin-top:4px;font-size:.8rem;text-align:center}
+  .ab label{text-align:center}
+  .cat-key{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 10px;margin:8px auto 12px;max-width:720px}
+  .cat-key span{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;color:#555}
+  .cat-key i{width:10px;height:10px;border-radius:2px;display:inline-block;border:1px solid #999}
+  .retcon-ba{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+  @media (max-width:700px){ .retcon-ba{grid-template-columns:1fr} }
+  .retcon-ba h4{margin:0 0 6px;font-size:.82rem}
+  /* print */
+  @media print{
+    body{background:#fff}
+    header,.methods,.steps,.panel:not(.printme),.actions,.hint{display:none!important}
+    .panel.printme{box-shadow:none;border:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#e4d8ff;font-size:.8rem;text-decoration:none">← All builders</a></p>
+  <h1>Hero Builder</h1>
+  <p>New and Edit use this same form. Landing table: All / Custom / Premade.</p>
+</header>
+<div class="wrap">
+
+<div id="landing">
+  <div class="panel">
+    <div class="actions" style="margin-top:0">
+      <button class="rollbtn" type="button" onclick="startNewHero()">+ New Hero</button>
+      <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setHeroOrigin('all')">All</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setHeroOrigin('custom')">Custom</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setHeroOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="heroActiveOnlyBtn" onclick="setHeroActiveOnly(!heroActiveOnly)">Active Only</button>
+    </div>
+    <p class="muted" id="landEmpty">Loading…</p>
+    <table class="land hidden" id="landTable">
+      <thead><tr><th>Hero Name</th><th>Alias</th><th>Player</th><th>Health</th><th>G</th><th>Y</th><th>R</th></tr></thead>
+      <tbody id="landBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="wizard" class="hidden">
+  <div class="nav-sticky">
+    <div class="actions" style="margin:0 0 8px"><button class="ghost tiny" type="button" onclick="showHeroLanding()">← List</button></div>
+    <div class="methods">
+      <div class="mbtn active" id="mConstructed" onclick="setMethod('Constructed')">Constructed Method</div>
+      <div class="mbtn" id="mGuided" onclick="setMethod('Guided')">Guided Method</div>
+      <div class="mbtn" id="mFree" onclick="setMethod('Free')">Free For All</div>
+    </div>
+    <div class="steps" id="stepbar"></div>
+    <div id="methodNote" class="hint" style="display:none"></div>
+    <div id="saveMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+  <div class="creator-layout">
+  <div class="creator-main">
+
+  <!-- STEP 1 -->
+  <div class="panel" data-step="1">
+    <h2>1 · Background <span class="muted">(p49–54)</span></h2>
+    <div class="hint">Constructed: pick a Background. Assign its quality dice (the listed sizes — not a free pick of any die). Choose a Principle from its category. Then take the listed dice to Power Source — you <b>choose</b> the source; there is no selection roll (that is Guided only).</div>
+    <div id="guidedBg" class="guided-box hidden"></div>
+    <div class="grid" id="bgGrid"></div>
+    <div id="bgPick"></div>
+    <div id="bgAssign"></div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="panel" data-step="2">
+    <h2>2 · Power Source <span class="muted">(p57–70)</span></h2>
+    <div class="hint">Constructed: pick a Power Source (same card + assign layout as Background). Put the dice you brought from Background onto this source’s powers. Then pick its Green/Yellow abilities. This source also grants dice forward to Archetype (sidecar).</div>
+    <div id="guidedPs" class="guided-box hidden"></div>
+    <div class="grid" id="psGrid"></div>
+    <div id="psPick"></div>
+    <div id="psAssign"></div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="panel" data-step="3">
+    <h2>3 · Archetype <span class="muted">(p73–98)</span></h2>
+    <div class="hint">Constructed: pick an Archetype. Assign the dice you brought from Power Source onto its offered powers/qualities. Pick Green/Yellow abilities from its list. Choose its Principle when the book gives a category.</div>
+    <div id="guidedAr" class="guided-box hidden"></div>
+    <div class="grid" id="arGrid"></div>
+    <div id="arPick"></div>
+    <div id="arAssign"></div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="panel" data-step="4">
+    <h2>4 · Personality <span class="muted">(p100–112)</span></h2>
+    <div class="hint">Constructed: pick a Personality (GYRO status dice are locked from the book). Name the custom quality it grants and assign its listed die. The Out ability text is from this Personality — bind <code>[quality]</code> / <code>[power]</code> to one you already assigned.</div>
+    <div id="guidedPe" class="guided-box hidden"></div>
+    <div class="grid" id="peGrid"></div>
+    <div id="pePick"></div>
+    <div id="peAssign"></div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="panel" data-step="5">
+    <h2>5 · Red Abilities <span class="muted">(p106 / pp.114–119)</span></h2>
+    <div class="hint">Verbatim (p114): "Choose two Red abilities. The Red abilities are grouped by power and quality category… You must have a die assigned to a power or quality in a category to use with an ability from that category. If an ability doesn't use a power or quality at all (like most Inherent abilities), you must have a power or quality rated d6 or higher in that category in order to take it. Some Red abilities also specify that they can only be used with a specific power or quality."</div>
+    <div id="redGate"></div>
+    <div id="redList" class="grid"></div>
+    <div id="redPick"></div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="panel" data-step="6">
+    <h2>6 · Retcon <span class="muted">(p112)</span></h2>
+    <div class="hint">Verbatim (p120): "you can do one of the following things:"</div>
+    <div class="grid" id="retconGrid"></div>
+    <div id="retconAssign"></div>
+    <div id="retconPick"></div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="panel" data-step="7">
+    <h2>7 · Health <span class="muted">(p113 / p121)</span></h2>
+    <div class="hint">Add: 8 + max of Red status die + max of one Athletic power or Mental quality (or 0 if none) + <b>roll a d10 or choose 4</b> (4 is not a die roll). Total Health; chart gives Green/Yellow/Red ranges.</div>
+    <label>Red status die max (auto from Personality)</label>
+    <input type="text" id="redMax" readonly>
+    <label>Athletic power or Mental quality max (enter the die, e.g. d10)</label>
+    <input type="text" id="athMax" placeholder="e.g. d10" value="d10">
+    <label>Roll d10 or choose 4</label>
+    <input type="text" id="healthRoll" placeholder="d10 result, or 4">
+    <button class="rollbtn" onclick="calcHealth()">Calculate Health</button>
+    <div id="healthOut"></div>
+  </div>
+
+  <!-- STEP 8 -->
+  <div class="panel" data-step="8">
+    <h2>8 · Finishing Touches <span class="muted">(p114 / p122)</span></h2>
+    <div class="hint">Verbatim (p122): "All of these details go at the top of your hero's sheet: there's space for your Hero Name and Alias, as well as a Physical Attributes section. There, you fill in your Gender, Age, and Height, as well as notes about your Eyes, Hair, Skin, and Build. Finally, briefly detail the Costume/Equipment… If you haven't renamed your abilities yet, go over them and come up with some snappy names that fit your hero."</div>
+    <label>Hero Name</label><input type="text" id="heroName" placeholder="e.g. Nightfall">
+    <label><input type="checkbox" id="heroActive" checked> Active in Library</label>
+    <label>Affiliation</label>
+    <select id="heroAffiliation">
+      <option value="Ally" selected>Ally</option>
+      <option value="Enemy">Enemy</option>
+      <option value="Neutral">Neutral</option>
+    </select>
+    <label>Alias</label><input type="text" id="alias" placeholder="e.g. Jordan Veil">
+    <label><input type="checkbox" id="playerControlled" checked> Player-controlled Hero</label>
+    <label>Player</label><input type="text" id="player" placeholder="e.g. Cherise">
+    <label>Gender / Age / Height</label>
+    <div style="display:flex;gap:6px"><input type="text" id="gender" placeholder="Gender"><input type="text" id="age" placeholder="Age"><input type="text" id="height" placeholder="Height"></div>
+    <label>Eyes / Hair / Skin / Build</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><input type="text" id="eyes" placeholder="Eyes"><input type="text" id="hair" placeholder="Hair"><input type="text" id="skin" placeholder="Skin"><input type="text" id="build" placeholder="Build"></div>
+    <label>Costume / Equipment</label><textarea id="costume"></textarea>
+    <label>Free notes</label><textarea id="notes"></textarea>
+    <label>Ability names</label>
+    <div class="hint">Book names on the left. Type a snappy name for the sheet — the catalog row stays the same.</div>
+    <div id="abilityRenameBox"></div>
+    <label>Appears in Collections</label>
+    <select id="collPick" onchange="fillHeroIssueBox()"><option value="">Choose a collection…</option></select>
+    <div id="issueBox" class="muted">Choose a collection to see its Issues.</div>
+  </div>
+
+  </div>
+  <aside class="sidecar" id="sidecar">
+    <div class="side-kicker" id="sideKicker">Constructed</div>
+    <h3 id="sideTitle">Your hero so far</h3>
+    <div id="sideBody" class="side-block muted">Pick a Background to start. This panel stays with the section you’re in.</div>
+  </aside>
+  </div>
+</div>
+
+<script src="/collection-picker.js"></script>
+<script>
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
+/* ============ VERIFIED BOOK DATA (verbatim where quoted; data from PDF text layer) ============ */
+const DICE=["d4","d6","d8","d10","d12"];
+const dm=x=>parseInt(x.replace("d",""))||0;
+
+/* Backgrounds: [name, qualities list text, principle category, chart note, selection roll] */
+const BACKGROUNDS=[
+ ["Upper Class","Fitness, Persuasion, any Mental","Responsibility","—","d?/d?/d?"],
+ ["Blank Slate","Any Mental or Physical","Identity","—","d?/d?/d?"],
+ ["Struggling","Banter, Criminal Underworld Info, any Physical","Responsibility","—","d?/d?/d?"],
+ ["Adventurer","History, Leadership, any Physical","Expertise","—","d?/d?/d?"],
+ ["Unremarkable","Close Combat, any Mental or Social","Identity","—","d?/d?/d?"],
+ ["Law Enforcement","Close Combat, Criminal Underworld Info, Ranged Combat, any Mental or Social","Responsibility","—","d?/d?/d?"],
+ ["Academic","Leadership, Self-Discipline, any Information","Expertise","—","d?/d?/d?"],
+ ["Tragic","Banter, Close Combat, Imposing, any Mental","Ideals","—","d?/d?/d?"],
+ ["Performer","Acrobatics, Creativity, Finesse, any Social","Responsibility","—","d?/d?/d?"],
+ ["Military","Leadership, Self-Discipline, any Physical","Ideals","—","d?/d?/d?"],
+ ["Retired","Any Information or Social","Identity","selection roll d12/d6/d6","d12/d6/d6"],
+ ["Criminal","Criminal Underworld Info, Imposing, any Physical","Expertise","—","d?/d?/d?"],
+ ["Medical","Medicine (Required), Finesse, Science, Technology, any Mental","Expertise","—","d?/d?/d?"],
+ ["Anachronistic","History, Magical Lore, Technology, any Physical","Esoteric","d4 (sel. d10/d8/d6)","d10/d8/d6"],
+ ["Exile","Conviction, Insight, any Information","Ideals","d4","d?/d?/d?"],
+ ["Former Villain","Conviction, any Information or Social","Expertise","d4","d?/d?/d?"],
+ ["Interstellar","Any Information or Mental","Esoteric","d12","d?/d?/d?"],
+ ["Dynasty","Close Combat, Fitness, History, any Social","Ideals","d10","d?/d?/d?"],
+ ["Otherworldly","Magical Lore, Otherworldly Mythos, any Mental","Esoteric","—","d?/d?/d?"],
+ ["Created","Alertness, Science, Technology, any Physical","Expertise","—","d?/d?/d?"]
+];
+
+/* Power Sources: [name, powers summary, dice granted] — from Power Sources Chart p64 */
+const POWER_SOURCES=[
+ ["Accident","Any Athletic, Elemental/Energy, Intellectual, Materials, Psychic, or Self Control","d12 / d6"],
+ ["Training","Gadgets, Signature Vehicle, Signature Weaponry, or any Athletic or Intellectual","d10 / d8 / d8"],
+ ["Genetic","Agility, Flight, Signature Weaponry, Strength, Vitality, any Intellectual or Psychic","d10 / d8 / d8"],
+ ["Experimentation","Signature Weaponry, any Athletic, Elemental/Energy, Intellectual, Mobility, Self Control","d8 / d8 / d8"],
+ ["Mystical","Awareness, Flight, Presence, Signature Weaponry, Teleportation, any Elemental/Energy, Materials, Psychic, Self Control","d10 / d8 / d8"],
+ ["Nature","Animal Control, Cold, Electricity, Fire, Flight, Leaping, Shapeshifting, Swimming, Swinging, Wall-Crawling, Weather, any Athletic or Materials","d10 / d8 / d8"],
+ ["Relic","Awareness, Intuition, Signature Vehicle, Signature Weaponry, any Elemental/Energy, Materials, Mobility, Psychic, Self Control","d10 / d10 / d6"],
+ ["Powered Suit","Power Suit (required), Awareness, Cold, Elasticity, Electricity, Fire, Lightning Calculator, Nuclear, Part Detachment, Signature Vehicle, Signature Weaponry, any Athletic or Mobility","d10 / d6 / d6"],
+ ["Radiation","Nuclear, Signature Vehicle, Signature Weaponry, any Athletic, Self Control, or Technological","d10 / d8 / d6"],
+ ["Tech Upgrades","Signature Vehicle, Signature Weaponry, any Athletic, Elemental/Energy, Intellectual, Mobility, Technological","d10 / d8 / d8"],
+ ["Supernatural","Awareness, Cold, Electricity, Fire, Infernal, Plants, Presence, Radiant, Strength, Transmutation, Vitality, Weather, any Mobility, Psychic, Self Control","d10 / d10 / d6"],
+ ["Artificial Being","Inventions, Robotics, Signature Vehicle, Signature Weaponry, any Athletic, Elemental/Energy, Intellectual, Mobility, Self Control","d10 / d8 / d8"],
+ ["Cursed","Signature Weaponry, any Athletic, Elemental/Energy, Materials, Self Control","d12 / d6"],
+ ["Alien","Signature Vehicle, Signature Weaponry, any Athletic, Elemental/Energy, Intellectual, Mobility, Psychic, Technological","d8 / d8 / d8"],
+ ["Genius","Inventions, Robotics, Signature Vehicle, Signature Weaponry, any Intellectual","d10 / d6 / d6"],
+ ["Cosmos","Cosmic, Intuition, Signature Vehicle, Signature Weaponry, any Mobility, Psychic, Self Control, Technological","d10 / d8 / d8"],
+ ["Extradimensional","Cosmic, Duplication, Infernal, Intangibility, Invisibility, Radiant, Signature Vehicle, Signature Weaponry, Transmutation, Teleportation, any Intellectual, Psychic","d12 / d6"],
+ ["Unknown","Any Elemental/Energy, Intellectual, Materials, Self Control, Technological","d10 / d8 / d6"],
+ ["Higher Power","Any Athletic, Elemental/Energy, Material, Psychic, Self Control","d10 / d8 / d8"],
+ ["The Multiverse","Awareness, Cosmic, Intuition, Speed, any Psychic, Self Control, Teleportation","d10 / d8 / d6"]
+];
+
+/* Archetypes: [name, required/signature text, principle type] */
+const ARCHETYPES=[
+ ["Speedster","Speed (required), Agility, Intangibility, Lightning Calculator, Vitality, any Mobility / any Mental or Physical","Expertise"],
+ ["Shadow","Stealth (required), Intangibility, Invisibility, Signature Weaponry, any Athletic / any Physical","Expertise"],
+ ["Physical Powerhouse","Strength (required), Density Control, Leaping, Signature Weaponry, Size-Changing, any Athletic / any Physical or Social","Expertise"],
+ ["Marksman","Signature Weaponry (required), Signature Vehicle, Swinging, any Athletic, Intellectual, or Technological / any Information, Mental, Physical","Responsibility"],
+ ["Blaster","Elemental/Energy (required), Signature Weaponry, any Elemental/Energy, Mobility, Technological / any Mental or Physical","Esoteric"],
+ ["Close Quarters Combat","Close Combat (required), Signature Weaponry, any Athletic, Mobility, Technological / any Physical or Social","Responsibility"],
+ ["Armored","Signature Vehicle, Signature Weaponry, any Athletic, Intellectual, Materials, Mobility, Technological / any Physical or Social","Expertise"],
+ ["Flyer","Flight or Signature Vehicle (required), Signature Vehicle, Signature Weaponry, any Athletic, Mobility, Technological / Information or Physical","Ideals"],
+ ["Elemental Manipulator","Elemental/Energy (required), Absorption, Flight, Leaping, Swimming, Signature Vehicle, Signature Weaponry, Transmutation, any Elemental/Energy / Magical Lore, Science, any Mental or Physical","Esoteric"],
+ ["Robot/Cyborg","Signature Vehicle, Signature Weaponry, any Athletic, Intellectual, Mobility, Self Control, Technological / any Information or Mental","Expertise"],
+ ["Sorcerer","Any Elemental/Energy, Materials, Mobility, Psychic, or Self Control / any Information or Mental","Esoteric"],
+ ["Psychic","Any Psychic (required), any Intellectual, Materials, Psychic, or Self Control / any Information or Mental","Esoteric"],
+ ["Transporter","Any Mobility or Signature Vehicle (required), any Athletic, Mobility, Psychic, Technological / any Physical or Social","Expertise"],
+ ["Minion-Maker","Duplication, Inventions, Part Detachment, Robotics, any Elemental/Energy, Materials / any Information or Mental","Expertise"],
+ ["Wild Card","Signature Vehicle or Signature Weaponry, any Athletic, Intellectual, Mobility, any Self Control / any Physical or Social","Ideals"],
+ ["Form-Changer","Any Self Control (required), any Athletic, Mobility, Self Control, Technological / any Information or Physical","Esoteric"],
+ ["Gadgeteer","Signature Vehicle, Signature Weaponry, any Intellectual (required), Mobility, Psychic, Technological / any Information or Mental","Identity"],
+ ["Reality Shaper","Density Control, Intangibility, Invisibility, Speed, Teleportation, Transmutation, any Intellectual, Psychic, Technological / any Information or Mental","Expertise"],
+ ["Divided","Varies","Responsibility"],
+ ["Modular","Varies","Varies"]
+];
+
+/* Personalities: [name, G, Y, R, out ability verbatim] — status dice verified via glyph read; out ability quoted p109-112 */
+const PERSONALITIES=[
+ ["Lone Wolf","d8","d8","d8","Out: Boost an ally by rolling your single [quality] die."],
+ ["Natural Leader","d6","d8","d10","Out: Boost an ally by rolling your single [quality] die."],
+ ["Impulsive","d6","d6","d8","Out: The hero who goes directly after you may take 1 damage to reroll their dice pool."],
+ ["Mischievous","d6","d8","d8","Out: Hinder an opponent by rolling your single [power] die."],
+ ["Sarcastic","d8","d8","d8","Out: Hinder an opponent by rolling your single [quality] die."],
+ ["Distant","d10","d8","d6","Out: Boost an ally by rolling your single Red status die."],
+ ["Stalwart","d8","d8","d8","Out: Defend an ally by rolling your single [power] die."],
+ ["Fast Talking","d6","d8","d10","Out: Hinder a minion or lieutenant by rolling your single [quality] die, and increase that penalty by -1."],
+ ["Inquisitive","d6","d8","d10","Out: Choose an ally. Until your next turn, that ally may reroll one of their dice by using a Reaction."],
+ ["Alluring","d6","d8","d10","Out: Boost an ally by rolling your single [power] die."],
+ ["Stoic","d6","d8","d10","Out: Defend an ally by rolling your single [quality] die."],
+ ["Nurturing","d6","d6","d12","Out: Boost an ally by rolling your single [quality] die."],
+ ["Analytical","d10","d8","d6","Out: Remove a bonus or penalty of your choice."],
+ ["Decisive","d8","d8","d8","Out: Boost an ally by rolling your single [power] die."],
+ ["Jovial","d6","d8","d10","Out: Defend an ally by rolling your single [quality] die."],
+ ["Cheerful","d10","d8","d6","Out: Boost an ally by rolling your single [power] die."],
+ ["Naive","d6","d6","d12","Out: Hinder an opponent by rolling your single [power] die."],
+ ["Apathetic","d6","d8","d10","Out: Remove a bonus or penalty of your choice."],
+ ["Jaded","d10","d8","d6","Out: Remove a bonus or penalty of your choice."],
+ ["Arrogant","d10","d8","d6","Out: Hinder an opponent by rolling your single [power] die."]
+];
+
+/* RED ABILITIES — verbatim game text from pp.114–119, grouped by the book's exact category headers.
+   cat = the power/quality category the book groups it under. inherent=true => needs d6+ in any category (per p106). */
+const RED_CATS=["Athletic Powers","Elemental/Energy Powers","Hallmark Powers","Intellectual Powers","Materials Powers","Mobility Powers","Psychic Powers","Self Control Powers","Technological Powers","Information Qualities","Mental Qualities","Physical Qualities","Social Qualities"];
+const RED_ABILITIES=[
+ // Athletic Powers (p114)
+ ["Major Regeneration","A","Hinder yourself using Vitality. Use your Min die. Recover Health equal to your Max+Mid dice.","Athletic Powers"],
+ ["Paragon Feat","A","Overcome using [power] in a situation that requires you to be more than humanly capable, like an extreme feat of strength or speed. Use your Max+Min dice. Boost all nearby allies with your Mid die.","Athletic Powers"],
+ ["Push Your Limits","I","You have no limit on amount of Reactions you can take. Each time you use a Reaction after the first one each turn, take 1 irreducible damage or take a minor twist.","Athletic Powers"],
+ ["Reactive Strike","R","When you are Attacked and dealt damage, you may Attack the source of that damage by rolling your single [power] die, plus the amount of damage you take.","Athletic Powers"],
+ // Elemental/Energy Powers (p114)
+ ["Charged Up Blast","A","Attack using [power] (or [Signature Weaponry]) and at least one bonus. Use your Max+Mid+Min dice. Destroy all of your bonuses, adding each of them to this Attack first, even if they are exclusive.","Elemental/Energy Powers"],
+ ["Eruption","A","Attack up to three targets, one of which must be you, using [power]. Assign your Min, Mid, and Max dice as you choose among those targets.","Elemental/Energy Powers"],
+ ["Improved Immunity","I","If you would take damage from [element/energy], ignore that damage and Recover that amount instead. Use the value of the damage to Boost yourself.","Elemental/Energy Powers"],
+ ["Powerful Strike","A","Attack using [power]. Use your Max+Mid dice.","Elemental/Energy Powers"],
+ ["Purification","A","Remove all bonuses and penalties from the scene. You cannot use this ability again this scene.","Elemental/Energy Powers"],
+ ["Summoned Allies","A","Use [power] to create a number of minions equal to your Mid die. Choose the one same basic action that they each perform. They all act at the start of your turn.","Elemental/Energy Powers"],
+ // Hallmark Powers (p115)
+ ["Quick Exit","A","Attack using [Signature Vehicle]. Use your Max die. Hinder each nearby opponent with your Mid die. After using this ability, you and up to 2 allies may end up anywhere in the scene, even outside of the action.","Hallmark Powers"],
+ ["Sacrificial Ram","A","Attack up to three nearby targets using [Signature Vehicle]. Use your Max+Mid dice against each of them. You cannot use your Signature Vehicle power for the rest of this scene and until it is recovered/repaired.","Hallmark Powers"],
+ ["Ultimate Weaponry","A","Boost yourself using [power]. Use your Max die. That bonus is persistent and exclusive. Attack using your Mid die plus that bonus.","Hallmark Powers"],
+ // Intellectual Powers (p115)
+ ["Calculated Dodge","R","You may take 1 irreducible damage to reroll the dice pool of a target that is Attacking or Hindering you.","Intellectual Powers"],
+ ["Give Time","A","Boost another hero using [power]. If that hero has already acted for the turn, use your Max die, and that hero loses Health equal to your Min die. That hero acts next in the turn order.","Intellectual Powers"],
+ ["Reliable Aptitude","I","When taking any action using [power], you may reroll your Min die before determining effects.","Intellectual Powers"],
+ ["Unerring Strike","A","Attack using [power]. Use your Max+Min dice. Ignore all penalties on this attack, ignore any Defend actions, and it cannot be affected by Reactions.","Intellectual Powers"],
+ // Materials Powers (p116)
+ ["Field of Hazards","A","Hinder any number of targets in the scene using [power]. Use your Max+Min dice. If you roll doubles, also Attack each target using your Mid die.","Materials Powers"],
+ ["Impenetrable Defense","A","Defend using [power] against all Attacks against you until your next turn using your Max+Mid dice.","Materials Powers"],
+ ["Like the Wind","R","When you are Attacked and dealt damage, you may ignore that damage completely. If you do, treat the value of the damage as a Hinder action against you instead.","Materials Powers"],
+ ["Powerful Strike (Mat)","A","Attack using [power]. Use your Max+Mid dice.","Materials Powers"],
+ ["Summoned Allies (Mat)","A","Use [power] to create a number of minions equal to your Mid die. Choose the one same basic action that they each perform. They all act at the start of your turn.","Materials Powers"],
+ // Mobility Powers (p116)
+ ["Heroic Interruption","R","When an Attack deals damage to a nearby hero in the Red zone, you may take [X] irreducible damage to redirect that Attack to a target of your choice, other than the source of the Attack.","Mobility Powers"],
+ ["Intercession","R","When multiple nearby heroes are Attacked, you may take all the damage instead. If you do, roll your [power] die + Red zone die and Defend against the Attack by the total.","Mobility Powers"],
+ ["Take Down","A","Attack using [power]. Use your Max die. Then, Hinder that target using your Mid+Min dice.","Mobility Powers"],
+ ["Untouchable Movement","A","Boost yourself using [power]. Use your Max+Min dice. Then, you may end up anywhere else in the scene, avoiding any dangers between your starting and ending locations.","Mobility Powers"],
+ // Psychic Powers (p116)
+ ["Dangerous Hinder","A","Hinder using [power]. Use your Max+Mid dice. If you roll doubles, also Attack the target using your Mid+Min dice and take damage equal to your Min die.","Psychic Powers"],
+ ["Dire Control","A","Select a minion. That minion is now entirely under your control and acts at the start of your turn. If you are incapacitated, you lose control of this minion. You may also choose to release control of this minion at any time. At the end of the scene, this minion is defeated.","Psychic Powers"],
+ ["Final Wrath","A","Attack using [power]. Use your Max+Mid+Min dice. Take a major twist.","Psychic Powers"],
+ ["Give Time (Psy)","A","Boost another hero using [power]. If that hero has already acted for the turn, use your Max die, and that hero loses health equal to your Min die. That hero acts next in the turn order.","Psychic Powers"],
+ ["Impenetrable Defense (Psy)","A","Defend using [power] with your Max+Mid dice against all Attacks against you until your next turn.","Psychic Powers"],
+ ["Impossible Knowledge","I","At the start of your turn, change any penalty into a bonus.","Psychic Powers"],
+ ["Summoned Allies (Psy)","A","Use [power] to create a number of minions equal to your Mid die. Choose the one same basic action that they each perform. They all act at the start of your turn.","Psychic Powers"],
+ // Self Control Powers (p117)
+ ["Change Self","I","At the start of your turn, swap two of your power dice. They stay swapped until changed again or the scene ends.","Self Control Powers"],
+ ["Empowerment","R","When you are Attacked, roll your single [power] die as a Defend against that Attack. Also Boost yourself with that same roll.","Self Control Powers"],
+ ["Impenetrable Defense (SC)","A","Defend using [power] with your Max+Mid dice against all Attacks against you until your next turn.","Self Control Powers"],
+ ["Major Regeneration (SC)","A","Hinder yourself using [power]. Use your Min die. Recover Health equal to your Max+Mid dice.","Self Control Powers"],
+ ["Defensive Deflection","R","When you would be dealt damage, you may roll your single [power] die as a Defend against that damage and as an Attack against a nearby target other than the source of that damage.","Self Control Powers"],
+ ["Mutable Form","A","Choose three basic actions. Use [power] in your pool and take one action with your Max die, a different action with your Mid die, and a third action with your Min die.","Self Control Powers"],
+ ["Powerful Strike (SC)","A","Attack using [power]. Use your Max+Mid dice.","Self Control Powers"],
+ ["Resurrection","I","Once per issue, if you would go to 0 Health, roll [power] + [any Physical or Mental quality] + Red zone die. Your Health becomes that number.","Self Control Powers"],
+ ["Summoned Allies (SC)","A","Use [power] to create a number of minions equal to your Mid die. Choose the one same basic action that they each perform. They all act at the start of your turn.","Self Control Powers"],
+ // Technological Powers (p117)
+ ["Combustion","A","Attack multiple nearby targets using [power]. Use your Max+Mid dice. Take irreducible damage equal to your Min die.","Technological Powers"],
+ ["Final Wrath (Tech)","A","Attack using [power]. Use your Max+Mid+Min dice. Take a major twist.","Technological Powers"],
+ ["Full Defensive","A","Hinder yourself by rolling your single [power] die. You are immune to damage until the start of your next turn. You cannot use this ability again this scene.","Technological Powers"],
+ ["Ultimate Weaponry (Tech)","A","Boost yourself using [power]. Use your Max die. That bonus is persistent and exclusive. Then, Attack using your Mid die plus that bonus.","Technological Powers"],
+ ["Unload","A","Attack multiple targets using [power], using your Max+Min dice. If you roll doubles, take a minor twist or damage equal to your Mid die.","Technological Powers"],
+ // Information Qualities (p118)
+ ["Critical Eye","A","Select a target. Boost using [quality]. Use your Max+Mid+Min dice. That bonus must be used against that target before the end of your next turn, or it is wasted.","Information Qualities"],
+ ["Discern Weakness","A","Remove a bonus on a target. Hinder that target using [quality]. Use your Max die, and that penalty is persistent and exclusive.","Information Qualities"],
+ ["Reliable Aptitude (Info)","I","When taking any action using [quality], you may reroll your Min die before determining effects.","Information Qualities"],
+ ["Specialized Info","A","Overcome using [quality]. Use your Max+Min dice.","Information Qualities"],
+ // Mental Qualities (p118)
+ ["Aware Response","R","After an opponent Attacks or Hinders you or a nearby ally, Attack the opponent by rolling your single [quality] die.","Mental Qualities"],
+ ["Canny Awareness","A","Overcome using [quality]. Use your Max+Min dice. Hinder all nearby opponents with your Mid die.","Mental Qualities"],
+ ["Considered Planning","A","Boost using [quality] and use your Max die. Defend against all Attacks against you using your Mid die until your next turn. Note your Min die... as a Reaction, until your next turn, you may Hinder an attacker using that result.","Mental Qualities"],
+ ["Final Wrath (Mental)","A","Attack using [quality]. Use your Max+Mid+Min dice. Take a major twist.","Mental Qualities"],
+ ["Harmony","I","As long as you have at least one bonus created from [quality], treat [power] as one size higher (max d12).","Mental Qualities"],
+ ["Purification (Mental)","A","Remove all bonuses and penalties from the scene. You cannot use this ability again this scene.","Mental Qualities"],
+ // Physical Qualities (p118)
+ ["Book It","A","Hinder any number of close targets using [quality]. Use your Max die. End your turn elsewhere in the scene.","Physical Qualities"],
+ ["Endurance Fighting","I","Whenever you Attack a target with an action, you may also Hinder that target with your Min die.","Physical Qualities"],
+ ["Finishing Blow","A","Attack using [quality]. Use your Max die. Remove any number of penalties from the target. Add your Min die to the Attack each time you remove a penalty.","Physical Qualities"],
+ ["Reactive Defense","R","When an opponent Attacks, you may become the target of that Attack and Defend by rolling your single [quality] die.","Physical Qualities"],
+ // Social Qualities (p119)
+ ["Heroic Sacrifice","R","When an opponent Attacks, you may become the target of that Attack and Defend by rolling your single Red zone die.","Social Qualities"],
+ ["Inspiring Totem","I","When you use an ability action, you may also perform any one basic action using your Mid die on the same roll.","Social Qualities"],
+ ["Lead by Example","A","Make a basic action using [quality.] Use your Max die. All other heroes who take the same basic action on their turn against the same target receive a Boost from your Mid+Min dice.","Social Qualities"],
+ ["Ultimatum","A","Hinder using [quality]. Use your Max+Min dice. Boost yourself or an ally with your Mid die.","Social Qualities"]
+];
+
+/* RETCON — verbatim p120 */
+const RETCONS=[
+ "Swap any two dice within your powers",
+ "Swap any two dice within your qualities",
+ "Choose a different power or quality used in one of your abilities",
+ "Add any d6 power or quality from any category",
+ "Increase your Red status die by one size (maximum d12)",
+ "Change either of your principles to any other principle",
+ "Gain an extra Red ability, as described in Step 5"
+];
+
+/* HEALTH CHART — verbatim p121 (total -> Green/Yellow/Red ranges) */
+const HEALTH_CHART={
+ 40:["40-30","29-15","14-1"],39:["39-30","29-15","14-1"],38:["38-29","28-14","13-1"],
+ 37:["37-29","28-14","13-1"],36:["36-28","27-14","13-1"],35:["35-27","26-13","12-1"],
+ 34:["34-26","25-13","12-1"],33:["33-26","25-13","12-1"],32:["32-25","24-12","11-1"],
+ 31:["31-24","23-12","11-1"],30:["30-23","22-12","11-1"],29:["29-23","22-11","10-1"],
+ 28:["28-22","21-11","10-1"],27:["27-21","20-11","10-1"],26:["26-21","20-10","9-1"],
+ 25:["25-20","19-10","9-1"],24:["24-19","18-10","9-1"],23:["23-19","18-9","8-1"],
+ 22:["22-18","17-9","8-1"],21:["21-17","16-9","8-1"],20:["20-16","15-8","7-1"],
+ 19:["19-15","14-8","7-1"],18:["18-15","14-8","7-1"],17:["17-14","13-7","6-1"]
+};
+
+/* ============ STATE ============ */
+const state={bg:null,ps:null,ar:null,pe:null,reds:[],retcon:null,method:"Constructed",
+  bgQual:{}, bgSlots:[], bgPrinciple:"",
+  psPow:{}, psSlots:[], psAbilities:[],
+  arPow:{}, arQual:{}, arSlots:[], arPrinciple:"", arAbilities:[], arYellowAbilities: new Set(),
+  peQual:{}, peCustom:"", peOutBind:"", health:null, abBinds:{}, abNames:{}, powNames:{}, qualNames:{}, retconSpec:{}, reqDie:"",
+  psReq:{mode:'',die:'',name:''}, arReq:{mode:'',die:'',name:''},
+  modPair:null, modD6:[], modGreen:"", modYellow:[], modRed:"", modPowerless:false,
+  freePow:{}, freeQual:{},
+  guidedRolls:{bg:null,ps:null,ar:null,pe:null},
+  f:{name:"",alias:"",player:"",gender:"",age:"",height:"",eyes:"",hair:"",skin:"",build:"",costume:"",notes:""}};
+const sel={bg:null,ps:null,ar:null,pe:null};
+const die=s=>s?`<span class="die">${s}</span>`:"";
+
+/* ============ GATING ENGINE ============ */
+/* Determine which categories the hero has a die in, from chosen qualities/powers.
+   Quality category map (book: qualities are Physical/Mental/Social/Information).
+   Power category map = the Red Ability category names (Athletic, Elemental/Energy, Hallmark, Intellectual, Materials, Mobility, Psychic, Self Control, Technological). */
+/* Canonical categories — verbatim from corebook p55 "Powers and Qualities list".
+   QUALITIES: Information / Mental* / Physical / Social.
+   POWERS: Athletic* / Elemental/Energy / Hallmark** / Intellectual / Materials /
+           Self Control / Psychic / Mobility / Technological.
+   (* Health-boosting / ** customization-required, per p55 notes.) */
+const QUAL_CAT={
+ "Criminal Underworld Info":"Information","Deep Space Knowledge":"Information","History":"Information","Magical Lore":"Information",
+ "Medicine":"Information","Otherworldly Mythos":"Information","Science":"Information","Technology":"Information",
+ "Alertness":"Mental","Conviction":"Mental","Creativity":"Mental","Investigation":"Mental","Self-Discipline":"Mental",
+ "Acrobatics":"Physical","Close Combat":"Physical","Finesse":"Physical","Fitness":"Physical","Ranged Combat":"Physical","Stealth":"Physical",
+ "Banter":"Social","Insight":"Social","Imposing":"Social","Leadership":"Social","Persuasion":"Social"
+};
+const POW_CAT={
+ "Agility":"Athletic","Speed":"Athletic","Strength":"Athletic","Vitality":"Athletic",
+ "Cold":"Elemental/Energy","Cosmic":"Elemental/Energy","Electricity":"Elemental/Energy","Fire":"Elemental/Energy",
+ "Infernal":"Elemental/Energy","Nuclear":"Elemental/Energy","Radiant":"Elemental/Energy","Sonic":"Elemental/Energy","Weather":"Elemental/Energy",
+ "Invented Power":"Hallmark","Signature Vehicle":"Hallmark","Signature Weaponry":"Hallmark",
+ "Awareness":"Intellectual","Deduction":"Intellectual","Intuition":"Intellectual","Lightning Calculator":"Intellectual","Presence":"Intellectual",
+ "Metal":"Materials","Plants":"Materials","Stone":"Materials","Toxic":"Materials","Transmutation":"Materials",
+ "Absorption":"Self Control","Density Control":"Self Control","Duplication":"Self Control","Elasticity":"Self Control",
+ "Intangibility":"Self Control","Invisibility":"Self Control","Part Detachment":"Self Control","Shapeshifting":"Self Control","Size-Changing":"Self Control",
+ "Animal Control":"Psychic","Illusions":"Psychic","Precognition":"Psychic","Postcognition":"Psychic","Remote Viewing":"Psychic",
+ "Suggestion":"Psychic","Telekinesis":"Psychic","Telepathy":"Psychic",
+ "Flight":"Mobility","Leaping":"Mobility","Momentum":"Mobility","Swimming":"Mobility","Swinging":"Mobility","Teleportation":"Mobility","Wall-Crawling":"Mobility",
+ "Gadgets":"Technological","Inventions":"Technological","Power Suit":"Technological","Robotics":"Technological"
+};
+/* Map a Red Ability category header -> the power/quality categories it checks */
+function catHasDie(cat){
+  // returns true if hero has >=1 die in the relevant category
+  if(cat==="Information Qualities") return hasQualCat("Information");
+  if(cat==="Mental Qualities") return hasQualCat("Mental");
+  if(cat==="Physical Qualities") return hasQualCat("Physical");
+  if(cat==="Social Qualities") return hasQualCat("Social");
+  // power categories
+  return hasPowCat(cat);
+}
+function hasQualCat(c){ for(const q in state.bgQual) if(state.bgQual[q]&&(QUAL_CAT[q]||"").includes(c)) return true;
+  for(const q in state.peQual) if(state.peQual[q]&&(QUAL_CAT[q]||"").includes(c)) return true; return false; }
+function hasPowCat(c){ for(const p in state.psPow) if(state.psPow[p]&&(POW_CAT[p]||"").includes(c)) return true;
+  for(const p in state.arPow) if(state.arPow[p]&&(POW_CAT[p]||"").includes(c)) return true; return false; }
+
+const CAT={backgrounds:[],qualities:[],principles:[],powers:[],powerSources:[],archetypes:[],personalities:[],psAbilities:[],arAbilities:[]};
+function parseCsvText(text){
+  const lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/);
+  const headers=parseCsvRow(lines[0]||'');
+  return lines.slice(1).map(l=>{
+    const c=parseCsvRow(l), o={}; headers.forEach((h,i)=>o[h]=(c[i]||'').trim()); return o;
+  }).filter(r=>r.slug||r.name);
+}
+function parseCsvRow(line){
+  const cells=[], cur={v:'',q:false};
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (cur.q && line[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+    cur.v+=ch;
+  }
+  cells.push(cur.v);
+  return cells;
+}
+function poolDice(row, prefix){
+  return [1,2,3].map(i=>row[prefix+'_'+i]).filter(Boolean);
+}
+function expandOffered(offered){
+  const parts=(offered||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
+  const named=[], extras=[], cats=[];
+  const seen=new Set();
+  function addPow(cat){
+    const c=cat.replace(/\s+powers?$/i,'').trim();
+    if(c) cats.push(c);
+    (CAT.powers||[]).filter(q=>q.category===c).forEach(q=>{
+      if(!seen.has(q.name) && !named.includes(q.name)){ extras.push({name:q.name,category:q.category,kind:'power'}); seen.add(q.name); }
+    });
+  }
+  function addQual(cat){
+    const c=cat.replace(/\s+qualities?$/i,'').trim();
+    if(c) cats.push(c);
+    (CAT.qualities||[]).filter(q=>q.category===c).forEach(q=>{
+      if(!seen.has(q.name) && !named.includes(q.name)){ extras.push({name:q.name,category:q.category,kind:'quality'}); seen.add(q.name); }
+    });
+  }
+  parts.forEach(p=>{
+    let m=p.match(/^Select from (.+?) powers category$/i);
+    if(m){ addPow(m[1]); return; }
+    m=p.match(/^Select from (.+?) qualities category$/i);
+    if(m){ addQual(m[1]); return; }
+    m=p.match(/^any\s+(.+)$/i);
+    if(m){
+      m[1].split(/\s+or\s+/i).forEach(c=>{
+        const raw=c.trim();
+        const isPow=/power/i.test(raw);
+        const isQual=/quality/i.test(raw);
+        const cat=raw.replace(/\s+powers?$/i,'').replace(/\s+qualities?$/i,'').trim();
+        if(isPow || (!isQual && (CAT.powers||[]).some(x=>x.category===cat))) addPow(cat);
+        if(isQual || (!isPow && (CAT.qualities||[]).some(x=>x.category===cat))) addQual(cat);
+      });
+      return;
+    }
+    named.push(p); seen.add(p);
+  });
+  return {named, extras, cats:[...new Set(cats)]};
+}
+function optionNames(exp){ return [...exp.named, ...exp.extras.map(x=>x.name)]; }
+function kindOfName(n){
+  if((CAT.powers||[]).some(p=>p.name===n)) return 'power';
+  if((CAT.qualities||[]).some(q=>q.name===n)) return 'quality';
+  return '';
+}
+function catOfName(n){
+  const p=(CAT.powers||[]).find(x=>x.name===n); if(p) return p.category;
+  const q=(CAT.qualities||[]).find(x=>x.name===n); if(q) return q.category;
+  return QUAL_CAT[n]||POW_CAT[n]||'';
+}
+function currentPs(){ return (sel.ps!=null && CAT.powerSources[sel.ps]) ? CAT.powerSources[sel.ps] : null; }
+function currentAr(){ return (sel.ar!=null && CAT.archetypes[sel.ar]) ? CAT.archetypes[sel.ar] : null; }
+function currentPe(){ return (sel.pe!=null && CAT.personalities[sel.pe]) ? CAT.personalities[sel.pe] : null; }
+function incomingPsDice(){ const bg=currentBg(); return bg?poolDice(bg,'next_die'):[]; }
+function incomingArDice(){ const ps=currentPs(); return ps?poolDice(ps,'next_die'):[]; }
+function assignedPow(){
+  const o=Object.assign({}, state.psPow||{}, state.arPow||{}, state.freePow||{});
+  (state.modD6||[]).forEach(n=>{ if(n) o[n]='d6'; });
+  overlayReqSwap(o, 'power');
+  return o;
+}
+function assignedQual(){
+  const o=Object.assign({}, state.bgQual||{}, state.arQual||{}, state.peQual||{}, state.freeQual||{});
+  overlayReqSwap(o, 'quality');
+  return o;
+}
+function overlayReqSwap(o, kind){
+  [state.psReq, state.arReq].forEach(st=>{
+    if(!st || st.mode!=='swap' || !st.name || !st.die) return;
+    if(kindOfName(st.name)!==kind) return;
+    o[st.name]=st.die;
+  });
+}
+function requiredMatches(req, name){
+  if(!req) return false;
+  if(req===name) return true;
+  const parts=req.split(/\s+or\s+/i).map(s=>s.trim());
+  if(parts.includes(name)) return true;
+  const m=req.match(/^any\s+(.+)$/i);
+  if(m){
+    const cat=m[1].replace(/\s+powers?$/i,'').replace(/\s+qualities?$/i,'').trim();
+    return catOfName(name)===cat;
+  }
+  if((CAT.powers||[]).some(p=>p.category===req) || (CAT.qualities||[]).some(q=>q.category===req))
+    return catOfName(name)===req;
+  return false;
+}
+function currentBg(){ return (sel.bg!=null && CAT.backgrounds[sel.bg]) ? CAT.backgrounds[sel.bg] : null; }
+function renderBgGrid(){
+  const g=document.getElementById('bgGrid'); if(!g) return;
+  g.innerHTML='';
+  CAT.backgrounds.forEach((bg,i)=>{
+    const d=document.createElement('div'); d.className='opt'+(sel.bg===i?' sel':'');
+    const a=poolDice(bg,'assign_die').map(x=>`<span class="die">${x}</span>`).join(' ');
+    d.innerHTML=`<b>#${catalogN(bg)} ${bg.name}</b><small>${bg.qualities_offered} · <i>${bg.principle_category}</i></small><small>Quality dice ${a||'—'}</small>`;
+    d.onclick=()=>guidedGuard('bg', bg, ()=>{ if(sel.bg!==i){ sel.bg=i; state.bgQual={}; state.bgSlots=[]; state.bgPrinciple=''; state.reqDie=''; state.guidedRolls.ps=state.guidedRolls.ar=state.guidedRolls.pe=null; } else sel.bg=i; [...g.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); onPick(); });
+    g.appendChild(d);
+  });
+  markGuidedOpts(g,'bg',CAT.backgrounds);
+}
+function withoutOne(arr, val){
+  const a=arr.slice(), i=a.indexOf(val);
+  if(i>=0) a.splice(i,1);
+  return a;
+}
+function renderAssignPanel(){
+  const el=document.getElementById('bgAssign'); if(!el) return;
+  const bg=currentBg();
+  if(!bg){ el.innerHTML=''; return; }
+  const dice=poolDice(bg,'assign_die');
+  const exp=expandOffered(bg.qualities_offered);
+  const req=bg.required_quality||'';
+  const options=[...exp.named, ...exp.extras.map(q=>q.name)].filter(n=>n!==req);
+  let html='';
+  if(req){
+    html+=`<div class="assign-head"><b>${req}</b> is required. Pick which of this Background’s dice it gets — not locked to the first die.</div>
+      <div class="assign-grid">
+        <div class="assign-row"><span class="aq">${req}</span>
+          <select id="reqDieSel" class="dq"><option value="">— pick die —</option>
+          ${dice.map(d=>`<option value="${d}" ${state.reqDie===d?'selected':''}>${d}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+  }
+  const ready=!req || !!state.reqDie;
+  const rest=req?withoutOne(dice, state.reqDie):dice;
+  if(ready){
+    html+=`<div class="assign-head">Assign <b>${rest.join(' + ')}</b> to <b>${rest.length}</b> ${rest.length===1?'quality':'qualities'} from this list. Those are the book dice — not a free d4–d12 menu.</div>`;
+    html+=`<div class="assign-grid">`;
+    rest.forEach((dieSz, idx)=>{
+      const slot=(state.bgSlots&&state.bgSlots[idx])||'';
+      const used=new Set((state.bgSlots||[]).filter(Boolean));
+      const opts=options.filter(n=> n===slot || !used.has(n));
+      html+=`<div class="assign-row"><span class="aq">${dieSz}</span>
+        <select data-slot="${idx}" class="dq">
+          <option value="">— pick quality —</option>
+          ${opts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}" ${n===slot?'selected':''}>${n} (${QUAL_CAT[n]||(CAT.qualities.find(q=>q.name===n)||{}).category||'?'})</option>`).join('')}
+        </select></div>`;
+    });
+    html+=`</div>`;
+    if (exp.cats.length){
+      html+=`<div class="qual-group"><h4>any ${exp.cats.join(' or ')}</h4>${exp.extras.map(q=>`<span class="pill">${q.name}</span>`).join('')}</div>`;
+    }
+  }
+  const princ=CAT.principles.filter(p=>p.category===bg.principle_category);
+  html+=`<label>Principle (${bg.principle_category})</label>
+    <select id="bgPrincipleSel"><option value="">— choose one —</option>
+    ${princ.map(p=>`<option value="${p.slug}" ${state.bgPrinciple===p.slug?'selected':''}>${p.name}</option>`).join('')}
+    </select>`;
+  if (state.bgPrinciple){
+    const pr=CAT.principles.find(p=>p.slug===state.bgPrinciple);
+    if (pr) html+=`<div class="hint" style="margin-top:8px"><b>${pr.name}</b><br>${pr.roleplay||''}<br><small>Minor: ${pr.minor_twist||''}<br>Major: ${pr.major_twist||''}</small></div>`;
+  }
+  el.innerHTML=html;
+  const rd=document.getElementById('reqDieSel');
+  if(rd) rd.onchange=()=>{ state.reqDie=rd.value; state.bgSlots=[]; rebuildBgQualFromSlots(); renderPickPanels(); };
+  el.querySelectorAll('select.dq[data-slot]').forEach(selEl=>{
+    selEl.onchange=()=>{
+      state.bgSlots=state.bgSlots||[];
+      state.bgSlots[+selEl.dataset.slot]=selEl.value;
+      rebuildBgQualFromSlots();
+      renderPickPanels();
+    };
+  });
+  const ps=document.getElementById('bgPrincipleSel');
+  if (ps) ps.onchange=()=>{ state.bgPrinciple=ps.value; renderPickPanels(); };
+}
+function rebuildBgQualFromSlots(){
+  const bg=currentBg();
+  state.bgQual={};
+  if (!bg) return;
+  const dice=poolDice(bg,'assign_die');
+  const req=bg.required_quality||'';
+  if(req && state.reqDie) state.bgQual[req]=state.reqDie;
+  const rest=req?withoutOne(dice, state.reqDie):dice;
+  (state.bgSlots||[]).forEach((q,i)=>{ if(q && rest[i]) state.bgQual[q]=rest[i]; });
+}
+function rebuildNamedDice(slots, dice, intoPow, intoQual){
+  if(intoPow) Object.keys(intoPow).forEach(k=>delete intoPow[k]);
+  if(intoQual) Object.keys(intoQual).forEach(k=>delete intoQual[k]);
+  (slots||[]).forEach((n,i)=>{
+    if(!n || !dice[i]) return;
+    const k=kindOfName(n);
+    if(k==='quality' && intoQual) intoQual[n]=dice[i];
+    else if(intoPow) intoPow[n]=dice[i];
+  });
+}
+function parseOneReq(req){
+  if(/^any\s+/i.test(req)){
+    const raw=req.replace(/^any\s+/i,'').trim();
+    const kind=/quality/i.test(raw)?'quality':'power';
+    const cat=raw.replace(/\s+powers?$/i,'').replace(/\s+qualities?$/i,'').trim();
+    return {type:'cat', cat, kind};
+  }
+  if((CAT.powers||[]).some(p=>p.category===req)) return {type:'cat', cat:req, kind:'power'};
+  if((CAT.qualities||[]).some(q=>q.category===req)) return {type:'cat', cat:req, kind:'quality'};
+  return {type:'name', names:[req]};
+}
+function parseRequired(req){
+  if(!req) return null;
+  if(/ or /i.test(req)) return {type:'or', parts:req.split(/\s+or\s+/i).map(s=>parseOneReq(s.trim()))};
+  return parseOneReq(req);
+}
+function matchesReq(spec, name){
+  if(!spec||!name) return false;
+  if(spec.type==='or') return spec.parts.some(p=>matchesReq(p,name));
+  if(spec.type==='name') return spec.names.includes(name);
+  return catOfName(name)===spec.cat && (spec.kind?kindOfName(name)===spec.kind:true);
+}
+function ownedPrior(spec, prior){
+  if(!spec) return [];
+  const hits=[];
+  Object.entries(prior.pow||{}).forEach(([n,d])=>{ if(d && matchesReq(spec,n)) hits.push({name:n, die:d, from:'pow'}); });
+  Object.entries(prior.qual||{}).forEach(([n,d])=>{ if(d && matchesReq(spec,n)) hits.push({name:n, die:d, from:'qual'}); });
+  return hits;
+}
+function reqNameChoices(spec){
+  if(!spec) return [];
+  if(spec.type==='or') return [...new Set(spec.parts.flatMap(reqNameChoices))];
+  if(spec.type==='name') return spec.names;
+  const list=spec.kind==='quality'?CAT.qualities:CAT.powers;
+  return (list||[]).filter(x=>x.category===spec.cat).map(x=>x.name);
+}
+function stepReqRest(incoming, st, spec, owned){
+  if(!spec) return {ready:true, rest:incoming.slice(), apply:null, hadPrior:false};
+  if(owned.length){
+    const hit=owned.find(h=>h.name===st.name)||owned[0];
+    if(!st.name) st.name=hit.name;
+    if(!st.priorDie){ st.priorDie=hit.die; st.priorFrom=hit.from; }
+    const nm=st.name||hit.name;
+    if(st.mode==='skip') return {ready:true, rest:incoming.slice(), apply:{name:nm, die:st.priorDie}, hadPrior:true, from:st.priorFrom||hit.from};
+    if(st.mode==='swap' && st.die && nm){
+      return {ready:true, rest:withoutOne(incoming, st.die).concat([st.priorDie]), apply:{name:nm, die:st.die}, hadPrior:true, from:st.priorFrom||hit.from};
+    }
+    return {ready:false, rest:[], apply:null, hadPrior:true};
+  }
+  const name=st.name || (spec.type==='name'?spec.names[0]:'');
+  if(st.die && name) return {ready:true, rest:withoutOne(incoming, st.die), apply:{name, die:st.die}, hadPrior:false};
+  return {ready:false, rest:[], apply:null, hadPrior:false};
+}
+function applyReqDie(apply, hadPrior, from, intoPow, intoQual){
+  if(!apply || hadPrior) return;
+  if(kindOfName(apply.name)==='quality' && intoQual) intoQual[apply.name]=apply.die;
+  else if(intoPow) intoPow[apply.name]=apply.die;
+}
+function renderNamedAssign(elId, dice, offered, slotsKey, required, head, reqSt, prior){
+  const el=typeof elId==='string'?document.getElementById(elId):elId; if(!el) return;
+  if(!dice.length){ el.insertAdjacentHTML('beforeend','<div class="err">Pick the previous step first — no incoming dice to assign.</div>'); return; }
+  const spec=parseRequired(required);
+  const st=reqSt||{mode:'',die:'',name:''};
+  const owned=ownedPrior(spec, prior||{pow:{},qual:{}});
+  const exp=expandOffered(offered);
+  let options=optionNames(exp);
+  const r=stepReqRest(dice, st, spec, owned);
+  let html=`<div class="assign-head">${head||''}</div>`;
+  if(spec){
+    if(owned.length){
+      const shownDie=st.priorDie||owned[0].die;
+      html+=`<div class="assign-head"><b>${required}</b> is required, and you already have ${owned.map(h=>`<b>${h.name}</b> ${h.name=== (st.name||owned[0].name) ? shownDie : h.die}`).join(', ')} from a previous step. Skip it (keep that die) or swap with one of this step’s dice.</div>
+        <div class="actions" style="margin:0 0 10px">
+          <button type="button" class="ghost tiny req-mode ${st.mode==='skip'?'sel':''}" data-reqmode="skip">Skip</button>
+          <button type="button" class="ghost tiny req-mode ${st.mode==='swap'?'sel':''}" data-reqmode="swap">Swap</button>
+        </div>`;
+      if(st.mode==='swap'){
+        const names=owned.map(h=>h.name);
+        const nm=st.name||names[0];
+        html+=`<div class="assign-grid"><div class="assign-row"><span class="aq">${names.length===1?nm:''}</span>
+          ${names.length>1?`<select data-reqname="1" class="dq">${names.map(n=>`<option ${n===nm?'selected':''}>${n}</option>`).join('')}</select>`:''}
+          <select data-reqdie="1" class="dq"><option value="">— pick die to put on ${nm} —</option>
+          ${dice.map(d=>`<option value="${d}" ${st.die===d?'selected':''}>${d}</option>`).join('')}
+          </select></div></div>`;
+        if(st.die && st.priorDie) html+=`<div class="assign-head">${nm} becomes <b>${st.die}</b>. The old <b>${st.priorDie}</b> joins this step’s remaining pool. <b>${st.die}</b> is no longer in that pool.</div>`;
+      }
+    } else {
+      const choices=reqNameChoices(spec);
+      const nm=st.name || (spec.type==='name'?spec.names[0]:'');
+      html+=`<div class="assign-head"><b>${required}</b> is required. Pick which of this step’s dice it gets — not locked to the first die.</div>
+        <div class="assign-grid"><div class="assign-row">
+          ${spec.type==='name'?`<span class="aq">${nm}</span>`:`<select data-reqname="1" class="dq"><option value="">— pick —</option>${choices.map(n=>`<option value="${n.replace(/"/g,'&quot;')}" ${n===nm?'selected':''}>${n}</option>`).join('')}</select>`}
+          <select data-reqdie="1" class="dq"><option value="">— pick die —</option>
+          ${dice.map(d=>`<option value="${d}" ${st.die===d?'selected':''}>${d}</option>`).join('')}
+          </select>
+        </div></div>`;
+    }
+  }
+  if(r.ready){
+    const rest=r.rest;
+    html+=`<div class="assign-head">Assign <b>${rest.join(' + ')||'—'}</b> to <b>${rest.length}</b> ${rest.length===1?'pick':'picks'} from this list. Those are the book dice — not a free d4–d12 menu.</div>`;
+    if(rest.length){
+      const skipNames=new Set();
+      if(r.apply) skipNames.add(r.apply.name);
+      if(spec && spec.type==='name') spec.names.forEach(n=>skipNames.add(n));
+      const optsAll=options.filter(n=>!skipNames.has(n));
+      html+=`<div class="assign-grid">`;
+      rest.forEach((dieSz, idx)=>{
+        const slot=(state[slotsKey]&&state[slotsKey][idx])||'';
+        const used=new Set((state[slotsKey]||[]).filter(Boolean));
+        const opts=optsAll.filter(n=> n===slot || !used.has(n));
+        html+=`<div class="assign-row"><span class="aq">${dieSz}</span>
+          <select data-slot="${idx}" class="dq"><option value="">— pick power/quality —</option>
+          ${opts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}" ${n===slot?'selected':''}>${n} (${catOfName(n)||kindOfName(n)||'?'})</option>`).join('')}
+          </select></div>`;
+      });
+      html+=`</div>`;
+    }
+    if(exp.cats.length){
+      html+=`<div class="qual-group"><h4>any ${exp.cats.join(' / ')}</h4>${exp.extras.map(q=>`<span class="pill">${q.name}</span>`).join('')}</div>`;
+    }
+  }
+  el.insertAdjacentHTML('beforeend', html);
+  el.querySelectorAll('.req-mode').forEach(b=>{
+    b.onclick=()=>{ reqSt.mode=b.dataset.reqmode; reqSt.die=''; if(owned[0] && !reqSt.name) reqSt.name=owned[0].name; if(owned[0] && !reqSt.priorDie){ reqSt.priorDie=owned[0].die; reqSt.priorFrom=owned[0].from; } state[slotsKey]=[]; onPick(); };
+  });
+  const nn=el.querySelector('[data-reqname]');
+  if(nn) nn.onchange=()=>{ reqSt.name=nn.value; onPick(); };
+  const nd=el.querySelector('[data-reqdie]');
+  if(nd) nd.onchange=()=>{ reqSt.die=nd.value; if(spec && spec.type==='name') reqSt.name=spec.names[0]; state[slotsKey]=[]; onPick(); };
+  el.querySelectorAll('select.dq[data-slot]').forEach(selEl=>{
+    selEl.onchange=()=>{ state[slotsKey]=state[slotsKey]||[]; state[slotsKey][+selEl.dataset.slot]=selEl.value; onPick(); };
+  });
+}
+function abilitiesFor(list, slug){ return (list||[]).filter(a=>a.source_slug===slug); }
+function parsePick(v, fallback){
+  if(v==='' || v==null) return fallback;
+  const n=parseInt(v,10);
+  return Number.isFinite(n) ? n : fallback;
+}
+function pickCounts(row, kind){
+  if(kind==='ps'){
+    return {
+      g: parsePick(row&&row.green_picks, 1),
+      y: parsePick(row&&row.yellow_picks, 2),
+      same:false,
+      distinct: String(row&&row.yellow_distinct_powers||'yes').toLowerCase()!=='no',
+      instead: (row&&row.green_instead)||''
+    };
+  }
+  return {
+    g: parsePick(row&&row.green_picks, 2),
+    y: parsePick(row&&row.yellow_picks, 1),
+    same: String(row&&row.yellow_from_same_list||'').toLowerCase()==='yes',
+    distinct:false
+  };
+}
+const CAT_COLOR={
+  'Athletic':'#c62828','Elemental/Energy':'#1565c0','Hallmark':'#f9a825','Intellectual':'#2e7d32',
+  'Materials':'#ef6c00','Mobility':'#6a1b9a','Psychic':'#ec407a','Self Control':'#00897b',
+  'Technological':'#424242','Information':'#c9a227','Mental':'#f5f5f5','Physical':'#6d4c41','Social':'#b0b0b0'
+};
+function catKeyHtml(){
+  const labels=[
+    ['Athletic','Athletic Powers'],['Elemental/Energy','Elemental/Energy Powers'],['Hallmark','Hallmark Powers'],
+    ['Intellectual','Intellectual Powers'],['Materials','Material Powers'],['Mobility','Mobility Powers'],
+    ['Psychic','Psychic Powers'],['Self Control','Self-Control Powers'],['Technological','Technological Powers'],
+    ['Information','Information Qualities'],['Mental','Mental Qualities'],['Physical','Physical Qualities'],['Social','Social Qualities']
+  ];
+  return `<div class="cat-key">${labels.map(([k,l])=>`<span><i style="background:${CAT_COLOR[k]};${k==='Mental'?'border-color:#bbb':''}"></i>${l}</span>`).join('')}</div>`;
+}
+function bindKindOf(text){
+  const t=text||'';
+  // [element/energy] (and "...you have a related power for") is category flavor, not a
+  // named Power/Quality the GM maps. Only [power], [quality], [power/quality],
+  // [Self Control power], and [Signature …] are bind slots.
+  const hasP=/\[power\]|\[power\/quality\]|\[Self Control power\]|\[Signature/i.test(t);
+  const hasQ=/\[quality\]|\[power\/quality\]/i.test(t);
+  if(hasP && hasQ) return 'both';
+  if(hasQ) return 'quality';
+  if(hasP) return 'power';
+  return 'none';
+}
+function fillBind(tmpl, val){
+  if(!val) return tmpl||'';
+  return String(tmpl||'').replace(/\[power\/quality\]/gi,'['+val+']')
+    .replace(/\[Self Control power\]/gi,'['+val+']')
+    .replace(/\[power\]/gi,'['+val+']')
+    .replace(/\[quality\]/gi,'['+val+']');
+}
+function bindOptions(kind){
+  const items=[];
+  if(kind!=='quality') Object.entries(assignedPow()).filter(([,d])=>d).forEach(([n,d])=>items.push({g:'Power',n,d}));
+  if(kind!=='power') Object.entries(assignedQual()).filter(([,d])=>d).forEach(([n,d])=>items.push({g:'Quality',n,d}));
+  return items;
+}
+function colorForAbility(a){
+  const bind=state.abBinds[a.slug];
+  if(bind){ const c=catOfName(bind); if(c && CAT_COLOR[c]) return CAT_COLOR[c]; }
+  const m=(a.game_text||'').match(/\[Self Control power\]/i);
+  if(m) return CAT_COLOR['Self Control'];
+  return '#9e9e9e';
+}
+function yellowSet(){
+  if(!(state.arYellowAbilities instanceof Set)) state.arYellowAbilities = new Set(state.arYellowAbilities||[]);
+  return state.arYellowAbilities;
+}
+function archetypeZoneFor(a, slug){
+  if(yellowSet().has(slug)) return 'Yellow';
+  const z=a.zone||'';
+  return z==='Green/Yellow'?'Green':z;
+}
+function abilityCaption(counts){
+  const bits=[];
+  if(counts.g>0) bits.push(`<b>${counts.g} Green</b>`);
+  if(counts.y>0) bits.push(`<b>${counts.y} Yellow</b>${counts.distinct?' (each a different Power)':''}`);
+  if(!bits.length) return counts.instead || 'Abilities';
+  return `Abilities — pick ${bits.join(' and ')}${counts.same?' from the same list':''}.`;
+}
+function renderAbilityPicks(el, rows, counts, selectedKey){
+  if(!el) return;
+  const selected=state[selectedKey]||[];
+  const greens=rows.filter(a=>/green/i.test(a.zone) && !/^yellow$/i.test(a.zone));
+  const yellows=rows.filter(a=>/^yellow$/i.test(a.zone) || (/yellow/i.test(a.zone) && !/green/i.test(a.zone)));
+  const listG=counts.same?rows.filter(a=>/green/i.test(a.zone)):greens.filter(a=>!/yellow/i.test(a.zone) || /green\/yellow/i.test(a.zone));
+  const listY=counts.same?listG:yellows;
+  function card(a, locked){
+    const on=selected.includes(a.slug) || locked;
+    const bk=bindKindOf(a.game_text);
+    const items=bk==='none'?[]:bindOptions(bk);
+    const bindSel = (!on || bk==='none') ? '' : `<label>Map ${bk==='both'?'power/quality':bk}</label>
+      <select data-bind="${a.slug}">
+        <option value="">— choose —</option>
+        ${items.map(it=>`<option value="${it.n.replace(/"/g,'&quot;')}" ${state.abBinds[a.slug]===it.n?'selected':''}>${it.g}: ${it.n} (${it.d})</option>`).join('')}
+      </select>`;
+    const zoneShown = selectedKey==='arAbilities' ? archetypeZoneFor(a, a.slug) : ((a.zone==='Green/Yellow')?'Green':(a.zone||''));
+    return `<div class="ab ${on?'sel':''}" data-ab="${a.slug}" data-lock="${locked?'1':'0'}" style="border-left-color:${colorForAbility(a)}">
+      <div class="ab-name">${a.name}</div>
+      <div class="ab-meta">${a.type||''} · ${zoneShown}${locked?' · required':''}</div>
+      <div class="gt">${fillBind(a.game_text, state.abBinds[a.slug])}</div>
+      ${bindSel}
+    </div>`;
+  }
+  let html=catKeyHtml()+`<div class="assign-head">${abilityCaption(counts)}</div>`;
+  if(counts.instead && counts.g===0) html+=`<div class="assign-head">${counts.instead}</div>`;
+  if(!rows.length) html+=`<div class="err">No abilities recovered for this row yet.</div>`;
+  else if(counts.same) html+=rows.map(a=>card(a,false)).join('');
+  else {
+    if(counts.g>0 && listG.length) html+=`<div class="assign-head">Green</div>`+listG.map(a=>card(a,false)).join('');
+    if(counts.y>0 && listY.length) html+=(counts.g>0?`<div class="assign-head">Yellow</div>`:'')+listY.map(a=>card(a,false)).join('');
+  }
+  const wrap=document.createElement('div'); wrap.innerHTML=html;
+  el.appendChild(wrap);
+  wrap.querySelectorAll('.ab[data-ab]').forEach(d=>{
+    d.addEventListener('click', (ev)=>{
+      if(ev.target.tagName==='SELECT' || ev.target.tagName==='OPTION' || ev.target.tagName==='LABEL') return;
+      if(d.dataset.lock==='1') return;
+      const slug=d.dataset.ab;
+      const row=rows.find(a=>a.slug===slug); if(!row) return;
+      let next=selected.slice();
+      if(next.includes(slug)){
+        next=next.filter(x=>x!==slug);
+        if(counts.same && selectedKey==='arAbilities') yellowSet().delete(slug);
+      } else {
+        const gSel=next.filter(s=>{const r=rows.find(a=>a.slug===s); return r && /green/i.test(r.zone);});
+        const ySel=next.filter(s=>{const r=rows.find(a=>a.slug===s); return r && /yellow/i.test(r.zone) && !/green/i.test(r.zone);});
+        if(counts.same){
+          if(next.length>=counts.g+counts.y){ alert(`Pick ${counts.g} Green then ${counts.y} Yellow from this list.`); return; }
+          const asYellow = next.length >= counts.g;
+          next.push(slug);
+          if(selectedKey==='arAbilities'){
+            if(asYellow) yellowSet().add(slug);
+            else yellowSet().delete(slug);
+          }
+        } else if(/green/i.test(row.zone) && !(/yellow/i.test(row.zone) && !/green/i.test(row.zone))){
+          if(gSel.length>=counts.g){ alert(`Pick ${counts.g} Green abilities.`); return; }
+          next.push(slug);
+        } else {
+          if(ySel.length>=counts.y){ alert(`Pick ${counts.y} Yellow abilities.`); return; }
+          next.push(slug);
+        }
+      }
+      state[selectedKey]=next;
+      onPick();
+    });
+  });
+  wrap.querySelectorAll('select[data-bind]').forEach(selEl=>{
+    selEl.onchange=(ev)=>{
+      ev.stopPropagation();
+      const slug=selEl.dataset.bind;
+      const val=selEl.value;
+      if(counts.distinct && val){
+        const sib=(state[selectedKey]||[]).filter(s=>s!==slug);
+        if(sib.some(s=>state.abBinds[s]===val && kindOfName(val)==='power')){
+          alert('Each Yellow ability must use a different Power.');
+          selEl.value=state.abBinds[slug]||'';
+          return;
+        }
+      }
+      state.abBinds[slug]=val;
+      onPick();
+    };
+  });
+}
+function renderFormChangerAbs(el){
+  const rows=abilitiesFor(CAT.arAbilities,'form-changer');
+  const by=n=>rows.find(a=>a.name===n);
+  const required=['Change Forms','Emergency Change'].map(by).filter(Boolean);
+  const pick1=['Form Recovery','Surprise Shift'].map(by).filter(Boolean);
+  const greenForms=['Clever Form','Minuscule Form','Strong Form','Tough Form','Tricky Form','Weird Form'].map(by).filter(Boolean);
+  const yellowForms=['Agile Form','Regenerating Form','Speedy Form','Towering Form'].map(by).filter(Boolean);
+  required.forEach(a=>{ if(a && !state.arAbilities.includes(a.slug)) state.arAbilities.push(a.slug); });
+  const picked=new Set(state.arAbilities);
+  const extraGreen=pick1.filter(a=>picked.has(a.slug));
+  const gForms=greenForms.filter(a=>picked.has(a.slug));
+  const yPick=yellowForms.filter(a=>picked.has(a.slug)).concat(greenForms.filter(a=>picked.has(a.slug) && !gForms.includes(a)));
+  function card(a, locked, group){
+    const on=picked.has(a.slug);
+    const bk=bindKindOf(a.game_text);
+    const items=bk==='none'?[]:bindOptions(bk);
+    const bindSel=(!on||bk==='none')?'':`<label>Map ${bk==='both'?'power/quality':bk}</label>
+      <select data-bind="${a.slug}"><option value="">— choose —</option>
+      ${items.map(it=>`<option value="${it.n.replace(/"/g,'&quot;')}" ${state.abBinds[a.slug]===it.n?'selected':''}>${it.g}: ${it.n} (${it.d})</option>`).join('')}</select>`;
+    return `<div class="ab ${on?'sel':''}" data-ab="${a.slug}" data-group="${group}" data-lock="${locked?'1':'0'}" style="border-left-color:${colorForAbility(a)}">
+      <div class="ab-name">${a.name}</div>
+      <div class="ab-meta">${a.type||''} · ${a.zone}${locked?' · required':''}</div>
+      <div class="gt">${fillBind(a.game_text, state.abBinds[a.slug])}</div>
+      ${bindSel}</div>`;
+  }
+  const unusedGreen=greenForms.filter(a=>!gForms.includes(a));
+  let html=catKeyHtml()+`<div class="assign-head">Form-Changer — required Change Forms, then extras (not 2 Green / 1 Yellow).</div>`;
+  html+=`<div class="assign-head">Required</div>`+required.map(a=>card(a,true,'req')).join('');
+  html+=`<div class="assign-head">Pick 1</div>`+pick1.map(a=>card(a,false,'one')).join('');
+  html+=`<div class="assign-head">Two Green forms</div>`+greenForms.map(a=>card(a,false,'gform')).join('');
+  html+=`<div class="assign-head">One Yellow form (or an unused Green form)</div>`+yellowForms.map(a=>card(a,false,'yform')).join('')+unusedGreen.map(a=>card(a,false,'yform')).join('');
+  const wrap=document.createElement('div'); wrap.innerHTML=html;
+  el.appendChild(wrap);
+  wrap.querySelectorAll('.ab[data-ab]').forEach(d=>{
+    d.addEventListener('click',(ev)=>{
+      if(ev.target.tagName==='SELECT'||ev.target.tagName==='OPTION'||ev.target.tagName==='LABEL') return;
+      if(d.dataset.lock==='1') return;
+      const slug=d.dataset.ab, group=d.dataset.group;
+      const set=new Set(state.arAbilities);
+      const inGroup=()=>[...wrap.querySelectorAll(`.ab[data-group="${group}"]`)].map(x=>x.dataset.ab);
+      if(set.has(slug)) set.delete(slug);
+      else {
+        const cap=group==='one'?1:group==='gform'?2:group==='yform'?1:99;
+        const cur=inGroup().filter(s=>set.has(s));
+        if(cur.length>=cap && !set.has(slug)){ alert(group==='gform'?'Pick 2 Green forms.':group==='one'?'Pick 1 of Form Recovery / Surprise Shift.':'Pick 1 Yellow form.'); return; }
+        set.add(slug);
+      }
+      required.forEach(a=>set.add(a.slug));
+      state.arAbilities=[...set];
+      onPick();
+    });
+  });
+  wrap.querySelectorAll('select[data-bind]').forEach(selEl=>{
+    selEl.onchange=(ev)=>{ ev.stopPropagation(); state.abBinds[selEl.dataset.bind]=selEl.value; onPick(); };
+  });
+}
+function renderPsGrid(){
+  const g=document.getElementById('psGrid'); if(!g) return;
+  g.innerHTML='';
+  CAT.powerSources.forEach((ps,i)=>{
+    const d=document.createElement('div'); d.className='opt'+(sel.ps===i?' sel':'');
+    const nxt=poolDice(ps,'next_die').map(x=>`<span class="die">${x}</span>`).join(' ');
+    d.innerHTML=`<b>#${catalogN(ps)} ${ps.name}</b><small>${ps.powers_offered}</small><small>To Archetype ${nxt||'—'}</small>`;
+    d.onclick=()=>guidedGuard('ps', ps, ()=>{ if(sel.ps!==i){ sel.ps=i; state.psPow={}; state.psSlots=[]; state.psAbilities=[]; state.psReq={mode:'',die:'',name:''}; state.guidedRolls.ar=state.guidedRolls.pe=null; } [...g.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); onPick(); });
+    g.appendChild(d);
+  });
+  markGuidedOpts(g,'ps',CAT.powerSources);
+}
+function renderArGrid(){
+  const g=document.getElementById('arGrid'); if(!g) return;
+  g.innerHTML='';
+  CAT.archetypes.forEach((ar,i)=>{
+    const d=document.createElement('div'); d.className='opt'+(sel.ar===i?' sel':'');
+    const req=[ar.required_power,ar.required_quality].filter(Boolean).join(' / ')||'—';
+    d.innerHTML=`<b>#${catalogN(ar)} ${ar.name}</b><small>Req: ${req}${ar.principle_category?` · <i>${ar.principle_category}</i>`:''}</small><small>${ar.offered||''}</small>`;
+    d.onclick=()=>guidedGuard('ar', ar, ()=>{ if(sel.ar!==i){ sel.ar=i; state.arPow={}; state.arQual={}; state.arSlots=[]; state.arPrinciple=''; state.arAbilities=[]; state.arYellowAbilities=new Set(); state.arReq={mode:'',die:'',name:''}; state.modPair=null; state.modD6=[]; state.modGreen=''; state.modYellow=[]; state.modRed=''; state.modPowerless=false; state.guidedRolls.pe=null; } [...g.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); onPick(); });
+    g.appendChild(d);
+  });
+  markGuidedOpts(g,'ar',CAT.archetypes);
+}
+function renderPeGrid(){
+  const g=document.getElementById('peGrid'); if(!g) return;
+  g.innerHTML='';
+  CAT.personalities.forEach((pe,i)=>{
+    const d=document.createElement('div'); d.className='opt'+(sel.pe===i?' sel':'');
+    d.innerHTML=`<b>#${catalogN(pe)} ${pe.name}</b><small><span class="zone zG">G ${pe.green_die}</span> <span class="zone zY">Y ${pe.yellow_die}</span> <span class="zone zR">R ${pe.red_die}</span></small>`;
+    d.onclick=()=>guidedGuard('pe', pe, ()=>{ if(sel.pe!==i){ sel.pe=i; state.peQual={}; state.peCustom=''; state.peOutBind=''; } [...g.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); onPick(); });
+    g.appendChild(d);
+  });
+  markGuidedOpts(g,'pe',CAT.personalities);
+}
+function syncModularAbs(){
+  const keep=['modular-switch','modular-quick-switch','modular-emergency-switch'];
+  if(state.modGreen) keep.push(state.modGreen);
+  (state.modYellow||[]).forEach(s=>keep.push(s));
+  if(state.modRed) keep.push(state.modRed);
+  state.arAbilities=keep;
+}
+function renderModular(el){
+  const pair= (state.modPair!=null) ? CAT.archetypes[state.modPair] : null;
+  const wrap=document.createElement('div');
+  let html=`<div class="assign-head">Modular pairs with another archetype. Assign that archetype’s powers/qualities, <b>skip its abilities</b>, then take Modular mode abilities. Book: first Modular hero is a bad idea.</div>
+    <div class="assign-head">1 · Pair with archetype (not Divided / Modular)</div><div class="grid" id="modPairGrid"></div>`;
+  wrap.innerHTML=html;
+  el.appendChild(wrap);
+  const grid=wrap.querySelector('#modPairGrid');
+  CAT.archetypes.forEach((ar,i)=>{
+    if(ar.slug==='modular'||ar.slug==='divided') return;
+    const d=document.createElement('div');
+    d.className='opt'+(state.modPair===i?' sel':'');
+    d.innerHTML=`<b>${ar.name}</b><small>${ar.principle_category||''}</small>`;
+    d.onclick=()=>{ state.modPair=i; state.arSlots=[]; state.arPow={}; state.arQual={}; state.modD6=[]; onPick(); };
+    grid.appendChild(d);
+  });
+  if(!pair){ wrap.insertAdjacentHTML('beforeend','<div class="err">Pick the archetype to modularize first.</div>'); return; }
+  const dice=incomingArDice();
+  const req=pair.required_power||pair.required_quality||'';
+  const box=document.createElement('div');
+  box.id='modAssignBox';
+  wrap.appendChild(box);
+  renderNamedAssign('modAssignBox', dice, pair.offered, 'arSlots', req, `Dice from Power Source onto <b>${pair.name}</b> (modularized).`, state.arReq, {pow:state.psPow, qual:state.bgQual});
+  const baseN=Object.keys(Object.assign({}, state.psPow, state.arPow)).filter(k=>(state.psPow[k]||state.arPow[k])).length;
+  const need=Math.max(0, Math.min(2, 4-baseN));
+  if(need>0){
+    const taken=new Set(Object.keys(Object.assign({}, state.psPow||{}, state.arPow||{})).filter(k=>(state.psPow||{})[k]||(state.arPow||{})[k]));
+    let extra=`<div class="assign-head">Fewer than 4 powers — add ${need} d6 power${need>1?'s':''}.</div><div class="assign-grid">`;
+    for(let i=0;i<need;i++){
+      const cur=state.modD6[i]||'';
+      const other=new Set((state.modD6||[]).filter((n,j)=>n && j!==i));
+      const addable=(CAT.powers||[]).filter(p=>p.name && (!taken.has(p.name) && !other.has(p.name) || p.name===cur));
+      extra+=`<div class="assign-row"><span class="aq">d6</span><select data-modd6="${i}" class="dq"><option value="">— pick power —</option>
+        ${addable.map(p=>`<option value="${p.name.replace(/"/g,'&quot;')}" ${p.name===cur?'selected':''}>${p.name}</option>`).join('')}
+      </select></div>`;
+    }
+    extra+=`</div>`;
+    wrap.insertAdjacentHTML('beforeend', extra);
+    wrap.querySelectorAll('select[data-modd6]').forEach(s=>{
+      s.onchange=()=>{ state.modD6=state.modD6||[]; state.modD6[+s.dataset.modd6]=s.value; onPick(); };
+    });
+  }
+  const rows=abilitiesFor(CAT.arAbilities,'modular');
+  const bySlug=s=>rows.find(a=>a.slug===s);
+  const auto=['modular-switch','modular-quick-switch','modular-emergency-switch'].map(bySlug).filter(Boolean);
+  const gModes=['modular-debilitator','modular-improvement','modular-scout'].map(bySlug).filter(Boolean);
+  const yModes=['modular-analysis','modular-bombardment','modular-regeneration','modular-skirmish','modular-stalwart'].map(bySlug).filter(Boolean);
+  const rModes=['modular-destroyer','modular-hunter-killer','modular-shield'].map(bySlug).filter(Boolean);
+  syncModularAbs();
+  function modeCard(a, group, cap){
+    const on=(group==='auto')||state.arAbilities.includes(a.slug);
+    const bk=bindKindOf(a.game_text);
+    const items=bk==='none'?[]:bindOptions(bk);
+    const bindSel=(!on||bk==='none')?'':`<label>Map ${bk==='both'?'power/quality':bk}</label>
+      <select data-bind="${a.slug}"><option value="">— choose —</option>
+      ${items.map(it=>`<option value="${it.n.replace(/"/g,'&quot;')}" ${state.abBinds[a.slug]===it.n?'selected':''}>${it.g}: ${it.n} (${it.d})</option>`).join('')}</select>`;
+    return `<div class="ab ${on?'sel':''}" data-ab="${a.slug}" data-group="${group}" data-cap="${cap}" data-lock="${group==='auto'?'1':'0'}" style="border-left-color:${colorForAbility(a)}">
+      <div class="ab-name">${a.name}</div>
+      <div class="ab-meta">${a.type||''} · ${a.zone}${group==='auto'?' · automatic':''}</div>
+      <div class="gt">${fillBind(a.game_text, state.abBinds[a.slug])}</div>
+      ${bindSel}</div>`;
+  }
+  wrap.insertAdjacentHTML('beforeend', catKeyHtml()+
+    `<div class="assign-head">Automatic</div>${auto.map(a=>modeCard(a,'auto',0)).join('')}
+     <div class="muted">Default mode uses the paired archetype’s dice and has no extra ability. Optional powerless mode: notes.</div>
+     <div class="assign-head">One extra Green mode</div>${gModes.map(a=>modeCard(a,'g',1)).join('')}
+     <div class="assign-head">Two Yellow modes</div>${yModes.map(a=>modeCard(a,'y',2)).join('')}
+     <div class="assign-head">One Red mode</div>${rModes.map(a=>modeCard(a,'r',1)).join('')}
+     <div class="muted">Per-mode die bumps (which powers grow/shrink) live on the auxiliary sheet / notes.</div>`);
+  if(pair.principle_category){
+    const princ=CAT.principles.filter(p=>p.category===pair.principle_category);
+    wrap.insertAdjacentHTML('beforeend', `<label>Principle from ${pair.name} (${pair.principle_category})</label>
+      <select id="arPrincipleSel"><option value="">— choose one —</option>
+      ${princ.map(p=>`<option value="${p.slug}" ${state.arPrinciple===p.slug?'selected':''}>${p.name}</option>`).join('')}</select>`);
+    const ps=wrap.querySelector('#arPrincipleSel');
+    if(ps) ps.onchange=()=>{ state.arPrinciple=ps.value; renderPickPanels(); };
+  }
+  wrap.querySelectorAll('.ab[data-ab]').forEach(d=>{
+    d.addEventListener('click',(ev)=>{
+      if(ev.target.tagName==='SELECT'||ev.target.tagName==='OPTION'||ev.target.tagName==='LABEL') return;
+      if(d.dataset.lock==='1') return;
+      const slug=d.dataset.ab, group=d.dataset.group, cap=+d.dataset.cap;
+      if(group==='g'){ state.modGreen = state.modGreen===slug?'':slug; }
+      else if(group==='y'){
+        let y=state.modYellow||[];
+        if(y.includes(slug)) y=y.filter(s=>s!==slug);
+        else { if(y.length>=cap){ alert('Pick 2 Yellow modes.'); return; } y=[...y,slug]; }
+        state.modYellow=y;
+      } else if(group==='r'){ state.modRed = state.modRed===slug?'':slug; }
+      syncModularAbs();
+      onPick();
+    });
+  });
+  wrap.querySelectorAll('select[data-bind]').forEach(selEl=>{
+    selEl.onchange=(ev)=>{ ev.stopPropagation(); state.abBinds[selEl.dataset.bind]=selEl.value; onPick(); };
+  });
+}
+function renderPsAssign(){
+  const el=document.getElementById('psAssign'); if(!el) return;
+  el.innerHTML='';
+  const ps=currentPs(); if(!ps) return;
+  const dice=incomingPsDice();
+  renderNamedAssign('psAssign', dice, ps.powers_offered, 'psSlots', ps.required_power,
+    `Dice from Background. Powers from <b>${ps.name}</b>.`, state.psReq, {pow:{}, qual:state.bgQual});
+  const rows=abilitiesFor(CAT.psAbilities, ps.slug);
+  renderAbilityPicks(el, rows, pickCounts(ps,'ps'), 'psAbilities');
+}
+function renderArAssign(){
+  const el=document.getElementById('arAssign'); if(!el) return;
+  el.innerHTML='';
+  const ar=currentAr(); if(!ar) return;
+  if(ar.slug==='modular'){ renderModular(el); return; }
+  const dice=incomingArDice();
+  const req=ar.required_power||ar.required_quality||'';
+  renderNamedAssign('arAssign', dice, ar.offered, 'arSlots', req,
+    `Dice from Power Source. Powers/qualities from <b>${ar.name}</b>.`, state.arReq, {pow:state.psPow, qual:state.bgQual});
+  if(ar.principle_category){
+    const princ=CAT.principles.filter(p=>p.category===ar.principle_category);
+    const box=document.createElement('div');
+    box.innerHTML=`<label>Principle (${ar.principle_category})</label>
+      <select id="arPrincipleSel"><option value="">— choose one —</option>
+      ${princ.map(p=>`<option value="${p.slug}" ${state.arPrinciple===p.slug?'selected':''}>${p.name}</option>`).join('')}
+      </select>`;
+    if(state.arPrinciple){
+      const pr=CAT.principles.find(p=>p.slug===state.arPrinciple);
+      if(pr) box.insertAdjacentHTML('beforeend', `<div class="hint" style="margin-top:8px"><b>${pr.name}</b><br>${pr.roleplay||''}<br><small>Minor: ${pr.minor_twist||''}<br>Major: ${pr.major_twist||''}</small></div>`);
+    }
+    el.appendChild(box);
+    const ps=document.getElementById('arPrincipleSel');
+    if(ps) ps.onchange=()=>{ state.arPrinciple=ps.value; renderPickPanels(); };
+  }
+  const rows=abilitiesFor(CAT.arAbilities, ar.slug);
+  if(ar.slug==='form-changer') renderFormChangerAbs(el);
+  else renderAbilityPicks(el, rows, pickCounts(ar,'ar'), 'arAbilities');
+}
+function renderPeAssign(){
+  const el=document.getElementById('peAssign'); if(!el) return;
+  el.innerHTML='';
+  const pe=currentPe(); if(!pe) return;
+  const cqDie=pe.custom_quality_die||pe.green_die||'d8';
+  const out=pe.out_ability||'';
+  const needsQ=/\[quality\]/i.test(out);
+  const needsP=/\[power\]/i.test(out);
+  const qOpts=Object.keys(assignedQual()).filter(n=>assignedQual()[n]);
+  const pOpts=Object.keys(assignedPow()).filter(n=>assignedPow()[n]);
+  const bindOpts=needsQ?qOpts:needsP?pOpts:[];
+  el.innerHTML=`<div class="assign-head">Custom quality — name it. Die is locked from ${pe.name}.</div>
+    <div class="assign-grid">
+      <div class="assign-row"><span class="aq">${cqDie}</span>
+        <input class="dq" id="peCustomName" type="text" placeholder="Custom quality name" value="${(state.peCustom||'').replace(/"/g,'&quot;')}">
+      </div>
+    </div>
+    <div class="assign-head">Out ability (book text — bind only)</div>
+    <div class="ab sel" style="border-left-color:#5b3fa6">
+      <div class="ab-name">Out</div>
+      <div class="ab-meta">${pe.name}</div>
+      <div class="gt">${fillBind(out, state.peOutBind)}</div>
+      ${needsQ||needsP?`<label>Map ${needsQ?'quality':'power'}</label>
+        <select id="peOutSel"><option value="">— choose —</option>
+        ${bindOpts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}" ${state.peOutBind===n?'selected':''}>${n} (${(needsQ?assignedQual():assignedPow())[n]})</option>`).join('')}
+        </select>${!bindOpts.length?`<div class="err">Assign ${needsQ?'qualities':'powers'} in earlier steps first.</div>`:''}`:'<div class="muted">This Out ability does not bind a power or quality.</div>'}
+    </div>`;
+  const nameEl=document.getElementById('peCustomName');
+  if(nameEl) nameEl.onchange=nameEl.onblur=()=>{
+    state.peCustom=nameEl.value.trim();
+    state.peQual={};
+    if(state.peCustom) state.peQual[state.peCustom]=cqDie;
+    renderPickPanels();
+  };
+  const outEl=document.getElementById('peOutSel');
+  if(outEl) outEl.onchange=()=>{ state.peOutBind=outEl.value; renderPickPanels(); };
+}
+function dieInRedCat(catHeader){
+  const m=String(catHeader||'').match(/^(.*) (Powers|Qualities)$/);
+  if(!m) return '';
+  const cat=m[1], kind=m[2];
+  const map=kind==='Powers'?assignedPow():assignedQual();
+  for(const [name, dieSz] of Object.entries(map)){
+    if(!dieSz) continue;
+    if((kind==='Powers'?POW_CAT:QUAL_CAT)[name]===cat) return dieSz;
+  }
+  return '';
+}
+function redEligible(a){
+  const dieSz=dieInRedCat(a[3]);
+  if(!dieSz) return false;
+  const uses=/\[power\]|\[quality\]|\[power\/quality\]|\[Signature/i.test(a[2]);
+  if(a[1]==='I' && !uses) return dm(dieSz)>=6;
+  return true;
+}
+function redCap(){ return state.retcon===6 ? 3 : 2; }
+function renderReds(){ renderRedsShared(redCap()); }
+function renderRedsShared(cap){
+  const rl=document.getElementById('redList'); if(!rl) return;
+  const elig=RED_ABILITIES.map((a,i)=>({a,i})).filter(x=>redEligible(x.a));
+  state.reds=state.reds.filter(k=>elig.some(x=>'r'+x.i===k));
+  if(!elig.length){
+    rl.innerHTML=catKeyHtml()+'<p class="empty-hint">No Red abilities match your assigned powers/qualities yet. Assign dice in steps 1–4.</p>';
+    return;
+  }
+  rl.innerHTML=catKeyHtml()+elig.map(({a,i})=>{
+    const k='r'+i;
+    const on=state.reds.includes(k);
+    const slug='red-'+i;
+    const fake={slug, name:a[0], type:a[1], zone:'Red', game_text:a[2]};
+    const cat=String(a[3]||'').replace(/ Powers$| Qualities$/,'');
+    const color=CAT_COLOR[cat]||'#9e9e9e';
+    const bk=bindKindOf(a[2]);
+    const items=bk==='none'?[]:bindOptions(bk);
+    const bindSel=(!on||bk==='none')?'':`<label>Map ${bk==='both'?'power/quality':bk}</label>
+      <select data-rbind="${i}"><option value="">— choose —</option>
+      ${items.map(it=>`<option value="${it.n.replace(/"/g,'&quot;')}" ${state.abBinds[slug]===it.n?'selected':''}>${it.g}: ${it.n} (${it.d})</option>`).join('')}</select>`;
+    return `<div class="ab ${on?'sel':''}" data-ri="${i}" style="border-left-color:${color}">
+      <div class="ab-name">${a[0]}</div>
+      <div class="ab-meta">${a[1]} · ${a[3]}</div>
+      <div class="gt">${fillBind(a[2], state.abBinds[slug])}</div>
+      ${bindSel}</div>`;
+  }).join('');
+  rl.querySelectorAll('.ab[data-ri]').forEach(d=>{
+    d.addEventListener('click',(ev)=>{
+      if(ev.target.tagName==='SELECT'||ev.target.tagName==='OPTION'||ev.target.tagName==='LABEL') return;
+      const k='r'+d.dataset.ri;
+      if(state.reds.includes(k)) state.reds=state.reds.filter(x=>x!==k);
+      else { if(state.reds.length>=cap){ alert('Pick '+cap+' Red abilities.'); return; } state.reds.push(k); }
+      renderPickPanels();
+    });
+  });
+  rl.querySelectorAll('select[data-rbind]').forEach(selEl=>{
+    selEl.onchange=(ev)=>{ ev.stopPropagation(); state.abBinds['red-'+selEl.dataset.rbind]=selEl.value; renderPickPanels(); };
+  });
+}
+function principleOptionsGrouped(excludeNames){
+  const skip=new Set((excludeNames||[]).map(n=>String(n).toLowerCase()));
+  const by={};
+  (CAT.principles||[]).forEach(p=>{
+    if(skip.has(String(p.name||'').toLowerCase())) return;
+    (by[p.category||'Other']||(by[p.category||'Other']=[] )).push(p);
+  });
+  return Object.keys(by).sort().map(cat=>`<optgroup label="${cat}">${by[cat].map(p=>`<option value="${p.slug}">${p.name}</option>`).join('')}</optgroup>`).join('');
+}
+function chosenPrinciples(){
+  return [state.bgPrinciple, state.arPrinciple].map(slug=>CAT.principles.find(p=>p.slug===slug)).filter(Boolean);
+}
+function allNamedDice(kind){
+  return kind==='power'?Object.entries(assignedPow()).filter(([,d])=>d):Object.entries(assignedQual()).filter(([,d])=>d);
+}
+function renderRetconAssign(){
+  const el=document.getElementById('retconAssign'); if(!el) return;
+  if(state.retcon===null){ el.innerHTML=''; return; }
+  const spec=state.retconSpec||{};
+  const i=state.retcon;
+  let html='';
+  if(i===0 || i===1){
+    const kind=i===0?'power':'quality';
+    const pairs=allNamedDice(kind);
+    const opts=pairs.map(([n,d])=>`<option value="${n.replace(/"/g,'&quot;')}">${n} (${d})</option>`).join('');
+    html=`<div class="retcon-ba">
+      <div><h4>Before</h4>${pairs.length?pairs.map(([n,d])=>`<div>${n} ${die(d)}</div>`).join(''):'<div class="err">None assigned yet.</div>'}</div>
+      <div><h4>After — swap two dice</h4>
+        <label>First</label><select id="rcA"><option value="">—</option>${opts}</select>
+        <label>Second</label><select id="rcB"><option value="">—</option>${opts}</select>
+      </div></div>`;
+  } else if(i===2){
+    const abs=[...(state.psAbilities||[]).map(s=>CAT.psAbilities.find(a=>a.slug===s)),
+               ...(state.arAbilities||[]).map(s=>CAT.arAbilities.find(a=>a.slug===s))].filter(Boolean)
+      .filter(a=>bindKindOf(a.game_text)!=='none');
+    html=`<div class="retcon-ba"><div><h4>Before</h4>${abs.map(a=>`<div>${a.name}: ${state.abBinds[a.slug]||'(unbound)'}</div>`).join('')||'<div class="err">No bound abilities yet.</div>'}</div>
+      <div><h4>After — different power/quality on one ability</h4>
+        <label>Ability</label><select id="rcAb"><option value="">—</option>${abs.map(a=>`<option value="${a.slug}">${a.name}</option>`).join('')}</select>
+        <label>Use</label><select id="rcBind"><option value="">—</option>${bindOptions('both').map(it=>`<option value="${it.n.replace(/"/g,'&quot;')}">${it.g}: ${it.n}</option>`).join('')}</select>
+      </div></div>`;
+  } else if(i===3){
+    const have=new Set([...Object.keys(assignedPow()),...Object.keys(assignedQual())]);
+    const addable=[...(CAT.powers||[]),...(CAT.qualities||[])].filter(x=>x.name && !have.has(x.name));
+    html=`<div class="retcon-ba"><div><h4>Before</h4><div>Powers: ${Object.keys(assignedPow()).join(', ')||'—'}</div><div>Qualities: ${Object.keys(assignedQual()).join(', ')||'—'}</div></div>
+      <div><h4>After — add a d6</h4>
+        <select id="rcAdd"><option value="">— pick power or quality —</option>
+        <optgroup label="Powers">${addable.filter(x=>kindOfName(x.name)==='power').map(x=>`<option value="${x.name.replace(/"/g,'&quot;')}">${x.name} (${x.category})</option>`).join('')}</optgroup>
+        <optgroup label="Qualities">${addable.filter(x=>kindOfName(x.name)==='quality').map(x=>`<option value="${x.name.replace(/"/g,'&quot;')}">${x.name} (${x.category})</option>`).join('')}</optgroup>
+        </select></div></div>`;
+  } else if(i===4){
+    const pe=currentPe(); const cur=pe?pe.red_die:''; const nxt={d4:'d6',d6:'d8',d8:'d10',d10:'d12',d12:'d12'}[cur]||cur;
+    html=`<div class="retcon-ba"><div><h4>Before</h4>Red status ${die(cur)||'—'}</div><div><h4>After</h4>Red status ${die(nxt)}${cur==='d12'?' (already max)':''}</div></div>`;
+  } else if(i===5){
+    const ch=chosenPrinciples();
+    html=`<div class="retcon-ba"><div><h4>Before</h4>${ch.length?ch.map(p=>`<div>${p.category}: <b>${p.name}</b></div>`).join(''):'<div class="err">Pick Background and Archetype principles first.</div>'}</div>
+      <div><h4>After — replace one</h4>
+        <label>Replace</label><select id="rcFrom"><option value="">—</option>${ch.map(p=>`<option value="${p.slug}">${p.name}</option>`).join('')}</select>
+        <label>With</label><select id="rcTo"><option value="">—</option>${principleOptionsGrouped(ch.map(p=>p.name))}</select>
+      </div></div>`;
+  } else if(i===6){
+    html=`<div class="hint">You may pick a third Red ability in Step 5 (filtered the same way).</div>`;
+  }
+  el.innerHTML=html;
+  const set=(id, key)=>{ const n=document.getElementById(id); if(!n) return; if(spec[key]) n.value=spec[key]; n.onchange=()=>{ state.retconSpec=state.retconSpec||{}; state.retconSpec[key]=n.value; applyRetconLive(); }; };
+  set('rcA','swapA'); set('rcB','swapB'); set('rcAb','ability'); set('rcBind','newBind'); set('rcAdd','addName'); set('rcFrom','prFrom'); set('rcTo','prTo');
+}
+function applyRetconLive(){
+  const spec=state.retconSpec||{};
+  if(state.retcon===2 && spec.ability && spec.newBind) state.abBinds[spec.ability]=spec.newBind;
+  if(state.retcon===3 && spec.addName){
+    if(kindOfName(spec.addName)==='quality') state.peQual[spec.addName]='d6';
+    else state.psPow[spec.addName]='d6';
+  }
+}
+async function bootCatalogs(){
+  try {
+    const files=['backgrounds','qualities','principles','powers','power_sources','archetypes','personalities','power_source_abilities','archetype_abilities'];
+    const texts=await Promise.all(files.map(n=>fetch('/builder/catalog/'+n+'.csv').then(r=>r.text())));
+    CAT.backgrounds=parseCsvText(texts[0]);
+    CAT.qualities=parseCsvText(texts[1]);
+    CAT.principles=parseCsvText(texts[2]);
+    CAT.powers=parseCsvText(texts[3]);
+    CAT.powerSources=parseCsvText(texts[4]);
+    CAT.archetypes=parseCsvText(texts[5]);
+    CAT.personalities=parseCsvText(texts[6]);
+    CAT.psAbilities=parseCsvText(texts[7]);
+    CAT.arAbilities=parseCsvText(texts[8]);
+    CAT.qualities.forEach(x=>{ if(x.name) QUAL_CAT[x.name]=x.category; });
+    CAT.powers.forEach(x=>{ if(x.name) POW_CAT[x.name]=x.category; });
+    renderBgGrid(); renderPsGrid(); renderArGrid(); renderPeGrid();
+    watchSidecar();
+    renderPickPanels();
+  } catch(e){ console.error(e); }
+}
+function syncNavH(){
+  const n=document.querySelector('#wizard .nav-sticky');
+  const h=n?n.offsetHeight:0;
+  document.documentElement.style.setProperty('--nav-h', (h||0)+'px');
+}
+function watchSidecar(){
+  syncNavH();
+  window.addEventListener('resize', syncNavH);
+  const nav=document.querySelector('#wizard .nav-sticky');
+  if(nav && 'ResizeObserver' in window) new ResizeObserver(syncNavH).observe(nav);
+  const panels=[...document.querySelectorAll('#wizard [data-step]')];
+  if (!panels.length || !('IntersectionObserver' in window)) return;
+  const io=new IntersectionObserver((ents)=>{
+    const vis=ents.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
+    if (vis) updateSidecar(+vis.target.dataset.step);
+  }, {root:null, rootMargin:'-15% 0px -55% 0px', threshold:[0.2,0.5]});
+  panels.forEach(p=>io.observe(p));
+  updateSidecar(1);
+}
+function updateSidecar(step){
+  document.querySelectorAll('.step-pill[data-step]').forEach(p=>p.classList.toggle('active', +p.dataset.step===step));
+  const kicker=document.getElementById('sideKicker');
+  const title=document.getElementById('sideTitle');
+  const body=document.getElementById('sideBody');
+  if (!kicker) return;
+  const names=['','Background','Power Source','Archetype','Personality','Red Abilities','Retcon','Health','Finish'];
+  kicker.textContent='Step '+step+' · '+(state.method||'Constructed');
+  title.textContent=names[step]||'Hero';
+  let html='';
+  const bg=currentBg();
+  if (step===1){
+    if (!bg) html='<p class="muted">Choose a Background. The sidecar will show its quality dice, the full “any Mental / Physical / …” list, its Principle category, and the dice you take to Power Source.</p>';
+    else {
+      const exp=expandOffered(bg.qualities_offered);
+      html=`<div class="side-block"><b>${bg.name}</b>${bg.flavor||''}</div>
+        <div class="side-block"><b>Assign to qualities</b><div class="die-row-chips">${poolDice(bg,'assign_die').map(d=>die(d)).join('')}</div>${bg.qualities_offered}</div>
+        ${exp.cats.length?`<div class="side-block"><b>any ${exp.cats.join(' / ')}</b>${exp.extras.map(q=>q.name).join(', ')}</div>`:''}
+        <div class="side-block"><b>Principle</b>${bg.principle_category}${state.bgPrinciple?' → '+(CAT.principles.find(p=>p.slug===state.bgPrinciple)||{}).name:''}</div>
+        <div class="side-block"><b>Take to Power Source</b><div class="die-row-chips">${poolDice(bg,'next_die').map(d=>die(d)).join('')}</div>You pick the source. Do not roll.</div>`;
+    }
+  } else if (step===2){
+    const incoming=incomingPsDice();
+    const ps=currentPs();
+    html=`<div class="side-block"><b>Dice from Background</b>${incoming.length?incoming.map(d=>die(d)).join(' '):'(pick a Background first)'}</div>`;
+    if (ps) html+=`<div class="side-block"><b>${ps.name}</b>Assign those dice to this source’s powers. Grants to Archetype: ${poolDice(ps,'next_die').map(d=>die(d)).join(' ')}</div>
+      <div class="side-block"><b>Powers</b>${Object.entries(state.psPow).filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'none selected'}</div>`;
+    else html+=`<p class="muted">Pick a Power Source. Constructed = you choose it. Same card + assign layout as Background.</p>`;
+  } else if (step===3){
+    const ar=currentAr();
+    html=`<div class="side-block"><b>Dice from Power Source</b>${incomingArDice().map(d=>die(d)).join(' ')||'(pick a Power Source first)'}</div>`;
+    if (ar) html+=`<div class="side-block"><b>${ar.name}</b>${ar.offered||''}</div>
+      <div class="side-block"><b>Assigned</b>${[...Object.entries(state.arPow),...Object.entries(state.arQual)].filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'none selected'}</div>`;
+    else html+=`<p class="muted">Pick an Archetype, then assign incoming dice and abilities.</p>`;
+  } else if (step===4){
+    const pe=currentPe();
+    if(!pe) html='<p class="muted">Pick a Personality. GYRO dice are book-locked. You name the custom quality and bind Out.</p>';
+    else html=`<div class="side-block"><b>${pe.name}</b><span class="zone zG">G ${pe.green_die}</span> <span class="zone zY">Y ${pe.yellow_die}</span> <span class="zone zR">R ${pe.red_die}</span></div>
+      <div class="side-block"><b>Custom quality</b>${state.peCustom||'(name it)'} ${pe.custom_quality_die||pe.green_die||''}</div>
+      <div class="side-block"><b>Out</b>${pe.out_ability||''}${state.peOutBind?' → '+state.peOutBind:''}</div>`;
+  } else {
+    html='<p class="muted">This column follows the section in view and keeps the dice/principle you already locked in.</p>';
+    if (bg) html+=`<div class="side-block"><b>Background</b>${bg.name}<br>Qualities: ${Object.entries(state.bgQual).filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'—'}</div>`;
+  }
+  body.innerHTML=html;
+}
+
+/* ============ BUILD GRIDS ============ */
+function buildGrid(elId,data,key,subFn){
+  const g=document.getElementById(elId); if(!g) return; g.innerHTML="";
+  data.forEach((row,i)=>{
+    const d=document.createElement("div"); d.className="opt";
+    d.innerHTML=`<b>${row[0]}</b><small>${subFn?subFn(row):""}</small>`;
+    d.onclick=()=>{ sel[key]=i; [...g.children].forEach(c=>c.classList.remove("sel")); d.classList.add("sel"); onPick(); };
+    g.appendChild(d);
+  });
+}
+(function(){
+  const rg=document.getElementById("retconGrid"); if(!rg) return;
+  rg.innerHTML="";
+  RETCONS.forEach((a,i)=>{
+    const d=document.createElement("div"); d.className="opt"; d.innerHTML=`<b>Option ${i+1}</b><small>${a}</small>`;
+    d.onclick=()=>{ state.retcon=i; state.retconSpec={}; [...rg.children].forEach(c=>c.classList.remove("sel")); d.classList.add("sel"); onPick(); };
+    rg.appendChild(d);
+  });
+})();
+
+/* ============ STEP BAR + METHOD ============ */
+const stepBar=document.getElementById("stepbar");
+for(let s=1;s<=8;s++){
+  const p=document.createElement("div"); p.className="step-pill"; p.id="pill"+s; p.dataset.step=String(s); p.textContent=s+". "+["Background","Power Source","Archetype","Personality","Red","Retcon","Health","Finish"][s-1];
+  p.onclick=()=>document.querySelector(`[data-step="${s}"]`).scrollIntoView({behavior:"smooth",block:"start"});
+  stepBar.appendChild(p);
+}
+const savePill=document.createElement("button");
+savePill.type="button";
+savePill.className="step-pill";
+savePill.id="saveVttBtn";
+savePill.textContent="Save to VTT + Occidia";
+savePill.onclick=saveToVtt;
+stepBar.appendChild(savePill);
+const FREE_METHOD_NOTE = "Free For All: Background, Power Source, and Archetype are plain dropdowns — a character sheet, not a guided walkthrough. Pick up to 6 Powers and 6 Qualities directly with manual dice. Power Source and Archetype Abilities stay gated to whichever one you picked (same as Constructed), and Red Abilities stay gated by the Powers/Qualities you've assigned — there's just no pick-count cap. Personality and Health work like Constructed. No Retcon step — you already assigned the dice you want.";
+function syncFreeRetconVisibility(){
+  const hide=state.method==='Free';
+  const p=document.querySelector('#wizard .panel[data-step="6"]');
+  if(p) p.classList.toggle('hidden', hide);
+  const pill=document.getElementById('pill6');
+  if(pill) pill.style.display=hide?'none':'';
+}
+const GUIDED_METHOD_NOTE = "Guided Method: roll the step’s dice, then pick a chart row whose number equals one die or a sum of those dice. Background is 2d10 (one die or both). Steps 2–4 can use one die, two dice, or all three. After that, assign like Constructed.";
+function applyMethodUi(m){
+  ["Constructed","Guided","Free"].forEach(x=>{const b=document.getElementById("m"+x); if(b) b.classList.toggle("active",x===m);});
+  const note=document.getElementById("methodNote");
+  if(note){
+    if(m==="Free"){ note.style.display=""; note.textContent=FREE_METHOD_NOTE; }
+    else if(m==="Guided"){ note.style.display=""; note.textContent=GUIDED_METHOD_NOTE; }
+    else { note.style.display="none"; note.textContent=""; }
+  }
+  const isFree=(m==="Free");
+  ['bgGrid','psGrid','arGrid'].forEach(id=>{ const g=document.getElementById(id); if(g) g.style.display=isFree?'none':''; });
+  document.querySelectorAll('[data-step="1"] .hint, [data-step="2"] .hint, [data-step="3"] .hint, [data-step="6"] .hint').forEach(h=>{ h.style.display=isFree?'none':''; });
+  syncFreeRetconVisibility();
+}
+function setMethod(m){
+  state.method=m;
+  if(m==="Free"){ state.retcon=null; state.retconSpec={}; }
+  applyMethodUi(m);
+  document.querySelectorAll(".panel").forEach(p=>{
+    if(state.method==='Free' && p.dataset.step==='6') return;
+    p.classList.remove("hidden");
+  });
+  syncFreeRetconVisibility();
+  onPick();
+}
+function catalogN(row){ return parseInt(row && row.n, 10) || 0; }
+function rollDieSize(sz){ const n=dm(sz)||10; return 1+Math.floor(Math.random()*n); }
+function guidedSubsetSums(values){
+  const vals=(values||[]).map(Number).filter(v=>v>=1);
+  const sums=new Set();
+  const n=vals.length;
+  for(let mask=1; mask<(1<<n); mask++){
+    let s=0;
+    for(let i=0;i<n;i++) if(mask&(1<<i)) s+=vals[i];
+    sums.add(s); // exact totals only — never clamp 21+ down to 20
+  }
+  return sums;
+}
+function guidedLegalNs(values){
+  const chart=new Set();
+  guidedSubsetSums(values).forEach(s=>{ if(s>=1 && s<=20) chart.add(s); });
+  return chart;
+}
+function guidedCanPick(kind, n){
+  if(state.method!=='Guided') return true;
+  const roll=(state.guidedRolls||{})[kind];
+  if(!roll || !roll.values || !roll.values.length) return false;
+  return guidedLegalNs(roll.values).has(+n);
+}
+function guidedDiceFor(kind){
+  if(kind==='bg') return ['d10','d10'];
+  if(kind==='ps') return currentBg()?poolDice(currentBg(),'next_die'):[];
+  if(kind==='ar') return currentPs()?poolDice(currentPs(),'next_die'):[];
+  if(kind==='pe') return currentAr()?poolDice(currentAr(),'next_die'):[];
+  return [];
+}
+function guidedCatalog(kind){
+  return {bg:CAT.backgrounds, ps:CAT.powerSources, ar:CAT.archetypes, pe:CAT.personalities}[kind]||[];
+}
+function doGuidedRoll(kind){
+  const sizes=guidedDiceFor(kind);
+  if(!sizes.length){ alert('Finish the previous step first — Guided needs those dice to roll.'); return; }
+  state.guidedRolls=state.guidedRolls||{bg:null,ps:null,ar:null,pe:null};
+  state.guidedRolls[kind]={ sizes:sizes.slice(), values:sizes.map(rollDieSize) };
+  if(kind==='bg'){ state.guidedRolls.ps=state.guidedRolls.ar=state.guidedRolls.pe=null; }
+  if(kind==='ps'){ state.guidedRolls.ar=state.guidedRolls.pe=null; }
+  if(kind==='ar'){ state.guidedRolls.pe=null; }
+  onPick();
+}
+function renderGuidedBox(elId, kind, label){
+  const el=document.getElementById(elId); if(!el) return;
+  const on=state.method==='Guided';
+  el.classList.toggle('hidden', !on);
+  if(!on){ el.innerHTML=''; return; }
+  const sizes=guidedDiceFor(kind);
+  const roll=(state.guidedRolls||{})[kind];
+  const legal=roll?guidedLegalNs(roll.values):new Set();
+  const hits=guidedCatalog(kind).filter(r=>legal.has(catalogN(r)));
+  let html=`<b>Guided — ${label}</b>`;
+  if(!sizes.length) html+='<p class="empty-hint">Pick the previous step first. Those dice become this roll.</p>';
+  else {
+    html+=`<div>Roll ${sizes.map(s=>die(s)).join(' ')} — pick a chart # equal to one die${sizes.length>=3?', the sum of any two, or all three':' or the sum of both'}.</div>`;
+    html+=`<button type="button" class="rollbtn" onclick="doGuidedRoll('${kind}')">${roll?'Reroll':'Roll'}</button>`;
+    if(roll && roll.values){
+      html+=`<div class="die-row-chips">Rolled: ${roll.values.map((v,i)=>die(roll.sizes[i]||'')+' → <b>'+v+'</b>').join(' &nbsp; ')}</div>`;
+      html+=`<div>Legal #: <b>${[...legal].sort((a,b)=>a-b).join(', ')||'—'}</b> → ${hits.map(r=>r.name+' ('+catalogN(r)+')').join(', ')||'none on the chart'}</div>`;
+      const over=[...guidedSubsetSums(roll.values)].filter(s=>s>20).sort((a,b)=>a-b);
+      if(over.length) html+=`<div class="empty-hint">Exact number only — ${over.join(', ')} is not chart #20.</div>`;
+    }
+  }
+  el.innerHTML=html;
+}
+function renderAllGuidedBoxes(){
+  renderGuidedBox('guidedBg','bg','Background (2d10)');
+  renderGuidedBox('guidedPs','ps','Power Source');
+  renderGuidedBox('guidedAr','ar','Archetype');
+  renderGuidedBox('guidedPe','pe','Personality');
+}
+function markGuidedOpts(gridEl, kind, list){
+  if(!gridEl || state.method!=='Guided') return;
+  const roll=(state.guidedRolls||{})[kind];
+  const legal=roll?guidedLegalNs(roll.values):new Set();
+  [...gridEl.children].forEach((d,i)=>{
+    const n=catalogN(list[i]);
+    d.classList.toggle('guided-hit', !!roll && legal.has(n));
+    d.classList.toggle('guided-miss', !roll || !legal.has(n));
+  });
+}
+function guidedGuard(kind, row, proceed){
+  if(state.method!=='Guided'){ proceed(); return; }
+  const n=catalogN(row);
+  if(!guidedCanPick(kind, n)){
+    alert( ((state.guidedRolls||{})[kind] && (state.guidedRolls||{})[kind].values)
+      ? ('Guided: #'+n+' '+row.name+' is not one of your rolled options (one die, or a sum of two or three).')
+      : 'Guided: roll first, then pick a highlighted chart row.');
+    return;
+  }
+  proceed();
+}
+
+/* ============ PICK HANDLERS ============ */
+function onPick(opts){
+  if(state.method==="Free"){ renderPickPanels(); return; }
+  if(!(opts&&opts.skipRebuild)){
+  rebuildBgQualFromSlots();
+  const ps=currentPs();
+  if(ps){
+    const spec=parseRequired(ps.required_power);
+    const owned=ownedPrior(spec,{pow:{},qual:state.bgQual});
+    const r=stepReqRest(incomingPsDice(), state.psReq, spec, owned);
+    state.psSlots=(state.psSlots||[]).slice(0,(r.rest||[]).length);
+    rebuildNamedDice(state.psSlots, r.rest||[], state.psPow, null);
+    applyReqDie(r.apply, r.hadPrior, r.from, state.psPow, null);
+  } else { state.psPow={}; }
+  const ar=currentAr();
+  if(ar){
+    const pair=(ar.slug==='modular' && state.modPair!=null)?CAT.archetypes[state.modPair]:ar;
+    const req=pair?(pair.required_power||pair.required_quality||''):'';
+    const spec=parseRequired(req);
+    const owned=ownedPrior(spec,{pow:state.psPow,qual:state.bgQual});
+    const r=stepReqRest(incomingArDice(), state.arReq, spec, owned);
+    state.arSlots=(state.arSlots||[]).slice(0,(r.rest||[]).length);
+    rebuildNamedDice(state.arSlots, r.rest||[], state.arPow, state.arQual);
+    applyReqDie(r.apply, r.hadPrior, r.from, state.arPow, state.arQual);
+  } else { state.arPow={}; state.arQual={}; }
+  const pe=currentPe();
+  if(pe && state.peCustom){ state.peQual={}; state.peQual[state.peCustom]=pe.custom_quality_die||pe.green_die||'d8'; }
+  }
+  renderPickPanels();
+}
+function renderPickPanels(){
+  if(state.method==="Free"){ renderFreeStepPanels(); return; }
+  renderAllGuidedBoxes();
+  markGuidedOpts(document.getElementById('bgGrid'),'bg',CAT.backgrounds);
+  markGuidedOpts(document.getElementById('psGrid'),'ps',CAT.powerSources);
+  markGuidedOpts(document.getElementById('arGrid'),'ar',CAT.archetypes);
+  markGuidedOpts(document.getElementById('peGrid'),'pe',CAT.personalities);
+  const bg=currentBg();
+  if(bg){
+    const incoming=poolDice(bg,'next_die').map(d=>die(d)).join(' ');
+    document.getElementById("bgPick").innerHTML=`<div class="summary"><div class="row"><span>Quality dice</span><span>${poolDice(bg,'assign_die').map(d=>die(d)).join(' ')}</span></div><div class="row"><span>Principle</span><span>${bg.principle_category}</span></div><div class="row"><span>To Power Source (choose, don’t roll)</span><span>${incoming}</span></div></div>`;
+    renderAssignPanel();
+  } else {
+    const el=document.getElementById('bgAssign'); if(el) el.innerHTML='';
+    document.getElementById("bgPick").innerHTML='';
+  }
+  const ps=currentPs();
+  if(ps){
+    const incoming=incomingPsDice().map(die).join(' ')||'<span class="err">Pick a Background first</span>';
+    document.getElementById("psPick").innerHTML=`<div class="summary"><div class="row"><span>Dice from Background</span><span>${incoming}</span></div><div class="row"><span>Powers assigned</span><span>${Object.entries(state.psPow).filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'none selected'}</span></div><div class="row"><span>Abilities</span><span>${(state.psAbilities||[]).length?state.psAbilities.map(s=>(CAT.psAbilities.find(a=>a.slug===s)||{}).name||s).join(', '):'none selected'}</span></div><div class="row"><span>Grants to Archetype</span><span>${poolDice(ps,'next_die').map(die).join(' ')}</span></div></div>`;
+    renderPsAssign();
+  } else {
+    const el=document.getElementById('psAssign'); if(el) el.innerHTML='';
+    document.getElementById("psPick").innerHTML='';
+  }
+  const ar=currentAr();
+  if(ar){
+    document.getElementById("arPick").innerHTML=`<div class="summary"><div class="row"><span>Required</span><span>${[ar.required_power,ar.required_quality].filter(Boolean).join(' / ')||'—'}</span></div><div class="row"><span>Assigned</span><span>${[...Object.entries(state.arPow),...Object.entries(state.arQual)].filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'none selected'}</span></div><div class="row"><span>Abilities</span><span>${(state.arAbilities||[]).length?state.arAbilities.map(s=>(CAT.arAbilities.find(a=>a.slug===s)||{}).name||s).join(', '):'none selected'}</span></div><div class="row"><span>Principle</span><span>${ar.principle_category||'—'}</span></div></div>`;
+    renderArAssign();
+  } else {
+    const el=document.getElementById('arAssign'); if(el) el.innerHTML='';
+    document.getElementById("arPick").innerHTML='';
+  }
+  renderPeStepShared();
+  renderReds();
+  renderRetconAssign();
+  const catsAvail=RED_CATS.filter(c=>dieInRedCat(c));
+  document.getElementById("redGate").innerHTML=
+    `<div class="gate"><b>Filtered by assigned powers/qualities.</b> Categories with a die: <b>${catsAvail.join(", ")||"NONE"}</b>. Showing only Red abilities you can take (Inherent with no [power]/[quality] need d6+ in that category).</div>`;
+  document.getElementById("redPick").innerHTML = state.reds.length?`<div class="summary"><div class="row"><span>Chosen (${state.reds.length}/${redCap()})</span><span>${state.reds.map(k=>RED_ABILITIES[+k.slice(1)][0]).join(", ")}</span></div></div>`:"";
+  document.getElementById("retconPick").innerHTML = state.retcon!==null?`<div class="summary"><div class="row"><span>Retcon</span><span>${RETCONS[state.retcon]}</span></div></div>`:"";
+  renderAbilityRenames();
+  renderPowerQualityRenames();
+  ["pill1","pill2","pill3","pill4"].forEach((p,i)=>{document.getElementById(p).classList.toggle("done",[sel.bg,sel.ps,sel.ar,sel.pe][i]!==null);});
+  const vis=document.querySelector('#wizard [data-step]:not(.hidden)');
+  if(vis) updateSidecar(+vis.dataset.step);
+}
+function renderPeStepShared(){
+  const pe=currentPe();
+  if(pe){
+    const outTxt=pe.out_ability||'';
+    const bound=state.peOutBind?outTxt.replace(/\[quality\]/ig,state.peOutBind).replace(/\[power\]/ig,state.peOutBind):outTxt;
+    document.getElementById("pePick").innerHTML=`<div class="summary"><div class="row"><span>Status dice</span><span><span class="zone zG">G ${pe.green_die}</span> <span class="zone zY">Y ${pe.yellow_die}</span> <span class="zone zR">R ${pe.red_die}</span></span></div><div class="row"><span>Custom quality</span><span>${state.peCustom||'(name it)'} ${pe.custom_quality_die||pe.green_die||''}</span></div><div class="row"><span>Out ability</span><span>${bound||'—'}</span></div></div>`;
+    renderPeAssign();
+    document.getElementById("redMax").value=pe.red_die||'';
+  } else {
+    const el=document.getElementById('peAssign'); if(el) el.innerHTML='';
+    document.getElementById("pePick").innerHTML='';
+  }
+}
+
+/* ============ FREE FOR ALL (3rd Method — character-sheet entry, abilities stay gated) ============ */
+function renderFreeIdentitySelect(el, opts){
+  const wrap=document.createElement('div');
+  const cur=sel[opts.selKey];
+  wrap.innerHTML=`<label>${opts.label}</label><select id="freeSel_${opts.selKey}"><option value="">— none —</option>${opts.list.map((row,i)=>`<option value="${i}" ${cur===i?'selected':''}>${escLand(row.name)}</option>`).join('')}</select>`;
+  el.appendChild(wrap);
+  wrap.querySelector('select').onchange=(e)=>{
+    const i=e.target.value===''?null:+e.target.value;
+    sel[opts.selKey]=i;
+    if(opts.onSet) opts.onSet(i);
+    onPick();
+  };
+}
+function renderFreeSixSlots(kind /* 'pow' | 'qual' */){
+  const map = kind==='pow' ? (state.freePow=state.freePow||{}) : (state.freeQual=state.freeQual||{});
+  const label = kind==='pow' ? 'Power' : 'Quality';
+  const catList = kind==='pow' ? (CAT.powers||[]) : (CAT.qualities||[]);
+  const names = Object.keys(map).slice(0,6);
+  while(names.length<6) names.push('');
+  let html=`<div class="assign-head">${label}s (up to 6)</div><div style="display:flex;flex-direction:column;gap:6px">`;
+  names.forEach((n,idx)=>{
+    html+=`<div class="assign-row">
+      <select class="dq" data-slot-name-${kind}="${idx}" style="flex:2">
+        <option value="">— none —</option>
+        ${catList.map(x=>`<option value="${escLand(x.name)}" ${x.name===n?'selected':''}>${escLand(x.name)}${x.category?' ('+escLand(x.category)+')':''}</option>`).join('')}
+      </select>
+      <select class="dq" data-slot-die-${kind}="${idx}">${['','d4','d6','d8','d10','d12'].map(d=>`<option value="${d}" ${(n && map[n]===d)?'selected':''}>${d||'—'}</option>`).join('')}</select>
+    </div>`;
+  });
+  html+='</div>';
+  const wrap=document.createElement('div');
+  wrap.innerHTML=html;
+  wrap.querySelectorAll(`select[data-slot-name-${kind}]`).forEach(selEl=>{
+    const idx=+selEl.getAttribute(`data-slot-name-${kind}`);
+    selEl.onchange=()=>{
+      const oldName=names[idx];
+      if(oldName) delete map[oldName];
+      const newName=selEl.value;
+      if(newName){
+        const dieSel=wrap.querySelector(`select[data-slot-die-${kind}="${idx}"]`);
+        map[newName]=(dieSel&&dieSel.value)||'d6';
+      }
+      renderPickPanels();
+    };
+  });
+  wrap.querySelectorAll(`select[data-slot-die-${kind}]`).forEach(selEl=>{
+    const idx=+selEl.getAttribute(`data-slot-die-${kind}`);
+    selEl.onchange=()=>{
+      const n=names[idx];
+      if(n) map[n]=selEl.value||'d6';
+      renderPickPanels();
+    };
+  });
+  return wrap;
+}
+function renderFreePrincipleSelect(el, stateKey, category){
+  if(!el) return;
+  const wrap=document.createElement('div');
+  const opts=category
+    ? (CAT.principles||[]).filter(p=>p.category===category).map(p=>`<option value="${p.slug}">${escLand(p.name)}</option>`).join('')
+    : principleOptionsGrouped();
+  const label=category?`Principle from paired archetype (${escLand(category)})`:'Principle';
+  wrap.innerHTML=`<label>${label}</label>
+    <select id="freePrinciple_${stateKey}"><option value="">— choose one —</option>${opts}</select>`;
+  el.appendChild(wrap);
+  const sel2=wrap.querySelector('select');
+  sel2.value=state[stateKey]||'';
+  if(state[stateKey]){
+    const pr=CAT.principles.find(p=>p.slug===state[stateKey]);
+    if(pr) wrap.insertAdjacentHTML('beforeend', `<div class="hint" style="margin-top:8px"><b>${escLand(pr.name)}</b><br>${pr.roleplay||''}<br><small>Minor: ${pr.minor_twist||''}<br>Major: ${pr.major_twist||''}</small></div>`);
+  }
+  sel2.onchange=()=>{ state[stateKey]=sel2.value; renderPickPanels(); };
+}
+function renderFreeModularPair(el){
+  const pairable=(CAT.archetypes||[]).map((row,i)=>({row,i})).filter(x=>x.row.slug!=='modular' && x.row.slug!=='divided');
+  const wrap=document.createElement('div');
+  wrap.innerHTML=`<label>Paired Archetype</label>
+    <select id="freeModPair"><option value="">— pair with… —</option>
+    ${pairable.map(({row,i})=>`<option value="${i}" ${state.modPair===i?'selected':''}>${escLand(row.name)}</option>`).join('')}
+    </select>
+    <p class="empty-hint">Modular skips the paired archetype’s abilities. Powers/Qualities stay the ones from Step 1. Principle comes from the pair.</p>`;
+  el.appendChild(wrap);
+  wrap.querySelector('select').onchange=(e)=>{
+    state.modPair=e.target.value===''?null:+e.target.value;
+    state.arPrinciple='';
+    onPick();
+  };
+}
+function renderFreeAbilityPicker(el, rows, selectedKey, heading){
+  if(!el) return;
+  const box=document.createElement('div');
+  box.insertAdjacentHTML('beforeend', `<div class="assign-head">${heading}</div>`);
+  el.appendChild(box);
+  renderAbilityPicks(box, rows||[], {g:9999, y:0, same:true, distinct:false, instead:''}, selectedKey);
+}
+function renderFreeStepPanels(){
+  // Step 1 — sheet header: Background dropdown + its Principle, then up to 6 Powers + 6 Qualities.
+  document.getElementById('bgPick').innerHTML=`<div class="summary"><div class="row"><span>Mode</span><span>Free For All — sheet-style entry. Abilities in Steps 2/3/5 stay gated.</span></div></div>`;
+  const bgEl=document.getElementById('bgAssign'); bgEl.innerHTML='';
+  renderFreeIdentitySelect(bgEl, {label:'Background', list:CAT.backgrounds, selKey:'bg'});
+  renderFreePrincipleSelect(bgEl, 'bgPrinciple');
+  bgEl.appendChild(renderFreeSixSlots('pow'));
+  bgEl.appendChild(renderFreeSixSlots('qual'));
+
+  // Step 2 — Power Source dropdown + Abilities gated 100% to that Power Source.
+  const ps=currentPs();
+  document.getElementById('psPick').innerHTML=`<div class="summary"><div class="row"><span>Power Source</span><span>${ps?escLand(ps.name):'none chosen'}</span></div><div class="row"><span>Abilities</span><span>${(state.psAbilities||[]).length?state.psAbilities.map(s=>(CAT.psAbilities.find(a=>a.slug===s)||{}).name||s).join(', '):'none selected'}</span></div></div>`;
+  const psEl=document.getElementById('psAssign'); psEl.innerHTML='';
+  renderFreeIdentitySelect(psEl, {label:'Power Source', list:CAT.powerSources, selKey:'ps', onSet:()=>{ state.psAbilities=[]; }});
+  if(ps) renderFreeAbilityPicker(psEl, abilitiesFor(CAT.psAbilities, ps.slug), 'psAbilities', `${escLand(ps.name)} Abilities — gated to this Power Source. Pick any number.`);
+  else psEl.insertAdjacentHTML('beforeend', '<p class="empty-hint">Choose a Power Source above to see its abilities.</p>');
+
+  // Step 3 — Archetype dropdown + its Principle + Abilities gated 100% to that Archetype.
+  const ar=currentAr();
+  const pair=(ar && ar.slug==='modular' && state.modPair!=null)?CAT.archetypes[state.modPair]:null;
+  document.getElementById('arPick').innerHTML=`<div class="summary"><div class="row"><span>Archetype</span><span>${ar?escLand(ar.name):'none chosen'}${pair?' + '+escLand(pair.name):''}</span></div><div class="row"><span>Abilities</span><span>${(state.arAbilities||[]).length?state.arAbilities.map(s=>(CAT.arAbilities.find(a=>a.slug===s)||{}).name||s).join(', '):'none selected'}</span></div></div>`;
+  const arEl=document.getElementById('arAssign'); arEl.innerHTML='';
+  renderFreeIdentitySelect(arEl, {label:'Archetype', list:CAT.archetypes, selKey:'ar', onSet:()=>{ state.arAbilities=[]; state.arPrinciple=''; state.modPair=null; }});
+  if(ar && ar.slug==='modular'){
+    renderFreeModularPair(arEl);
+    if(!pair) arEl.insertAdjacentHTML('beforeend', '<p class="err">Pick the archetype to pair with Modular first.</p>');
+    else {
+      renderFreePrincipleSelect(arEl, 'arPrinciple', pair.principle_category||'');
+      renderFreeAbilityPicker(arEl, abilitiesFor(CAT.arAbilities, 'modular'), 'arAbilities', `Modular abilities (paired with ${escLand(pair.name)}). Pick any number — skip ${escLand(pair.name)}’s abilities.`);
+    }
+  } else {
+    renderFreePrincipleSelect(arEl, 'arPrinciple');
+    if(ar) renderFreeAbilityPicker(arEl, abilitiesFor(CAT.arAbilities, ar.slug), 'arAbilities', `${escLand(ar.name)} Abilities — gated to this Archetype. Pick any number.`);
+    else arEl.insertAdjacentHTML('beforeend', '<p class="empty-hint">Choose an Archetype above to see its abilities.</p>');
+  }
+
+  // Step 4 — Personality: identical to Constructed Method (book-locked GYRO dice, Out bind-only).
+  renderPeStepShared();
+
+  // Step 5 — Red Abilities: gated by assigned Powers/Qualities exactly like Constructed, no pick cap.
+  document.getElementById('redGate').innerHTML=`<div class="gate"><b>Free For All:</b> gated the same way as Constructed — you need a die in the matching Power/Quality category (Step 1) to unlock a Red ability. No pick-count cap.</div>`;
+  renderRedsShared(Infinity);
+  document.getElementById('redPick').innerHTML=state.reds.length?`<div class="summary"><div class="row"><span>Chosen (${state.reds.length})</span><span>${state.reds.map(k=>RED_ABILITIES[+k.slice(1)][0]).join(', ')}</span></div></div>`:"";
+
+  // No Retcon in Free For All — dice are already assigned by hand.
+
+  renderAbilityRenames();
+  renderPowerQualityRenames();
+
+  ["pill1","pill2","pill3","pill4"].forEach((p,i)=>{document.getElementById(p).classList.toggle("done",[sel.bg,sel.ps,sel.ar,sel.pe][i]!==null);});
+  const vis=document.querySelector('#wizard [data-step]:not(.hidden)');
+  if(vis) updateSidecar(+vis.dataset.step);
+}
+
+/* ============ HEALTH ============ */
+function calcHealth(){
+  let redDie=document.getElementById("redMax").value||"d8";
+  if(state.retcon===4) redDie={d4:'d6',d6:'d8',d8:'d10',d10:'d12',d12:'d12'}[redDie]||redDie;
+  const redMax=dm(redDie);
+  const athMax=dm(document.getElementById("athMax").value||"d10");
+  const roll=parseInt(document.getElementById("healthRoll").value)||0;
+  const total=8+redMax+athMax+roll;
+  const rng=HEALTH_CHART[total];
+  document.getElementById("healthOut").innerHTML=`<div class="summary"><div class="row"><span>Equation</span><span>8 + Red(${redMax}) + Athletic/Mental(${athMax}) + roll(${roll}) = <b>${total}</b></span></div>`+
+    (rng?`<div class="row"><span>Green / Yellow / Red</span><span>${rng[0]} / ${rng[1]} / ${rng[2]}</span></div>`:`<div class="err">Total ${total} outside chart range (17–40).</div>`);
+  state.health=rng?[total,rng[0],rng[1],rng[2]]:null;
+}
+
+/* ============ SHEET ============ */
+function abilityDisplayName(slug, bookName){
+  const n=(state.abNames||{})[slug];
+  return (n && String(n).trim()) ? String(n).trim() : (bookName||'');
+}
+function chosenAbilityRenameRows(){
+  const rows=[];
+  (state.psAbilities||[]).forEach(s=>{
+    const a=CAT.psAbilities.find(x=>x.slug===s);
+    if(a) rows.push({slug:s, book:a.name, zone:(a.zone==='Green/Yellow')?'Green':(a.zone||'')});
+  });
+  (state.arAbilities||[]).forEach(s=>{
+    const a=CAT.arAbilities.find(x=>x.slug===s);
+    if(a) rows.push({slug:s, book:a.name, zone:archetypeZoneFor(a,s)});
+  });
+  (state.reds||[]).forEach(k=>{
+    const a=RED_ABILITIES[+k.slice(1)];
+    if(a) rows.push({slug:'red-'+k.slice(1), book:a[0], zone:'Red'});
+  });
+  const pe=currentPe();
+  if(pe && pe.out_ability) rows.push({slug:'out', book:'Out', zone:'Out'});
+  return rows;
+}
+function renderAbilityRenames(){
+  const box=document.getElementById('abilityRenameBox'); if(!box) return;
+  const rows=chosenAbilityRenameRows();
+  if(!rows.length){ box.innerHTML='<p class="empty-hint">No abilities chosen yet — picks from Power Source, Archetype, Red, and Out show up here to rename.</p>'; return; }
+  box.innerHTML=rows.map(r=>`<div class="assign-row" style="margin-bottom:6px">
+    <span class="muted" style="min-width:4.5em">${escLand(r.zone)}</span>
+    <span class="aq" style="min-width:9em">${escLand(r.book)}</span>
+    <input class="dq" data-abrename="${escLand(r.slug)}" value="${escLand(abilityDisplayName(r.slug,r.book))}" placeholder="snappy name" style="flex:2">
+  </div>`).join('');
+  box.querySelectorAll('input[data-abrename]').forEach(inp=>{
+    inp.onchange=()=>{ state.abNames=state.abNames||{}; state.abNames[inp.dataset.abrename]=inp.value; };
+  });
+}
+function renderPowerQualityRenames(){
+  const box=document.getElementById('abilityRenameBox'); if(!box) return;
+  const powMap=assignedPow();
+  const qualMap=assignedQual();
+  const powRows=Object.keys(powMap).filter(p=>powMap[p]).map(p=>({name:p, die:powMap[p], cat:catOfName(p)||'Power'}));
+  const qualRows=Object.keys(qualMap).filter(q=>qualMap[q]).map(q=>({name:q, die:qualMap[q], cat:catOfName(q)||'Quality'}));
+  const allRows=[...powRows.map(r=>({...r,kind:'pow'})), ...qualRows.map(r=>({...r,kind:'qual'}))];
+  if(!allRows.length) return;
+  const html=`<div class="assign-head" style="margin-top:10px">Powers & Qualities</div>`+
+    allRows.map(r=>{
+      const dataAttr=r.kind==='pow'?`data-prename="${escLand(r.name)}"`:`data-qrename="${escLand(r.name)}"`;
+      const val=(r.kind==='pow'?(state.powNames||{})[r.name]:(state.qualNames||{})[r.name])||'';
+      return `<div class="assign-row" style="margin-bottom:6px">
+        <span class="muted" style="min-width:4.5em">${escLand(r.cat)}</span>
+        <span class="aq" style="min-width:9em">${escLand(r.name)} <small>(${escLand(r.die)})</small></span>
+        <input class="dq" ${dataAttr} value="${escLand(val)}" placeholder="sheet name" style="flex:2">
+      </div>`;
+    }).join('');
+  box.insertAdjacentHTML('beforeend', html);
+  box.querySelectorAll('input[data-prename]').forEach(inp=>{
+    inp.onchange=()=>{ state.powNames=state.powNames||{}; state.powNames[inp.dataset.prename]=inp.value; };
+  });
+  box.querySelectorAll('input[data-qrename]').forEach(inp=>{
+    inp.onchange=()=>{ state.qualNames=state.qualNames||{}; state.qualNames[inp.dataset.qrename]=inp.value; };
+  });
+}
+function collectF(){
+  const f=state.f;
+  f.name=(document.getElementById("heroName")||{}).value||"";
+  ["alias","player","gender","age","height","eyes","hair","skin","build","costume","notes"].forEach(k=>{
+    const el=document.getElementById(k); if(el) f[k]=el.value;
+  });
+  state.powNames={}; state.qualNames={};
+  const renameBox=document.getElementById('abilityRenameBox');
+  if(renameBox){
+    renameBox.querySelectorAll('input[data-prename]').forEach(inp=>{
+      const k=inp.dataset.prename;
+      if(k) state.powNames[k]=inp.value;
+    });
+    renameBox.querySelectorAll('input[data-qrename]').forEach(inp=>{
+      const k=inp.dataset.qrename;
+      if(k) state.qualNames[k]=inp.value;
+    });
+  }
+}
+function saveToVtt(){
+  collectF();
+  if(!state.f.name.trim()){ alert("Hero Name is required."); return; }
+  const powers=[];
+  const powMap=assignedPow();
+  for(const p in powMap) if(powMap[p]) powers.push({name:p, die: powMap[p], displayName: (state.powNames||{})[p]||''});
+  const qualities=[];
+  const qualMap=assignedQual();
+  for(const q in qualMap) if(qualMap[q]) qualities.push({name:q, die:qualMap[q], displayName: (state.qualNames||{})[q]||''});
+  if(state.retcon===3 && state.retconSpec && state.retconSpec.addName){
+    const n=state.retconSpec.addName;
+    if(kindOfName(n)==='quality'){ if(!qualities.some(q=>q.name===n)) qualities.push({name:n,die:'d6'}); }
+    else if(!powers.some(p=>p.name===n)) powers.push({name:n,die:'d6'});
+  }
+  if((state.retcon===0||state.retcon===1) && state.retconSpec && state.retconSpec.swapA && state.retconSpec.swapB){
+    const list=state.retcon===0?powers:qualities;
+    const a=list.find(x=>x.name===state.retconSpec.swapA), b=list.find(x=>x.name===state.retconSpec.swapB);
+    if(a&&b){ const t=a.die; a.die=b.die; b.die=t; }
+  }
+  const pe=currentPe();
+  const abilities=[];
+  (state.psAbilities||[]).forEach(s=>{ const a=CAT.psAbilities.find(x=>x.slug===s); if(a){ const shown=abilityDisplayName(s,a.name); const zone=(a.zone==='Green/Yellow')?'Green':a.zone; abilities.push({zone,name:a.name,displayName:shown===a.name?'':shown,type:a.type,text:fillBind(a.game_text, state.abBinds[s])}); } });
+  (state.arAbilities||[]).forEach(s=>{ const a=CAT.arAbilities.find(x=>x.slug===s); if(a){ const shown=abilityDisplayName(s,a.name); const zone=archetypeZoneFor(a,s); abilities.push({zone,name:a.name,displayName:shown===a.name?'':shown,type:a.type,text:fillBind(a.game_text, state.abBinds[s])}); } });
+  state.reds.forEach(k=>{
+    const a=RED_ABILITIES[+k.slice(1)];
+    if(a){ const shown=abilityDisplayName('red-'+k.slice(1), a[0]); abilities.push({zone:"Red", name:a[0], displayName:shown===a[0]?'':shown, type:a[1], text:fillBind(a[2], state.abBinds['red-'+k.slice(1)])}); }
+  });
+  if(pe && pe.out_ability){
+    let out=pe.out_ability;
+    if(state.peOutBind) out=out.replace(/\[quality\]/ig,state.peOutBind).replace(/\[power\]/ig,state.peOutBind);
+    const shown=abilityDisplayName('out','Out');
+    abilities.push({zone:"Out", name:"Out", displayName:shown==='Out'?'':shown, type:"I", text:out});
+  }
+  const princ=[];
+  let slugs=[state.bgPrinciple, state.arPrinciple];
+  if(state.retcon===5 && state.retconSpec && state.retconSpec.prFrom && state.retconSpec.prTo){
+    slugs=slugs.map(s=>s===state.retconSpec.prFrom?state.retconSpec.prTo:s);
+  }
+  slugs.forEach(slug=>{
+    const pr=CAT.principles.find(p=>p.slug===slug);
+    if(pr) princ.push({name:pr.name, roleplay:pr.roleplay||'', minorTwist:pr.minor_twist||'', majorTwist:pr.major_twist||''});
+  });
+  const payload={
+    name:state.f.name, alias:state.f.alias,
+    player: document.getElementById('playerControlled') && !document.getElementById('playerControlled').checked ? '' : state.f.player,
+    background: currentBg()?currentBg().name:"",
+    powerSource: currentPs()?currentPs().name:"",
+    archetype: currentAr()?currentAr().name:"",
+    personality: pe?pe.name:"",
+    greenStatusDie: pe?pe.green_die:"", yellowStatusDie: pe?pe.yellow_die:"", redStatusDie: pe?(state.retcon===4?({d4:'d6',d6:'d8',d8:'d10',d10:'d12',d12:'d12'}[pe.red_die]||pe.red_die):pe.red_die):"",
+    out: pe?(state.peOutBind?(pe.out_ability||'').replace(/\[quality\]/ig,state.peOutBind).replace(/\[power\]/ig,state.peOutBind):(pe.out_ability||'')):"",
+    maxHealth: state.health?state.health[0]:"",
+    powers, qualities, abilities, principles: princ,
+    active: document.getElementById('heroActive') ? document.getElementById('heroActive').checked : true,
+    affiliation: (document.getElementById('heroAffiliation')||{}).value || 'Ally',
+    origin: (heroLand.find(x=>x.Slug===(state.f && state.f.slug))||heroLand.find(x=>x.Name===state.f.name)||{}).origin || (BOOK_HERO_SLUGS.has(slugify(state.f.name||'')) ? 'premade' : 'custom'),
+    builderState: snapshotBuilder()
+  };
+  const msg=document.getElementById("saveMsg");
+  if(msg) msg.textContent="Saving…";
+  fetch("/api/builder/hero",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+    .then(r=>r.json().then(j=>({ok:r.ok,j})))
+    .then(({ok,j})=>{
+      if(msg) msg.textContent=!ok ? ("Save failed: "+(j.error||JSON.stringify(j))) : ("Saved slug "+j.slug+(j.obsidian?" + Occidia note":" (VTT only)"));
+      if(!ok) return;
+      return syncHeroIssues(j.slug, selectedHeroIssues()).then(()=>showHeroLanding());
+    })
+    .catch(e=>{ if(msg) msg.textContent="Save failed: "+e; });
+}
+function renderSheet(){
+  collectF();
+  const err=document.getElementById("sheetErr"); err.textContent="";
+  if(sel.bg===null||sel.ps===null||sel.ar===null||sel.pe===null){err.textContent="⚠ Complete steps 1–4 before generating.";return;}
+  const bg=currentBg(),ps=currentPs(),ar=currentAr(),pe=currentPe();
+  const reds=state.reds.map(k=>RED_ABILITIES[+k.slice(1)]).filter(Boolean);
+  const retcon=state.retcon!==null?RETCONS[state.retcon]:"";
+  const h=state.health;
+  const out=pe?(state.peOutBind?(pe.out_ability||'').replace(/\[quality\]/ig,state.peOutBind).replace(/\[power\]/ig,state.peOutBind):(pe.out_ability||'')):"";
+  const html=`
+    <h2>${state.f.name||"(unnamed hero)"}</h2>
+    ${state.f.alias?`<div class="row"><span>Alias</span><span>${state.f.alias}</span></div>`:""}
+    <div class="row"><span><b>1 · Background</b></span><span>${bg.name}</span></div>
+    <div class="row"><span>Qualities</span><span>${Object.entries(state.bgQual).filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'none selected'}</span></div>
+    <div class="row"><span>Principle</span><span>${(CAT.principles.find(p=>p.slug===state.bgPrinciple)||{}).name||bg.principle_category}</span></div>
+    <div class="row"><span><b>2 · Power Source</b></span><span>${ps.name}</span></div>
+    <div class="row"><span>Powers</span><span>${Object.entries(state.psPow).filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'none selected'}</span></div>
+    <div class="row"><span>Abilities</span><span>${(state.psAbilities||[]).map(s=>(CAT.psAbilities.find(a=>a.slug===s)||{}).name||s).join(', ')||'none selected'}</span></div>
+    <div class="row"><span><b>3 · Archetype</b></span><span>${ar.name}</span></div>
+    <div class="row"><span>Assigned</span><span>${[...Object.entries(state.arPow),...Object.entries(state.arQual)].filter(([,v])=>v).map(([k,v])=>k+' '+v).join(', ')||'none selected'}</span></div>
+    <div class="row"><span>Abilities</span><span>${(state.arAbilities||[]).map(s=>(CAT.arAbilities.find(a=>a.slug===s)||{}).name||s).join(', ')||'none selected'}</span></div>
+    <div class="row"><span><b>4 · Personality</b></span><span>${pe.name}</span></div>
+    <div class="row"><span>Status dice</span><span><span class="zone zG">G ${pe.green_die}</span> <span class="zone zY">Y ${pe.yellow_die}</span> <span class="zone zR">R ${pe.red_die}</span></span></div>
+    <div class="row"><span>Out ability</span><span>${out||"—"}</span></div>
+    <div class="row"><span>Custom quality</span><span>${state.peCustom||'—'} ${pe.custom_quality_die||pe.green_die||''}</span></div>
+    <div class="row"><span><b>5 · Red Abilities (pick 2)</b></span><span>${reds.length?reds.map(r=>`${r[0]} [${r[3]}]: ${r[2]}`).join("<br>"):"—"}</span></div>
+    <div class="row"><span><b>6 · Retcon</b></span><span>${retcon||"—"}</span></div>
+    <div class="row"><span><b>7 · Health</b></span><span>${h?`Total ${h[0]} → G ${h[1]} / Y ${h[2]} / R ${h[3]}`:"not calculated"}</span></div>
+    ${state.f.gender||state.f.age||state.f.height?`<div class="row"><span><b>8 · Physical</b></span><span>${[state.f.gender,state.f.age,state.f.height].filter(Boolean).join(" · ")}</span></div>`:""}
+    ${state.f.eyes||state.f.hair||state.f.skin||state.f.build?`<div class="row"><span>Eyes/Hair/Skin/Build</span><span>${[state.f.eyes,state.f.hair,state.f.skin,state.f.build].filter(Boolean).join(" · ")}</span></div>`:""}
+    ${state.f.costume?`<div class="row"><span>Costume/Equipment</span><span>${state.f.costume.replace(/\n/g,"<br>")}</span></div>`:""}
+    ${state.f.notes?`<div class="row"><span>Notes</span><span>${state.f.notes.replace(/\n/g,"<br>")}</span></div>`:""}
+  `;
+  document.getElementById("sheet").innerHTML=html;
+}
+function copySheet(){ if(!document.getElementById("sheet").innerText.trim()) renderSheet(); navigator.clipboard.writeText(document.getElementById("sheet").innerText).then(()=>alert("Copied to clipboard.")); }
+
+/* ============ LOCALSTORAGE ============ */
+function saveLS(){ collectF();
+  const snap={state:Object.assign({},state,{arYellowAbilities:[...yellowSet()]}),sel};
+  localStorage.setItem("scrpg_hero",JSON.stringify(snap));
+  document.getElementById("saveMsg").textContent="✅ Saved to this browser ("+new Date().toLocaleTimeString()+").";
+}
+function loadLS(){ const s=localStorage.getItem("scrpg_hero"); if(!s){alert("No saved hero found.");return;}
+  const snap=JSON.parse(s); Object.assign(state,snap.state); Object.assign(sel,snap.sel||{});
+  state.arYellowAbilities=new Set(state.arYellowAbilities||[]);
+  // re-apply selections visually
+  ["bg","ps","ar","pe"].forEach(k=>{ if(sel[k]!==null){const g=document.getElementById(k=="bg"?"bgGrid":k=="ps"?"psGrid":k=="ar"?"arGrid":"peGrid"); if(g&&g.children[sel[k]]) g.children[sel[k]].classList.add("sel");}});
+  // restore form fields
+  for(const k in state.f){ const el=document.getElementById(k); if(el) el.value=state.f[k]; }
+  // re-mark red/retcon selections
+  const rl=document.getElementById("redList"); state.reds.forEach(k=>{ if(rl.children[+k.slice(1)]) rl.children[+k.slice(1)].classList.add("sel"); });
+  const rg=document.getElementById("retconGrid"); if(state.retcon!==null&&rg.children[state.retcon]) rg.children[state.retcon].classList.add("sel");
+  if(state.health){document.getElementById("athMax").value="d"+ (state.health[0]-8-dm(document.getElementById("redMax").value||"d8")- (parseInt(document.getElementById("healthRoll").value)||0));}
+  onPick(); document.getElementById("saveMsg").textContent="✅ Loaded saved hero.";
+}
+
+/* ============ INIT ============ */
+onPick(); setMethod("Constructed"); showHeroLanding(); bootCatalogs();
+
+let heroLand=[], heroOrigin='all', heroActiveOnly=true;
+function setHeroActiveOnly(v){
+  heroActiveOnly=!!v;
+  const btn=document.getElementById('heroActiveOnlyBtn');
+  if(btn) btn.classList.toggle('sel', heroActiveOnly);
+  renderHeroLanding();
+}
+const BOOK_HERO_SLUGS = new Set(['absolute-zero','aeon-girl','bunker','heritage','legacy','muerto','muse','rockstar','tachyon','headlong','wraith','time-slinger']);
+function parseCsvRow(line){
+  const cells=[], cur={v:'',q:false};
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (cur.q && line[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){cells.push(cur.v);cur.v='';continue;}
+    cur.v+=ch;
+  }
+  cells.push(cur.v);
+  return cells;
+}
+function escLand(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function setHeroOrigin(o){
+  heroOrigin=o;
+  document.querySelectorAll('.origin-btn').forEach(b=>b.classList.toggle('sel', b.dataset.origin===o));
+  renderHeroLanding();
+}
+function showHeroLanding(){ document.getElementById('landing').classList.remove('hidden'); document.getElementById('wizard').classList.add('hidden'); loadHeroLanding(); loadHeroIssues(); }
+function showHeroWizard(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('wizard').classList.remove('hidden'); syncNavH(); loadHeroIssues(); }
+function startNewHero(){ resetHeroForm(); applyHeroIssues([]); showHeroWizard(); renderBgGrid(); renderPsGrid(); renderArGrid(); renderPeGrid(); onPick(); }
+async function loadHeroLanding(){
+  const csvText=await fetch('/api/csv/heroes').then(r=>r.text());
+  const lines=csvText.trim().split(/\r?\n/);
+  const headers=parseCsvRow(lines[0]||'');
+  const rows=lines.slice(1).map(l=>{const c=parseCsvRow(l),o={}; headers.forEach((h,i)=>o[h]=c[i]||''); return o;}).filter(r=>r.Slug);
+  heroLand=await Promise.all(rows.map(async r=>{
+    const md=await fetch('/api/md/heroes/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
+    const book = BOOK_HERO_SLUGS.has(r.Slug);
+    const origin = (r.Origin==='premade'||r.Origin==='custom') ? r.Origin : (book ? 'premade' : 'custom');
+    return {...r, origin};
+  }));
+  renderHeroLanding();
+}
+function renderHeroLanding(){
+  const empty=document.getElementById('landEmpty'), table=document.getElementById('landTable'), body=document.getElementById('landBody');
+  let rows=heroLand.slice();
+  if (heroOrigin!=='all') rows=rows.filter(r=>r.origin===heroOrigin);
+  if (heroActiveOnly) rows=rows.filter(r=>{
+    const v=r.Active; if(v===''||v==null) return true;
+    const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+  });
+  rows.sort((a,b)=>(a.Name||'').localeCompare(b.Name||'','en',{sensitivity:'base'}));
+  if (!heroLand.length){ empty.classList.remove('hidden'); empty.textContent='No heroes in this campaign yet.'; table.classList.add('hidden'); return; }
+  if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No heroes match this filter.'; table.classList.add('hidden'); return; }
+  empty.classList.add('hidden'); table.classList.remove('hidden');
+  body.innerHTML=rows.map(r=>{
+    return `<tr onclick="editHeroRow('${escLand(r.Slug)}')"><td>${escLand(r.Name)}</td><td>${escLand(r.Alias||'—')}</td><td>${escLand(r.Player||'—')}</td><td>${escLand(r.MaxHealth||'—')}</td><td>${escLand(r.GreenStatusDie||'—')}</td><td>${escLand(r.YellowStatusDie||'—')}</td><td>${escLand(r.RedStatusDie||'—')}</td></tr>`;
+  }).join('');
+}
+function catalogIndex(list, slug, name){
+  if(!list||!list.length) return null;
+  let i=-1;
+  if(slug) i=list.findIndex(x=>x.slug===slug);
+  if(i<0 && name) i=list.findIndex(x=>x.name===name);
+  return i>=0?i:null;
+}
+function snapshotBuilder(){
+  collectF();
+  const slugOf=(list,i)=>(i!=null && list && list[i])?list[i].slug:'';
+  return {
+    origin:'custom',
+    bgSlug:slugOf(CAT.backgrounds, sel.bg),
+    psSlug:slugOf(CAT.powerSources, sel.ps),
+    arSlug:slugOf(CAT.archetypes, sel.ar),
+    peSlug:slugOf(CAT.personalities, sel.pe),
+    background: currentBg()?currentBg().name:'',
+    powerSource: currentPs()?currentPs().name:'',
+    archetype: currentAr()?currentAr().name:'',
+    personality: currentPe()?currentPe().name:'',
+    bgSlots: state.bgSlots||[], bgQual: state.bgQual||{}, bgPrinciple: state.bgPrinciple||'', reqDie: state.reqDie||'',
+    psSlots: state.psSlots||[], psPow: state.psPow||{}, psAbilities: state.psAbilities||[], psReq: state.psReq||{mode:'',die:'',name:''},
+    arSlots: state.arSlots||[], arPow: state.arPow||{}, arQual: state.arQual||{}, arPrinciple: state.arPrinciple||'',
+    arAbilities: state.arAbilities||[], arYellowAbilities: [...yellowSet()], arReq: state.arReq||{mode:'',die:'',name:''},
+    modPairSlug: (state.modPair!=null && CAT.archetypes[state.modPair])?CAT.archetypes[state.modPair].slug:'',
+    modD6: state.modD6||[], modGreen: state.modGreen||'', modYellow: state.modYellow||[], modRed: state.modRed||'', modPowerless: !!state.modPowerless,
+    peCustom: state.peCustom||'', peOutBind: state.peOutBind||'', peQual: state.peQual||{},
+    reds: state.reds||[], retcon: state.retcon, retconSpec: state.retconSpec||{}, abBinds: state.abBinds||{}, abNames: state.abNames||{}, powNames: state.powNames||{}, qualNames: state.qualNames||{}, health: state.health,
+    method: state.method||'Constructed',
+    freePow: state.freePow||{}, freeQual: state.freeQual||{},
+    guidedRolls: state.guidedRolls||{bg:null,ps:null,ar:null,pe:null},
+    f: Object.assign({}, state.f)
+  };
+}
+function resetHeroForm(){
+  sel.bg=sel.ps=sel.ar=sel.pe=null;
+  state.bgQual={}; state.bgSlots=[]; state.bgPrinciple=''; state.reqDie='';
+  state.psPow={}; state.psSlots=[]; state.psAbilities=[]; state.psReq={mode:'',die:'',name:''};
+  state.arPow={}; state.arQual={}; state.arSlots=[]; state.arPrinciple=''; state.arAbilities=[]; state.arYellowAbilities=new Set();
+  state.arReq={mode:'',die:'',name:''};
+  state.peQual={}; state.peCustom=''; state.peOutBind='';
+  state.health=null; state.abBinds={}; state.abNames={}; state.powNames={}; state.qualNames={}; state.retconSpec={}; state.reds=[]; state.retcon=null;
+  state.modPair=null; state.modD6=[]; state.modGreen=''; state.modYellow=[]; state.modRed=''; state.modPowerless=false;
+  state.freePow={}; state.freeQual={};
+  state.guidedRolls={bg:null,ps:null,ar:null,pe:null};
+  state.f={name:'',alias:'',player:'',gender:'',age:'',height:'',eyes:'',hair:'',skin:'',build:'',costume:'',notes:''};
+  ['heroName','alias','player','gender','age','height','eyes','hair','skin','build','costume','notes'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  const ac=document.getElementById('heroActive'); if(ac) ac.checked=true;
+  const aff=document.getElementById('heroAffiliation'); if(aff) aff.value='Ally';
+  const pc=document.getElementById('playerControlled'); if(pc) pc.checked=true;
+}
+function applyBuilderState(st){
+  if(!st||typeof st!=='object') return;
+  sel.bg=catalogIndex(CAT.backgrounds, st.bgSlug, st.background);
+  sel.ps=catalogIndex(CAT.powerSources, st.psSlug, st.powerSource);
+  sel.ar=catalogIndex(CAT.archetypes, st.arSlug, st.archetype);
+  sel.pe=catalogIndex(CAT.personalities, st.peSlug, st.personality);
+  state.bgSlots=Array.isArray(st.bgSlots)?st.bgSlots.slice():[];
+  state.bgQual=Object.assign({}, st.bgQual||{});
+  state.bgPrinciple=st.bgPrinciple||'';
+  state.reqDie=st.reqDie||'';
+  state.psSlots=Array.isArray(st.psSlots)?st.psSlots.slice():[];
+  state.psPow=Object.assign({}, st.psPow||{});
+  state.psAbilities=Array.isArray(st.psAbilities)?st.psAbilities.slice():[];
+  state.psReq=Object.assign({mode:'',die:'',name:''}, st.psReq||{});
+  state.arSlots=Array.isArray(st.arSlots)?st.arSlots.slice():[];
+  state.arPow=Object.assign({}, st.arPow||{});
+  state.arQual=Object.assign({}, st.arQual||{});
+  state.arPrinciple=st.arPrinciple||'';
+  state.arAbilities=Array.isArray(st.arAbilities)?st.arAbilities.slice():[];
+  state.arYellowAbilities=new Set(Array.isArray(st.arYellowAbilities)?st.arYellowAbilities:[]);
+  state.arReq=Object.assign({mode:'',die:'',name:''}, st.arReq||{});
+  state.modPair=catalogIndex(CAT.archetypes, st.modPairSlug);
+  state.modD6=Array.isArray(st.modD6)?st.modD6.slice():[];
+  state.modGreen=st.modGreen||'';
+  state.modYellow=Array.isArray(st.modYellow)?st.modYellow.slice():[];
+  state.modRed=st.modRed||'';
+  state.modPowerless=!!st.modPowerless;
+  state.peCustom=st.peCustom||'';
+  state.peOutBind=st.peOutBind||'';
+  state.peQual=Object.assign({}, st.peQual||{});
+  state.powNames=Object.assign({}, st.powNames||{});
+  state.qualNames=Object.assign({}, st.qualNames||{});
+  state.reds=Array.isArray(st.reds)?st.reds.slice():[];
+  state.retcon=(st.retcon===undefined)?null:st.retcon;
+  state.retconSpec=Object.assign({}, st.retconSpec||{});
+  state.abBinds=Object.assign({}, st.abBinds||{});
+  state.abNames=Object.assign({}, st.abNames||{});
+  state.health=st.health||null;
+  state.freePow=Object.assign({}, st.freePow||{});
+  state.freeQual=Object.assign({}, st.freeQual||{});
+  state.guidedRolls=st.guidedRolls&&typeof st.guidedRolls==='object'?Object.assign({bg:null,ps:null,ar:null,pe:null}, st.guidedRolls):{bg:null,ps:null,ar:null,pe:null};
+  state.method=st.method||'Constructed';
+  applyMethodUi(state.method);
+  if(st.f) Object.assign(state.f, st.f);
+  const nameEl=document.getElementById('heroName'); if(nameEl) nameEl.value=state.f.name||'';
+  ['alias','player','gender','age','height','eyes','hair','skin','build','costume','notes'].forEach(k=>{
+    const el=document.getElementById(k); if(el) el.value=state.f[k]||'';
+  });
+}
+function matchOutTemplate(tmpl, line){
+  if(!tmpl||!line) return null;
+  const parts=String(tmpl).split(/\[(?:quality|power)\]/i);
+  if(parts.length===1) return line===tmpl ? [''] : null;
+  const pre=parts[0], post=parts.slice(1).join('');
+  if(!line.startsWith(pre) || (post && !line.endsWith(post))) return null;
+  const mid=line.slice(pre.length, post?line.length-post.length:undefined).trim();
+  return mid?[mid]:[''];
+}
+function reconstructHero(row, md){
+  const outLine=((md.match(/## Out\s*\n+([\s\S]*?)(?:\n## |\s*$)/)||[])[1]||'').trim().split('\n')[0].trim();
+  let peI=null, bind='';
+  (CAT.personalities||[]).forEach((p,i)=>{
+    const hit=matchOutTemplate(p.out_ability||'', outLine);
+    if(hit){ peI=i; bind=(hit[0]||'').trim(); }
+  });
+  if(peI==null && row.personality) peI=catalogIndex(CAT.personalities, '', row.personality);
+  if(peI==null){
+    const hits=(CAT.personalities||[]).map((p,i)=>({i,p})).filter(({p})=>p.green_die===row.GreenStatusDie && p.yellow_die===row.YellowStatusDie && p.red_die===row.RedStatusDie);
+    if(hits.length===1) peI=hits[0].i;
+  }
+  if(peI!=null){
+    sel.pe=peI;
+    if(bind){ state.peOutBind=bind; state.peCustom=bind; }
+  }
+  const names=[...md.matchAll(/### \[[^\]]+\] "([^"]+)"/g)].map(m=>m[1]);
+  const psHits=[], arHits=[];
+  names.forEach(n=>{
+    if(n==='Out') return;
+    const a=(CAT.psAbilities||[]).find(x=>x.name===n);
+    const b=(CAT.arAbilities||[]).find(x=>x.name===n);
+    if(a) psHits.push(a);
+    if(b) arHits.push(b);
+  });
+  if(psHits.length){
+    const parent=psHits[0].source_slug;
+    sel.ps=catalogIndex(CAT.powerSources, parent);
+    state.psAbilities=psHits.filter(a=>a.source_slug===parent).map(a=>a.slug);
+  }
+  if(arHits.length){
+    const parents=[...new Set(arHits.map(a=>a.source_slug))];
+    if(parents.includes('modular')){
+      sel.ar=catalogIndex(CAT.archetypes, 'modular');
+      state.arAbilities=arHits.filter(a=>a.source_slug==='modular').map(a=>a.slug);
+    } else {
+      const parent=parents[0];
+      sel.ar=catalogIndex(CAT.archetypes, parent);
+      state.arAbilities=arHits.filter(a=>a.source_slug===parent).map(a=>a.slug);
+    }
+  }
+  names.forEach(n=>{
+    const block=md.split('### ').find(x=>x.includes('"'+n+'"'));
+    if(!block) return;
+    const bm=block.match(/\[([^\]]+)\]/);
+    const a=(CAT.psAbilities||[]).find(x=>x.name===n)||(CAT.arAbilities||[]).find(x=>x.name===n);
+    if(a && bm && bm[1] && !/^(power|quality|power\/quality)$/i.test(bm[1])) state.abBinds[a.slug]=bm[1];
+  });
+  const ps=currentPs();
+  const psNames=ps?new Set(optionNames(expandOffered(ps.powers_offered))):new Set();
+  for(let i=1;i<=6;i++){
+    const n=row['Power'+i], d=row['PowerDie'+i];
+    if(!n) continue;
+    if(psNames.has(n)) state.psPow[n]=d||'';
+    else state.arPow[n]=d||'';
+  }
+  for(let i=1;i<=6;i++){
+    const n=row['Quality'+i], d=row['QualityDie'+i];
+    if(!n) continue;
+    if(state.peCustom && n===state.peCustom) state.peQual[n]=d||'';
+    else state.bgQual[n]=d||'';
+  }
+  const pr= (CAT.principles||[]).find(p=>p.name===row.Principle1Name);
+  if(pr){
+    const bg=currentBg();
+    if(bg && pr.category===bg.principle_category) state.bgPrinciple=pr.slug;
+    else state.arPrinciple=pr.slug;
+  }
+}
+async function editHeroRow(slug){
+  const r=heroLand.find(x=>x.Slug===slug); if(!r) return;
+  resetHeroForm();
+  showHeroWizard();
+  const md=await fetch('/api/md/heroes/'+encodeURIComponent(slug)).then(x=>x.ok?x.text():'').catch(()=>'');
+  let restored=false, snap=null;
+  const stM=(md||'').match(/## Builder[\s\S]*?```json\s*([\s\S]*?)```/);
+  if(stM){
+    try{
+      snap=JSON.parse(stM[1]);
+      if(snap && (snap.bgSlug||snap.psSlug||snap.arSlug||snap.peSlug||snap.personality||snap.background||snap.powerSource||snap.archetype)){
+        applyBuilderState(snap);
+        restored=!!(snap.bgSlug||snap.psSlug||snap.arSlug||snap.peSlug);
+        if(!restored) reconstructHero(r, md);
+        else restored=true;
+      }
+    }catch(e){}
+  }
+  if(!restored) reconstructHero(r, md);
+  const n=document.getElementById('heroName'); if(n) n.value=r.Name||'';
+  const ac=document.getElementById('heroActive'); if(ac) ac.checked=!['false','0','no'].includes(String(r.Active||'true').toLowerCase());
+  const aff=document.getElementById('heroAffiliation'); if(aff) aff.value=(['Ally','Enemy','Neutral'].includes(r.Affiliation)?r.Affiliation:'Ally');
+  const a=document.getElementById('alias'); if(a) a.value=r.Alias||'';
+  const p=document.getElementById('player'); if(p) p.value=r.Player||'';
+  const pc=document.getElementById('playerControlled'); if(pc) pc.checked=!!String(r.Player||'').trim();
+  state.f.name=r.Name||''; state.f.alias=r.Alias||''; state.f.player=r.Player||'';
+  applyHeroIssues(heroIssueIndex.filter(i=>(i.heroSlugs||[]).includes(slug)).map(i=>i.slug));
+  renderBgGrid(); renderPsGrid(); renderArGrid(); renderPeGrid();
+  const hasSlots=snap && ((snap.bgSlots||[]).some(Boolean)||(snap.psSlots||[]).some(Boolean)||(snap.arSlots||[]).some(Boolean));
+  // Only re-derive dice from the catalog's fixed pool when the loaded hero has slot
+  // *names* but no actual saved die values (legacy/incomplete data) — otherwise this
+  // would silently overwrite real saved dice (e.g. from a Retcon swap or a hand-tuned
+  // build) with whatever the background/power-source/archetype catalog mechanically
+  // produces by position, which isn't necessarily what was actually saved.
+  const hasDiceValues=snap && (Object.keys(snap.bgQual||{}).length || Object.keys(snap.psPow||{}).length || Object.keys(snap.arPow||{}).length || Object.keys(snap.arQual||{}).length);
+  onPick((hasSlots && !hasDiceValues)?undefined:{skipRebuild:true});
+}
+
+let heroIssueIndex=[], heroCollections=[], pickedHeroIssues=[];
+function selectedHeroIssues(){ return pickedHeroIssues.slice(); }
+async function fillHeroIssueBox(){
+  const el=document.getElementById('issueBox'); if(!el) return;
+  const sel=document.getElementById('collPick');
+  if (!heroCollections.length) heroCollections = await fetchCollections();
+  if (sel && sel.value === CP_NEW_VALUE) {
+    await resolveCollectionPick(sel, heroCollections, 'Choose a collection…');
+  } else if (sel) {
+    fillCollectionSelect(sel, heroCollections, 'Choose a collection…');
+  }
+  if (!heroCollections.length){ el.innerHTML='No collections yet — pick “+ New Collection…” above.'; return; }
+  const slug=sel?sel.value:'';
+  if (!slug){ el.innerHTML='Choose a collection to see its Issues.'; return; }
+  const coll=heroCollections.find(c=>c.slug===slug)||{};
+  const slugs=coll.issueSlugs||[];
+  if (!slugs.length){ el.innerHTML='No issues in this collection.'; return; }
+  el.innerHTML=slugs.map(s=>{
+    const i=heroIssueIndex.find(x=>x.slug===s)||{slug:s,name:s};
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #d4d9e3"><span>${escLand(i.name)}</span><input type="checkbox" value="${escLand(s)}" ${pickedHeroIssues.includes(s)?'checked':''} onchange="toggleHeroIssue(this)"></div>`;
+  }).join('');
+}
+function toggleHeroIssue(cb){
+  if (cb.checked){ if (!pickedHeroIssues.includes(cb.value)) pickedHeroIssues.push(cb.value); }
+  else pickedHeroIssues=pickedHeroIssues.filter(s=>s!==cb.value);
+}
+function applyHeroIssues(list){
+  pickedHeroIssues=(list||[]).slice();
+  const home=heroCollections.find(c=>(c.issueSlugs||[]).some(s=>pickedHeroIssues.includes(s)));
+  const sel=document.getElementById('collPick');
+  if (sel) sel.value=home?home.slug:'';
+  fillHeroIssueBox();
+}
+async function loadHeroIssues(){
+  heroCollections=await fetchCollections();
+  const sel=document.getElementById('collPick');
+  if (sel) fillCollectionSelect(sel, heroCollections, 'Choose a collection…');
+  const il=await fetch('/api/issues').then(r=>r.json()).catch(()=>[]);
+  heroIssueIndex=await Promise.all((il||[]).map(async i=>{
+    const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>({}));
+    return {slug:i.slug, name:i.name||i.slug, heroSlugs: full.heroSlugs||[]};
+  }));
+  fillHeroIssueBox();
+}
+async function syncHeroIssues(hslug, selected){
+  for (const i of heroIssueIndex){
+    const full=await fetch('/api/issues/'+encodeURIComponent(i.slug)).then(r=>r.json()).catch(()=>null);
+    if (!full) continue;
+    const set=new Set(full.heroSlugs||[]);
+    if (selected.includes(i.slug)) set.add(hslug); else set.delete(hslug);
+    full.heroSlugs=[...set];
+    if (!Array.isArray(full.villainSlugs)) full.villainSlugs=[];
+    if (!Array.isArray(full.minionSlugs)) full.minionSlugs=[];
+    if (!Array.isArray(full.sceneSlugs)) full.sceneSlugs=[];
+    await fetch('/api/issues/'+encodeURIComponent(i.slug),{method:'PUT', body:JSON.stringify(full,null,2)});
+  }
+}
+document.addEventListener("input",e=>{if(e.target&&e.target.tagName==="TEXTAREA")bindAutoGrow(document);});
+bindAutoGrow();
+</script>
+</body>
+</html>

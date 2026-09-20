@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Environment Builder</title>
+<style>
+  :root{--ink:#1a1a2e;--card:#fff;--bg:#eef1f6;--line:#d4d9e3;--accent:#0f766e;}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0}
+  header{background:linear-gradient(120deg,#115e59,#0f766e);color:#fff;padding:16px 22px}
+  header h1{margin:0;font-size:1.35rem}
+  header p{margin:4px 0 0;opacity:.9;font-size:.85rem}
+  .wrap{max-width:960px;margin:0 auto;padding:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
+  input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  textarea{min-height:64px;resize:none;overflow-y:hidden;field-sizing:content}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer}
+  .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
+  .ghost.sel{background:var(--accent);color:#fff}
+  .tiny{padding:6px 8px;font-size:.8rem}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+  .hidden{display:none}
+  table.land{width:100%;border-collapse:collapse;font-size:.86rem}
+  table.land th,table.land td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+  table.land tr{cursor:pointer}
+  table.land tr:hover{background:#e6fffa}
+  .muted{color:#888;font-size:.8rem}
+  .ok{color:#2e7d32}
+  .demo{display:grid;grid-template-columns:1fr 90px;gap:8px}
+  .twist-zones{display:grid;gap:12px;margin-top:14px}
+  .twist-box{border-radius:10px;padding:12px 14px;border:1px solid rgba(0,0,0,.12)}
+  .twist-box h3{margin:0 0 10px;font-size:.95rem;letter-spacing:.02em}
+  .twist-box.green{background:rgba(34,197,94,.25)}
+  .twist-box.yellow{background:rgba(234,179,8,.25)}
+  .twist-box.red{background:rgba(239,68,68,.25)}
+  .twist-slot{margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed rgba(0,0,0,.12)}
+  .twist-slot:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+  .twist-slot h4{margin:0 0 6px;font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;opacity:.85}
+  .enemy-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  @media (max-width:720px){.enemy-grid{grid-template-columns:1fr}}
+  .enemy-col{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fafbfd}
+  .enemy-col h3{margin:0 0 8px;font-size:.95rem}
+  .picked-list{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .picked-row{display:flex;align-items:center;gap:8px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:.88rem}
+  .picked-row .die{font-weight:700;color:var(--accent);min-width:2.2em}
+  .picked-row button{margin-left:auto}
+  .loc-section{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fafbfd}
+  .loc-section h3{margin:0 0 8px;font-size:.95rem}
+  .loc-list{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;max-height:220px;overflow-y:auto}
+  @media (max-width:720px){.loc-list{grid-template-columns:1fr}}
+  .loc-list label{font-weight:400;display:flex;align-items:center;gap:8px;margin:2px 0}
+  .loc-list input{width:auto}
+  .section-title{margin:16px 0 4px;font-size:1rem;border-bottom:1px solid var(--line);padding-bottom:4px}
+</style>
+</head>
+<body>
+<header>
+  <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#ccfbf1;font-size:.8rem;text-decoration:none">← All builders</a></p>
+  <h1>Environment Builder</h1>
+  <p>Traits, GYRO twists, environment threats (minions / lieutenants), and linked locations.</p>
+</header>
+<div class="wrap">
+  <div id="landing" class="panel">
+    <div class="actions" style="margin-top:0">
+      <button class="btn" type="button" onclick="startNew()">+ New Environment</button>
+      <button class="ghost tiny origin-btn sel" type="button" data-origin="all" onclick="setOrigin('all')">All</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="custom" onclick="setOrigin('custom')">Custom</button>
+      <button class="ghost tiny origin-btn" type="button" data-origin="premade" onclick="setOrigin('premade')">Premade</button>
+      <button class="ghost tiny sel" type="button" id="activeOnlyBtn" onclick="setActiveOnly(!activeOnly)">Active Only</button>
+    </div>
+    <p class="muted" id="landEmpty">Loading…</p>
+    <table class="land hidden" id="landTable">
+      <thead><tr><th>Name</th><th>Trait 1</th><th>Trait 2</th><th>Trait 3</th><th>Origin</th></tr></thead>
+      <tbody id="landBody"></tbody>
+    </table>
+  </div>
+  <div id="form" class="panel hidden">
+    <div class="actions" style="margin-top:0"><button class="ghost tiny" type="button" onclick="showLanding()">← List</button></div>
+    <label>Name</label><input id="name">
+    <label><input type="checkbox" id="rowActive" checked> Active in Library</label>
+    <label>Slug</label><input id="slug" placeholder="auto from name">
+    <label>Trait 1</label>
+    <div class="demo"><input id="t1" placeholder="Trait"><select id="d1"><option>d6</option><option selected>d8</option><option>d10</option><option>d12</option></select></div>
+    <label>Trait 2</label>
+    <div class="demo"><input id="t2"><select id="d2"><option>d6</option><option selected>d8</option><option>d10</option><option>d12</option></select></div>
+    <label>Trait 3</label>
+    <div class="demo"><input id="t3"><select id="d3"><option>d6</option><option selected>d8</option><option>d10</option><option>d12</option></select></div>
+
+    <h2 class="section-title">Twists by Scene Tracker</h2>
+    <div class="twist-zones" id="twistZones"></div>
+
+    <h2 class="section-title">Environment Threats</h2>
+    <div class="enemy-grid">
+      <div class="enemy-col">
+        <h3>Minions</h3>
+        <div class="actions" style="margin-top:0">
+          <select id="minAdd" style="flex:1"></select>
+          <button class="ghost tiny" type="button" onclick="addEnemy('minion')">Add Minion</button>
+        </div>
+        <div class="picked-list" id="minList"></div>
+      </div>
+      <div class="enemy-col">
+        <h3>Lieutenants</h3>
+        <div class="actions" style="margin-top:0">
+          <select id="ltAdd" style="flex:1"></select>
+          <button class="ghost tiny" type="button" onclick="addEnemy('lieutenant')">Add Lieutenant</button>
+        </div>
+        <div class="picked-list" id="ltList"></div>
+      </div>
+    </div>
+
+    <div class="loc-section">
+      <h3>Locations in this Environment</h3>
+      <p class="muted" style="margin:0 0 8px">Check locations to link them here (sets Environment on the Locations list).</p>
+      <div class="loc-list" id="locList"></div>
+    </div>
+
+    <label style="margin-top:14px">Notes</label>
+    <textarea id="notes" placeholder="Optional freeform notes (twists live in the colored sections above)."></textarea>
+
+    <div class="actions">
+      <button class="btn" type="button" onclick="saveRow()">Save to Library</button>
+      <button class="ghost" type="button" onclick="showLanding()">Cancel</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+</div>
+<script>
+const TWIST_ZONES = [
+  {key:'green', label:'Green', cls:'green'},
+  {key:'yellow', label:'Yellow', cls:'yellow'},
+  {key:'red', label:'Red', cls:'red'},
+];
+const TWIST_SLOTS = [
+  {key:'minor1', header:'Minor Twist 1', csv:'MinorTwist1'},
+  {key:'minor2', header:'Minor Twist 2', csv:'MinorTwist2'},
+  {key:'major', header:'Major Twist', csv:'MajorTwist'},
+];
+
+let landMeta=[], originFilter='all', editing=null, activeOnly=true;
+let allMinions=[], allLocations=[];
+let pickedMinions=[], pickedLieutenants=[]; // arrays of slugs
+
+function isActiveRow(r){
+  const v=r && r.Active; if(v===''||v==null) return true;
+  const s=String(v).toLowerCase(); return s!=='false' && s!=='0' && s!=='no';
+}
+function setActiveOnly(v){
+  activeOnly=!!v;
+  const btn=document.getElementById('activeOnlyBtn');
+  if(btn) btn.classList.toggle('sel', activeOnly);
+  renderLanding();
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function slugify(n){return (n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'environment';}
+function parseCsv(text){
+  // RFC4180-ish: quoted fields may contain commas and newlines.
+  const rows=[];
+  let row=[], cell='', i=0, q=false;
+  const s=String(text||'');
+  while(i<s.length){
+    const ch=s[i];
+    if(q){
+      if(ch==='"'){
+        if(s[i+1]==='"'){ cell+='"'; i+=2; continue; }
+        q=false; i++; continue;
+      }
+      cell+=ch; i++; continue;
+    }
+    if(ch==='"'){ q=true; i++; continue; }
+    if(ch===','){ row.push(cell); cell=''; i++; continue; }
+    if(ch==='\r'){ i++; continue; }
+    if(ch==='\n'){
+      row.push(cell); cell='';
+      if(row.some(c=>String(c).length)) rows.push(row);
+      row=[]; i++; continue;
+    }
+    cell+=ch; i++;
+  }
+  if(cell!==''||row.length){
+    row.push(cell);
+    if(row.some(c=>String(c).length)) rows.push(row);
+  }
+  if(!rows.length) return [];
+  const headers=rows[0].map(h=>String(h||'').trim());
+  return rows.slice(1).map(c=>{
+    const o={}; headers.forEach((h,idx)=>{ if(h) o[h]=c[idx]||''; });
+    return o;
+  }).filter(r=>{
+    const slug=String(r.Slug||'').trim();
+    // drop debris rows from any remaining bad parse
+    return /^[a-z0-9][a-z0-9-]{0,120}$/i.test(slug);
+  });
+}
+function parseRow(line){
+  // single-line helper kept for landing header peeks; prefer parseCsv for full files
+  const c=[],cur={v:'',q:false};
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch==='"'){ if (cur.q && line[i+1]==='"'){ cur.v+='"'; i++; } else { cur.q=!cur.q; } continue; }
+    if (ch===','&&!cur.q){c.push(cur.v);cur.v='';continue;}
+    cur.v+=ch;
+  }
+  c.push(cur.v);
+  return c;
+}
+function splitSlugs(val){
+  if (Array.isArray(val)) return val.map(s=>String(s||'').trim()).filter(Boolean);
+  return String(val||'').split(/[;\n,]+/).map(s=>s.trim()).filter(Boolean);
+}
+function setOrigin(o){
+  originFilter=o;
+  document.querySelectorAll('.origin-btn').forEach(b=>b.classList.toggle('sel', b.dataset.origin===o));
+  renderLanding();
+}
+function showLanding(){ document.getElementById('landing').classList.remove('hidden'); document.getElementById('form').classList.add('hidden'); loadLanding(); }
+function showForm(){ document.getElementById('landing').classList.add('hidden'); document.getElementById('form').classList.remove('hidden'); }
+
+function buildTwistZones(){
+  const el=document.getElementById('twistZones');
+  el.innerHTML=TWIST_ZONES.map(z=>`
+    <div class="twist-box ${z.cls}" data-zone="${z.key}">
+      <h3>${z.label} Zone</h3>
+      ${TWIST_SLOTS.map(s=>`
+        <div class="twist-slot">
+          <h4>${s.header}</h4>
+          <label>Twist Name</label>
+          <input id="tw_${z.key}_${s.key}_name" placeholder="Name">
+          <label>Twist Description</label>
+          <textarea id="tw_${z.key}_${s.key}_desc" placeholder="Description"></textarea>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function clearTwists(){
+  TWIST_ZONES.forEach(z=>{
+    TWIST_SLOTS.forEach(s=>{
+      const n=document.getElementById(`tw_${z.key}_${s.key}_name`);
+      const d=document.getElementById(`tw_${z.key}_${s.key}_desc`);
+      if(n) n.value=''; if(d) d.value='';
+    });
+  });
+}
+function loadTwistsFromRow(r){
+  TWIST_ZONES.forEach(z=>{
+    const Z=z.label; // Green / Yellow / Red
+    TWIST_SLOTS.forEach(s=>{
+      const nameKey=Z+s.csv;
+      const descKey=Z+s.csv+'Description';
+      const n=document.getElementById(`tw_${z.key}_${s.key}_name`);
+      const d=document.getElementById(`tw_${z.key}_${s.key}_desc`);
+      if(n) n.value=r[nameKey]||'';
+      if(d) d.value=r[descKey]||'';
+    });
+  });
+}
+function collectTwists(){
+  const twists={};
+  TWIST_ZONES.forEach(z=>{
+    twists[z.key]={};
+    TWIST_SLOTS.forEach(s=>{
+      twists[z.key][s.key]={
+        name:(document.getElementById(`tw_${z.key}_${s.key}_name`)||{}).value||'',
+        description:(document.getElementById(`tw_${z.key}_${s.key}_desc`)||{}).value||'',
+      };
+    });
+  });
+  return twists;
+}
+
+function minionBySlug(slug){ return allMinions.find(m=>m.Slug===slug); }
+function activeOfType(type){
+  return allMinions.filter(m=>isActiveRow(m) && String(m.Type||'').toLowerCase()===type);
+}
+function renderEnemyPickers(){
+  const usedM=new Set(pickedMinions);
+  const usedL=new Set(pickedLieutenants);
+  const minOpts=activeOfType('minion').filter(m=>!usedM.has(m.Slug));
+  const ltOpts=activeOfType('lieutenant').filter(m=>!usedL.has(m.Slug));
+  document.getElementById('minAdd').innerHTML='<option value="">Select active minion…</option>'+
+    minOpts.map(m=>`<option value="${esc(m.Slug)}">${esc(m.Name)} (${esc(m.Die||'')})</option>`).join('');
+  document.getElementById('ltAdd').innerHTML='<option value="">Select active lieutenant…</option>'+
+    ltOpts.map(m=>`<option value="${esc(m.Slug)}">${esc(m.Name)} (${esc(m.Die||'')})</option>`).join('');
+  document.getElementById('minList').innerHTML=pickedMinions.map((s,i)=>{
+    const m=minionBySlug(s)||{Name:s,Die:''};
+    return `<div class="picked-row"><span class="die">${esc(m.Die||'—')}</span><span style="flex:1">${esc(m.Name||s)}</span>
+      <button class="ghost tiny" type="button" onclick="removeEnemy('minion',${i})">×</button></div>`;
+  }).join('')||'<p class="muted">No minions added.</p>';
+  document.getElementById('ltList').innerHTML=pickedLieutenants.map((s,i)=>{
+    const m=minionBySlug(s)||{Name:s,Die:''};
+    return `<div class="picked-row"><span class="die">${esc(m.Die||'—')}</span><span style="flex:1">${esc(m.Name||s)}</span>
+      <button class="ghost tiny" type="button" onclick="removeEnemy('lieutenant',${i})">×</button></div>`;
+  }).join('')||'<p class="muted">No lieutenants added.</p>';
+}
+function addEnemy(kind){
+  const sel=document.getElementById(kind==='minion'?'minAdd':'ltAdd');
+  const v=sel && sel.value; if(!v) return;
+  if(kind==='minion'){ if(!pickedMinions.includes(v)) pickedMinions.push(v); }
+  else { if(!pickedLieutenants.includes(v)) pickedLieutenants.push(v); }
+  renderEnemyPickers();
+}
+function removeEnemy(kind,i){
+  if(kind==='minion') pickedMinions.splice(i,1); else pickedLieutenants.splice(i,1);
+  renderEnemyPickers();
+}
+
+function renderLocations(selectedSlugs){
+  const set=new Set(selectedSlugs||[]);
+  const list=document.getElementById('locList');
+  if(!allLocations.length){
+    list.innerHTML='<p class="muted">No locations in the campaign yet. Create location rows in locations.csv (or via a scene editor Location), then link them here.</p>';
+    return;
+  }
+  const sorted=allLocations.slice().sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''),undefined,{numeric:true}));
+  list.innerHTML=sorted.map(l=>`
+    <label><input type="checkbox" value="${esc(l.Slug)}" ${set.has(l.Slug)?'checked':''}> ${esc(l.Name||l.Slug)}</label>
+  `).join('');
+}
+function selectedLocationSlugs(){
+  return [...document.querySelectorAll('#locList input:checked')].map(c=>c.value);
+}
+
+async function loadLanding(){
+  const [envText, minText, locText] = await Promise.all([
+    fetch('/api/csv/environments').then(r=>r.text()),
+    fetch('/api/csv/minions').then(r=>r.text()),
+    fetch('/api/csv/locations').then(r=>r.text()),
+  ]);
+  allMinions=parseCsv(minText);
+  allLocations=parseCsv(locText);
+  const rows=parseCsv(envText);
+  landMeta=await Promise.all(rows.map(async r=>{
+    const md=await fetch('/api/md/environments/'+encodeURIComponent(r.Slug)).then(x=>x.ok?x.text():'');
+    const origin=(r.Origin==='premade'||r.Origin==='custom') ? r.Origin : ((md||'').includes('## Builder') ? 'custom' : 'premade');
+    return {...r, origin};
+  }));
+  renderLanding();
+}
+function traitCell(r,n){
+  const name=r['Trait'+n]||''; const die=r['TraitDie'+n]||'';
+  return name ? `${name} ${die}` : '—';
+}
+function renderLanding(){
+  const empty=document.getElementById('landEmpty'), table=document.getElementById('landTable'), body=document.getElementById('landBody');
+  let rows=landMeta;
+  if (originFilter!=='all') rows=rows.filter(r=>r.origin===originFilter);
+  if (activeOnly) rows=rows.filter(isActiveRow);
+  if (!landMeta.length){ empty.classList.remove('hidden'); empty.textContent='No environments in this campaign yet.'; table.classList.add('hidden'); return; }
+  if (!rows.length){ empty.classList.remove('hidden'); empty.textContent='No rows match this filter.'; table.classList.add('hidden'); return; }
+  empty.classList.add('hidden'); table.classList.remove('hidden');
+  body.innerHTML=rows.map(r=>`<tr onclick="editRow('${esc(r.Slug)}')"><td>${esc(r.Name)}</td><td>${esc(traitCell(r,1))}</td><td>${esc(traitCell(r,2))}</td><td>${esc(traitCell(r,3))}</td><td>${esc(r.origin)}</td></tr>`).join('');
+}
+function startNew(){
+  editing=null;
+  ['name','slug','t1','t2','t3','notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('d1').value=document.getElementById('d2').value=document.getElementById('d3').value='d8';
+  const ac=document.getElementById('rowActive'); if(ac) ac.checked=true;
+  clearTwists();
+  pickedMinions=[]; pickedLieutenants=[];
+  renderEnemyPickers();
+  renderLocations([]);
+  document.getElementById('msg').textContent='';
+  showForm();
+  bindAutoGrow();
+}
+async function editRow(slug){
+  const r=landMeta.find(x=>x.Slug===slug); if(!r) return;
+  editing=slug;
+  document.getElementById('name').value=r.Name||'';
+  const ac=document.getElementById('rowActive'); if(ac) ac.checked=isActiveRow(r);
+  document.getElementById('slug').value=slug;
+  document.getElementById('t1').value=r.Trait1||'';
+  document.getElementById('t2').value=r.Trait2||'';
+  document.getElementById('t3').value=r.Trait3||'';
+  document.getElementById('d1').value=r.TraitDie1||'d8';
+  document.getElementById('d2').value=r.TraitDie2||'d8';
+  document.getElementById('d3').value=r.TraitDie3||'d8';
+  loadTwistsFromRow(r);
+  pickedMinions=splitSlugs(r.MinionSlugs);
+  pickedLieutenants=splitSlugs(r.LieutenantSlugs);
+  renderEnemyPickers();
+  const linked=allLocations.filter(l=>(l.EnvironmentSlug||'')===slug).map(l=>l.Slug);
+  renderLocations(linked);
+  const md=await fetch('/api/md/environments/'+encodeURIComponent(slug)).then(x=>x.ok?x.text():'');
+  document.getElementById('notes').value=md.replace(/^#.*\n+/,'').replace(/## Builder[\s\S]*$/,'').trim();
+  document.getElementById('msg').textContent='';
+  showForm();
+  bindAutoGrow();
+}
+async function saveRow(){
+  const name=document.getElementById('name').value.trim();
+  if(!name){ document.getElementById('msg').textContent='Name required.'; return; }
+  const slug=editing || document.getElementById('slug').value.trim() || slugify(name);
+  const payload={
+    name, slug,
+    notes: document.getElementById('notes').value.trim(),
+    active: document.getElementById('rowActive') ? document.getElementById('rowActive').checked : true,
+    origin: (landMeta.find(x=>x.Slug===slug)||{}).origin || 'custom',
+    traits: [1,2,3].map(i=>({name:document.getElementById('t'+i).value.trim(), die:document.getElementById('d'+i).value})),
+    twists: collectTwists(),
+    minionSlugs: pickedMinions.slice(),
+    lieutenantSlugs: pickedLieutenants.slice(),
+    locationSlugs: selectedLocationSlugs(),
+  };
+  const res=await fetch('/api/builder/environment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j=await res.json().catch(()=>({}));
+  if(!res.ok){ document.getElementById('msg').textContent=j.error||'Save failed'; return; }
+  document.getElementById('msg').innerHTML='<span class="ok">Saved '+esc(j.slug||slug)+'</span>';
+  showLanding();
+}
+
+function autoGrowTextarea(ta){
+  if(!ta) return;
+  ta.style.height='auto';
+  const min=parseInt(getComputedStyle(ta).minHeight,10)||64;
+  ta.style.height=Math.max(min, ta.scrollHeight)+'px';
+}
+function bindAutoGrow(root){
+  (root||document).querySelectorAll('textarea').forEach(ta=>{
+    if(ta.dataset.autogrow==='1'){ autoGrowTextarea(ta); return; }
+    ta.dataset.autogrow='1';
+    ta.style.resize='none';
+    ta.addEventListener('input',()=>autoGrowTextarea(ta));
+    autoGrowTextarea(ta);
+  });
+}
+
+buildTwistZones();
+bindAutoGrow();
+(async function boot(){
+  await loadLanding();
+  const edit=new URLSearchParams(location.search).get('edit');
+  if(edit) await editRow(edit);
+  // twist textareas created in buildTwistZones — rebind
+  bindAutoGrow();
+})();
+</script>
+</body>
+</html>

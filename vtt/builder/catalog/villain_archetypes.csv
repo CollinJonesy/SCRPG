@@ -1,0 +1,15 @@
+slug,name,health,status_model,green_die,yellow_die,red_die,status_slots,ability_picks,mandatory_ability,pairings,notes
+bruiser,Bruiser,20,health,d4,d8,d12,,2,,"Bully, Disruptive, Generalist, Prideful",Frontline. More damage taken = scarier.
+domain,Domain,30,condition,,,,3+ environment threats|d10;1-2 environment threats|d8;0 environment threats|d6,3,,"Dampening, Overpowered",Warp the environment.
+formidable,Formidable,25,manual,,,,,2,,"Ancient, Disruptive, Overpowered",Weakness penalties vs bonuses. Manual status.
+fragile,Fragile,-5,health,d8,d6,d4,,2,,"Focused, Underpowered",Hits hard; fades after damage.
+guerrilla,Guerrilla,20,condition,,,,4+ opponents|d10;2-3 opponents|d8;0-1 opponents|d6,2,,"Ninja, Prideful",Better vs groups.
+indomitable,Indomitable,20,condition,,,,Always|d8,2,,"Generalist, Relentless",Always d8 until the job is done.
+inhibitor,Inhibitor,10,condition,,,,3+ heroes w/ penalties|d10;1-2 heroes w/ penalties|d8;0 heroes w/ penalties|d6,2,,"Dampening, Focused",Create and exploit penalties.
+inventor,Inventor,10,condition,,,,4+ inventions|d12;2-3 inventions|d8;1 invention|d6;0 inventions|d4,2,,"Mastermind, Underpowered",Status from inventions/bonuses deployed.
+legion,Legion,-5,condition,,,,9+ minions|d4;5-8 minions|d6;3-4 minions|d8;1-2 minions|d10;0 minions|d12,2,Uncoordinated Actions,"Adaptive, Creator, Tactician",Numbers advantage = individual weakness.
+loner,Loner,10,condition,,,,0 other villains|d10;1-2 other villains|d8;3+ other villains|d6,2,,"Leech, Relentless, Skilled",Best alone.
+overlord,Overlord,15,manual,,,,,2,,,More minions = stronger. Fill Status slots.
+predator,Predator,15,manual,,,,,2,,,Fewer opponents = better. Fill Status slots.
+squad,Squad,5,manual,,,,,2,,,Stronger with allies. Fill Status slots.
+titan,Titan,30,manual,,,,,2,,,Built-in challenge to reduce status. Manual.

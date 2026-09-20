@@ -1,0 +1,21 @@
+n,slug,name,page,green_die,yellow_die,red_die,red_die_icon_note,custom_quality_die,out_ability
+1,lone-wolf,Lone Wolf,101,d8,d8,d8,,d8,Boost an ally by rolling your single [quality] die.
+2,natural-leader,Natural Leader,101,d6,d8,d10,,d6,Boost an ally by rolling your single [quality] die.
+3,impulsive,Impulsive,101,d6,d6,d8,,d6,"The hero who goes directly after you may take 1 damage to reroll their dice pool. *(Special: upgrade one of your power or quality dice by one size, max d12.)*"
+4,mischievous,Mischievous,101,d6,d8,d8,,d6,"Hinder an opponent by rolling your single [power] die. *(Special: when determining Health in Step 7, you may use any power or quality instead of an Athletic power or Mental quality.)*"
+5,sarcastic,Sarcastic,102,d8,d8,d8,,d8,Hinder an opponent by rolling your single [quality] die.
+6,distant,Distant,102,d12,d8,d6,,d12,Boost an ally by rolling your single Red status die.
+7,stalwart,Stalwart,102,d8,d8,d8,,d8,Defend an ally by rolling your single [power] die.
+8,fast-talking,Fast Talking,102,d6,d8,d10,,d6,"Hinder a minion or lieutenant by rolling your single [quality] die, and increase that penalty by -1."
+9,inquisitive,Inquisitive,102,d6,d8,d12,,d6,"Choose an ally. Until your next turn, that ally may reroll one of their dice by using a Reaction."
+10,alluring,Alluring,102,d6,d8,d10,,d6,Boost an ally by rolling your single [power] die.
+11,stoic,Stoic,102,d6,d8,d10,,d6,Defend an ally by rolling your single [quality] die.
+12,nurturing,Nurturing,103,d6,d6,d12,circled-d12 in book,d6,Boost an ally by rolling your single [quality] die.
+13,analytical,Analytical,103,d10,d8,d6,,d10,Remove a bonus or penalty of your choice.
+14,decisive,Decisive,103,d8,d8,d8,,d8,Boost an ally by rolling your single [power] die.
+15,jovial,Jovial,103,d6,d8,d10,,d6,Defend an ally by rolling your single [quality] die.
+16,cheerful,Cheerful,103,d10,d8,d6,,d10,Boost an ally by rolling your single [power] die.
+17,naive,Naive,103,d6,d6,d12,circled-d12 in book,d6,Hinder an opponent by rolling your single [power] die.
+18,apathetic,Apathetic,103,d6,d8,d10,,d6,Remove a bonus or penalty of your choice.
+19,jaded,Jaded,103,d10,d8,d6,,d10,Remove a bonus or penalty of your choice.
+20,arrogant,Arrogant,103,d10,d8,d6,,d10,Hinder an opponent by rolling your single [power] die.

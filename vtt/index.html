@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Table &mdash; Scene Board</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark">GYRO</span>
+    <h1>Scene Board</h1>
+  </div>
+  <nav class="view-tabs" role="tablist">
+    <button class="tab-btn active" data-view="board" role="tab">Board</button>
+    <button class="tab-btn" data-view="library" role="tab">Library</button>
+    <button class="tab-btn" data-view="rules" role="tab">Rules</button>
+    <button class="tab-btn" data-view="builder" role="tab">Build</button>
+  </nav>
+  <div class="folder-status">
+    <span id="folderLabel" class="folder-label">Connecting…</span>
+    <a id="playerDisplayLink" href="/display.html?tv=1" target="_blank" class="btn btn-primary btn-small">Open Player Display &#8599;</a>
+    <label class="tv-toggle" style="margin-left:8px; display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-lo);">
+      <input type="checkbox" id="tvModeToggle" checked onchange="updatePlayerDisplayLink()">
+      <span>TV Mode</span>
+    </label>
+  </div>
+</header>
+
+<main id="boardView" class="view">
+  <div id="boardEmptyState" class="empty-hint" style="padding:20px 0;text-align:left;max-width:620px;margin:0 auto;">
+    <div id="emptyBoardMessage">No scene loaded. Go to <b>Library → Issues &amp; Scenes</b>, open a scene, and click "Load to Board".</div>
+    <div id="activeIssuesList" class="hidden" style="margin-top:30px;">
+      <h3 style="margin:0 0 12px 0;font-family:var(--font-display);color:var(--accent);">Active Issues</h3>
+      <div id="issuesListContent" style="max-height:55vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <div id="boardContent" class="hidden">
+    <div class="board-scene-header">
+      <div>
+        <h2 id="boardSceneName" class="board-scene-name"></h2>
+        <div class="board-scene-meta">
+          <select id="boardSceneType" class="scene-difficulty-select" onchange="updateSceneField('sceneType', this.value)">
+            <option>Action</option><option>Social</option><option>Montage</option>
+          </select>
+          <span id="boardSceneDifficulty" class="token-type-chip villain"></span>
+          <button id="nextSceneBtn" type="button" class="btn btn-small btn-accent" onclick="nextSceneInIssue()" title="Load the next scene in this Issue's order" disabled>Next Scene →</button>
+        </div>
+      </div>
+      <div class="tracker-controls">
+        <button id="trackerRetreatBtn" class="btn btn-small btn-ghost">&larr; Retreat</button>
+        <div id="boardTrackerRow"></div>
+        <button id="trackerAdvanceBtn" class="btn btn-small btn-accent">Advance &rarr;</button>
+      </div>
+    </div>
+    <div id="boardEnvironment" class="board-environment"></div>
+
+    <div class="board-toolbar">
+      <div class="spawn-group">
+        <select id="spawnType">
+          <option value="hero">Hero</option>
+          <option value="villain">Villain</option>
+          <option value="minion">Minion / Lieutenant</option>
+          <option value="npc">NPC</option>
+        </select>
+        <select id="spawnSelect"><option value="">Select from Issue roster&hellip;</option></select>
+        <select id="spawnLocation" title="Location to add into"></select>
+        <button id="spawnBtn" class="btn btn-accent">+ Add to Location</button>
+        <button id="addAllPCsBtn" class="btn btn-accent">Add All PCs</button>
+        <span id="spawnHint" class="empty-hint"></span>
+      </div>
+      <div class="scene-actions">
+        <button id="resetLtDiceBtn" class="btn btn-ghost">Reset Lieutenant Dice</button>
+        <button id="clearSceneBtn" class="btn btn-ghost">Clear Tokens</button>
+      </div>
+    </div>
+
+    <div class="board-main-grid">
+      <aside class="challenges-sidebar" id="sceneNotesSidebar">
+        <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Scene Notes <span style="float:right;font-size:10px;">−</span></h3>
+        <div id="sceneNotesPanel" class="collapsible-content notes-panel"></div>
+      </aside>
+      <div id="locationsRow" class="locations-row"></div>
+      <div class="board-sidebar-stack">
+        <aside class="challenges-sidebar">
+          <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Challenges <span style="float:right;font-size:10px;">−</span></h3>
+          <div id="challengesPanel" class="collapsible-content"></div>
+        </aside>
+        <aside class="challenges-sidebar" id="activityLogPanel">
+          <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Activity Log <span style="float:right;font-size:10px;">−</span></h3>
+          <div id="activityLogContent" class="collapsible-content"></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</main>
+
+<main id="rulesView" class="view hidden">
+  <div class="rules-layout">
+    <aside class="rules-sidebar">
+      <input type="text" id="rulesSearchInput" placeholder="Search rules…" class="rules-search-input">
+      <div id="rulesList" class="rules-list"></div>
+    </aside>
+    <div id="rulesReader" class="rules-reader">
+      <p class="empty-hint">Select a section on the left, or search above.</p>
+    </div>
+  </div>
+</main>
+
+<main id="builderView" class="view hidden" style="padding:0;height:calc(100vh - 56px);">
+  <iframe id="builderFrame" src="/builder-hub.html" title="Builders" style="width:100%;height:100%;border:0;background:#12121c;"></iframe>
+</main>
+
+<main id="libraryView" class="view hidden">
+  <div id="libraryListView">
+    <nav class="library-tabs" role="tablist">
+      <button class="lib-tab-btn active" data-lib="heroes" role="tab">Heroes</button>
+      <button class="lib-tab-btn" data-lib="villains" role="tab">Villains</button>
+      <button class="lib-tab-btn" data-lib="minions" role="tab">Minions &amp; Lieutenants</button>
+      <button class="lib-tab-btn" data-lib="npcs" role="tab">NPCs</button>
+      <button class="lib-tab-btn" data-lib="environments" role="tab">Environments</button>
+      <button class="lib-tab-btn" data-lib="issues-scenes" role="tab">Issues &amp; Scenes</button>
+      <button class="lib-tab-btn" data-lib="twists" role="tab">Twists</button>
+      <button class="lib-tab-btn" data-lib="abilities" role="tab">Abilities</button>
+    </nav>
+
+    <div class="lib-panel-toolbar">
+      <button id="addRowBtn" class="btn btn-accent">+ Add Row</button>
+      <select id="libActiveFilter" class="scene-difficulty-select">
+        <option value="active" selected>Active Only</option>
+        <option value="all">All</option>
+      </select>
+      <select id="libCollectionFilter" class="scene-difficulty-select hidden"><option value="all">All collections</option></select>
+      <select id="libIssueFilter" class="scene-difficulty-select"><option value="all">All issues</option></select>
+      <select id="twistSeverityFilter" class="scene-difficulty-select hidden">
+        <option value="all">All severities</option>
+        <option value="Minor">Minor</option>
+        <option value="Major">Major</option>
+        <option value="Any">Any</option>
+      </select>
+      <select id="twistEffectFilter" class="scene-difficulty-select hidden">
+        <option value="all">All effect types</option>
+      </select>
+      <span id="saveStatus" class="save-status">&nbsp;</span>
+    </div>
+
+    <datalist id="approachesList"></datalist>
+    <datalist id="archetypesList"></datalist>
+    <datalist id="heroSlugsList"></datalist>
+
+    <div id="heroesPanel" class="lib-panel"></div>
+    <div id="villainsPanel" class="lib-panel hidden"></div>
+    <div id="minionsPanel" class="lib-panel hidden"></div>
+    <div id="npcsPanel" class="lib-panel hidden"></div>
+    <div id="environmentsPanel" class="lib-panel hidden"></div>
+    <div id="issues-scenesPanel" class="lib-panel hidden"></div>
+    <div id="twistsPanel" class="lib-panel hidden"></div>
+    <div id="abilitiesPanel" class="lib-panel hidden"></div>
+  </div>
+  <div id="collectionEditorView" class="hidden"></div>
+  <div id="issueEditorView" class="hidden"></div>
+  <div id="sceneEditorView" class="hidden"></div>
+</main>
+
+<div id="referenceModal" class="modal hidden">
+  <div class="modal-card" style="max-height:88vh;">
+    <div class="modal-header">
+      <h3>Villain Approaches &amp; Archetypes</h3>
+      <button id="referenceModalClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="referenceModalBody" style="padding:14px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="healthCalcModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="healthCalcTitle">Health Calculator</h3>
+      <button id="healthCalcClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="healthCalcBody" style="padding:14px;"></div>
+  </div>
+</div>
+
+<div id="twistPickerModal" class="modal hidden">
+  <div class="modal-card" style="max-height:88vh;">
+    <div class="modal-header">
+      <h3 id="twistPickerTitle">Twists</h3>
+      <button id="twistPickerClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="twistPickerBody" style="padding:14px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="diceRollerModal" class="modal hidden">
+  <div class="modal-card" style="max-height:88vh;">
+    <div class="modal-header">
+      <h3 id="diceRollerTitle">Dice Pool</h3>
+      <button id="diceRollerClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="diceRollerBody" style="padding:14px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="notesModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="notesModalTitle">Notes</h3>
+      <button id="notesModalClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="notesModalWarning" class="notes-structured-warning hidden">⚠ This file also holds structured Ability/Upgrade/Mastery cards and a machine-readable Builder block (the <code>### [Type] "Name"</code> headers and the <code>```json</code> section below). Edit those carefully — breaking their exact format will make abilities silently stop showing up on the board.</div>
+    <textarea id="notesModalText" placeholder="Biography, tactics, ability text&hellip; freeform, saved as markdown."></textarea>
+    <div class="modal-footer">
+      <button id="notesModalSave" class="btn btn-accent">Save Notes</button>
+    </div>
+  </div>
+</div>
+
+<div id="abilitiesModal" class="modal hidden">
+  <div class="modal-card" style="max-height:88vh;">
+    <div class="modal-header">
+      <h3 id="abilitiesModalTitle">Abilities</h3>
+      <button id="abilitiesModalClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="abilitiesModalBody" style="padding:14px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="attackModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="attackModalTitle">Resolve Attack</h3>
+      <button id="attackModalClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="attackModalBody"></div>
+  </div>
+</div>
+
+<div id="modModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modModalTitle">Mod</h3>
+      <button id="modModalClose" class="btn btn-ghost">&times;</button>
+    </div>
+    <div id="modModalBody" style="padding:14px;"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="vendor/papaparse.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

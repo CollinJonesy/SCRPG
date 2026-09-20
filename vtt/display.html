@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG — Player Display</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #4f4f4f;
+  }
+  .display-header { display:none; }
+  #displayFrame {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #displayStage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    box-sizing: border-box;
+    padding: 1vh 2vw 1.2vh;
+  }
+  .display-tracker-center {
+    text-align: center;
+    padding: 0;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+  .display-tracker-center h1 {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 4.2vh, 64px);
+    letter-spacing: 0.04em;
+    margin: 0;
+    line-height: 1.1;
+  }
+  .display-tracker-wrap {
+    padding: 0.3vh 0 10px;
+    display: flex;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .tracker-star { width: clamp(22px, 3.4vh, 48px); height: clamp(22px, 3.4vh, 48px); font-size: clamp(16px, 2.6vh, 36px); }
+  #displayEnvironment {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  #displayEnvironment:empty { display: none; }
+  #displayEnvironment .env-name { font-size: 1.6vh; }
+  .display-main.view {
+    padding: 0;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: hidden;
+  }
+  .locations-row { flex: 1 1 auto; min-height: 0; gap: 1vh; }
+  .location-block { margin: 0; }
+  .location-header {
+    font-family: var(--font-display);
+    font-size: clamp(22px, 3.4vh, 48px);
+    letter-spacing: 0.06em;
+    margin: 0 0 0.4vh;
+    color: var(--accent);
+    line-height: 1.1;
+  }
+  .location-name-display { font-size: clamp(22px, 3.4vh, 48px); letter-spacing: 0.06em; }
+  .empty-display { padding: 8vh 2vw; text-align: center; font-family: var(--font-display); font-size: 3vh; color: var(--text-lo); }
+  #displayStage.scene-bg-host {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #1a1a1a;
+  }
+  #displayStage.scene-bg-host::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(15, 17, 24, 0.55);
+    pointer-events: none;
+    z-index: 0;
+  }
+  #displayFrame, #displayStage { position: relative; }
+  #displayStage > * { position: relative; z-index: 1; }
+  .mvc-stage {
+    /* Always a 10-column stage. Sides span 3/2/5 (or 5/5 / full). */
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 0.7vw;
+    align-items: start;
+    min-height: 0;
+  }
+  .mvc-side { min-width: 0; margin: 0; padding: 0; }
+  .mvc-blank {
+    /* Whole empty separator column — stage column 6 in layout-hero-sep. */
+    min-width: 0;
+    grid-column: span 1;
+    pointer-events: none;
+  }
+  .mvc-side-label {
+    font-family: var(--font-display);
+    font-size: clamp(16px, 2.4vh, 28px);
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5vh;
+    text-align: center;
+  }
+  .mvc-side.allies .mvc-side-label { color: #7eb6ff; }
+  .mvc-side.neutral .mvc-side-label { color: #c8c8d0; }
+  .mvc-side.enemies .mvc-side-label { color: #ff8a7a; }
+  .mvc-row {
+    /* --mvc-count = side width (≤10), never token count. Extras wrap. */
+    display: grid;
+    grid-template-columns: repeat(var(--mvc-count, 5), minmax(0, 1fr));
+    gap: 0.7vw;
+    align-items: stretch;
+    width: 100%;
+  }
+  .mvc-side .mvc-card {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  .mvc-card {
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #1a1e2a 0%, #0b0d12 100%);
+    border: 0.28vh solid #f5c518;
+    box-shadow: 0 0 0 0.15vh #000, 0 0.8vh 2vh rgba(0,0,0,.55);
+    padding: 0.5vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .mvc-card.hero { border-color: #2454E8; }
+  .mvc-card.villain { border-color: #6e0b0b; }
+  .mvc-card.minion { border-color: #e6ff00; }
+  .mvc-card.lieutenant { border-color: #b45309; }
+  /* .npc-badge intentionally kept on Player Display (per original design) */
+  .mvc-art {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    height: auto;
+    flex: 0 0 auto;
+    background: #000;
+    overflow: hidden;
+    border: 0.15vh solid #000;
+  }
+  .mvc-art img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .mvc-plate {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: clamp(13px, 2.1vh, 24px);
+    letter-spacing: 0;
+    text-align: center;
+    padding: 0.5vh 0.3vw 0.3vh;
+    line-height: 1.1;
+    overflow: hidden;
+    display: block;
+    white-space: nowrap;
+    word-break: normal;
+    text-overflow: clip;
+  }
+  .mvc-card .health-bar-track { height: 1vh; margin: 0.35vh 0 0.45vh; background:#222; border-radius:2px; overflow:hidden; }
+  .health-bar-fill { height:100%; transition:width .3s ease; }
+  .health-bar-fill.green { background:#0a0; }
+  .health-bar-fill.yellow { background:#cc0; }
+  .health-bar-fill.red { background:#c00; }
+  .health-bar-fill.out { background:#555; }
+  .mvc-card.lieutenant .health-bar-track,
+  .mvc-card.minion .health-bar-track { margin-top: 0.6vh; }
+  .mvc-card .bhd-row { margin-top: 0; gap: 0.25vw; min-width: 0; }
+  .mvc-card .bhd-stat {
+    cursor: default;
+    padding: 0.35vh 0.1vw;
+    min-width: 0;
+    overflow: hidden;
+  }
+  /* Numbers = token name size; labels shrink to fit cell (≤ numbers − 2px). */
+  /* Numbers and labels now use the same base size (name size). fitHeroNamePlates() shrinks labels further if needed to prevent clipping. */
+  .mvc-card .bhd-stat b,
+  .mvc-card .bhd-stat span {
+    font-size: clamp(13px, 2.1vh, 24px);
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .mvc-card .bhd-stat span {
+    font-size: clamp(11px, 1.7vh, 18px);
+    font-weight: 800;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+    max-width: 100%;
+  }
+  .mvc-card.villain .bhd-stat,
+  .mvc-card.minion .bhd-stat,
+  .mvc-card.lieutenant .bhd-stat { padding: 0.7vh 0.1vw; }
+  .mvc-empty { color: var(--text-lo); font-style: italic; padding: 2vh; font-size: 1.6vh; }
+  .mvc-ko { text-align: center; color: var(--text-lo); margin-top: 0.6vh; font-size: 1.4vh; }
+  #displayChallenges {
+    padding: 0.6vh 0 0;
+    width: 100%;
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8vw;
+    justify-content: center;
+  }
+  #displayChallenges .challenge-board-card {
+    min-width: 0;
+    font-size: clamp(14px, 1.8vh, 22px);
+    padding: 0.8vh 1vw;
+    margin: 0;
+  }
+  #displayChallenges .challenge-board-top { margin-bottom: 0.4vh; gap: 1vw; }
+  #displayChallenges .challenge-board-title { font-size: clamp(18px, 2.4vh, 32px); }
+  #displayChallenges .challenge-path-row { margin-bottom: 0.3vh; }
+  #displayChallenges .challenge-path-label { font-size: clamp(16px, 2.2vh, 28px); font-family: var(--font-body); font-weight: 600; }
+  #displayChallenges .challenge-success-title { text-decoration: line-through; }
+  #displayChallenges .challenge-outcome {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 8vw;
+    padding: 0.5vh 1vw;
+    font-family: var(--font-display);
+    font-size: clamp(16px, 2vh, 26px);
+    letter-spacing: 0.06em;
+    color: #fff;
+    text-transform: uppercase;
+  }
+  #displayChallenges .challenge-outcome.success { background: #1f8a3b; }
+  #displayChallenges .challenge-outcome.fail { background: #c42828; }
+  #rollOverlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(11,13,18,0.94);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 2vh;
+  }
+  #rollOverlay .roll-who { font-family: var(--font-display); font-size: 4vh; color: var(--accent); letter-spacing: 1px; }
+  #rollOverlay .roll-dice-row { display: flex; gap: 2vw; margin: 2vh 0; }
+  #rollOverlay .roll-die-block { display: flex; flex-direction: column; align-items: center; gap: 0.6vh; }
+  #rollOverlay .roll-die-label { font-family: var(--font-data); font-size: 1.4vh; color: var(--text-lo); text-transform: uppercase; letter-spacing: 0.12em; }
+  #rollOverlay .roll-die-value { font-family: var(--font-display); font-size: 6vh; color: var(--text-hi); }
+  #rollOverlay .roll-effect { font-family: var(--font-display); font-size: 2.6vh; color: var(--yellow); margin-top: 1vh; }
+</style>
+</head>
+<body>
+<script>
+  // TV Mode: default ON for casting. Use ?tv=0 to disable.
+  const params = new URLSearchParams(location.search);
+  const tv = params.get('tv');
+  if (tv !== '0') {
+    document.body.classList.add('tv-mode');
+  }
+</script>
+
+<div id="rollOverlay" class="hidden"></div>
+
+<div id="displayFrame">
+<div id="displayStage">
+  <div class="display-tracker-center">
+    <h1 id="displaySceneName">No active scene</h1>
+  </div>
+  <div class="display-tracker-wrap">
+    <div id="displayTrackerRow"></div>
+  </div>
+  <div id="displayEnvironment" class="board-environment"></div>
+
+  <main class="view display-main">
+    <div id="displayEmpty" class="empty-display">Waiting for the GM to load a scene…</div>
+    <div id="locationsRow" class="locations-row"></div>
+    <div id="displayChallenges"></div>
+  </main>
+</div>
+</div>
+
+<script src="vendor/papaparse.min.js"></script>
+<script src="display.js"></script>
+</body>
+</html>
