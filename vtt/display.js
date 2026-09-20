@@ -37,16 +37,11 @@ function isNonCombatToken(t) {
 }
 
 /* ---- PD session-prep layout (closed design) ---- */
-// Side column budgets for the grouped role layout: Allies 3 / Bystanders 2 / Threats N.
-// PD_THREAT_COLS is a tuning knob: set to 4 to try one wider Threats column on a 4K TV.
-const PD_ALLY_COLS = 3;
-const PD_BYSTANDER_COLS = 2;
-const PD_THREAT_COLS = 3;
-// Card shape: default vertical (portrait on top). ?cards=h switches to the horizontal
-// card prototype: portrait left, vertical health bar, Name/Boost/Hinder/Defend right.
-const PD_CARD_H = (() => {
-  try { return new URLSearchParams(location.search).get('cards') === 'h'; } catch (e) { return false; }
-})();
+// Column budgets for the grouped role layout: Players 1 / Bystanders 1 / Threats 2.
+// Horizontal cards (?cards=h prototype adopted as the shipped card shape).
+const PD_ALLY_COLS = 1;
+const PD_BYSTANDER_COLS = 1;
+const PD_THREAT_COLS = 2;
 
 function ensureMods(scene) {
   if (!scene) return [];
@@ -169,14 +164,11 @@ function sortAllyTokens(tokens) {
  * HARD RULE: never more than 10 token columns in any row (each side's
  * mvc-row uses the side's span as column count so extras WRAP).
  *
- * Hero-sep (≥1 PC AND 1–4 other tokens): 5-slot PC hero bank | blank at
- * column 6 | others ×N (N = number of right-side tokens, 1–4). Still exactly
- * 10 stage columns — never expands past 10.
- *
- * Grouped role layout (default otherwise): Allies PD_ALLY_COLS (3) /
- * Bystanders PD_BYSTANDER_COLS (2) / Threats PD_THREAT_COLS (3). Groups are
+ * Grouped role layout (only layout): Players PD_ALLY_COLS (1) /
+ * Bystanders PD_BYSTANDER_COLS (1) / Threats PD_THREAT_COLS (2). Groups are
  * by ROLE: PCs, Bystander NPCs, and one combined Threats group. Stage grid
- * width = sum of present side spans so columns fill the width.
+ * width = sum of present side spans so columns fill the width. Cards are
+ * always horizontal (portrait left, vertical health bar, Name/BHD right).
  */
 function pdMvcSideHtml(label, cls, tokens, scene, span, count, hideHealthBars = false) {
   const n = tokens.length;
@@ -232,35 +224,7 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
   const all = a.concat(n, e);
   if (!all.length) return '<div class="mvc-stage" style="--mvc-cols:10"></div>';
 
-  const pcs = all.filter(isPcHeroToken);
-  const others = all.filter(t => !isPcHeroToken(t));
-
-  // Hero-sep: [PC bank ×5][blank ×1][others ×N] where N = number of non-bank tokens,
-  // dynamic 1–4. At ≥5 non-PC tokens (or no PCs) use the grouped role layout instead.
-  const pcsFront = pcs.slice(0, 5);
-  const pcsOverflow = pcs.slice(5);
-  const rightTokens = pcsOverflow.concat(others);
-  const useHeroSep = pcs.length > 0 && rightTokens.length >= 1 && rightTokens.length <= 4;
-
-  if (useHeroSep) {
-    // Always 10 cols: [PC bank ×5][blank ×1][others ×N]
-    const rightBudget = Math.min(rightTokens.length, 4);
-    const rightGroups = pdAllocateSpans([
-      { label: 'ALLIES', cls: 'allies', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Ally') },
-      { label: 'NEUTRAL', cls: 'neutral', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Neutral') },
-      { label: 'ENEMIES', cls: 'enemies', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Enemy') },
-    ], rightBudget);
-    const parts = [
-      pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5, hideHealthBars),
-      '<div class="mvc-blank" aria-hidden="true"></div>',
-    ];
-    rightGroups.forEach(g => {
-      parts.push(pdMvcSideHtml(g.label, g.cls, g.tokens, scene, g.span, g.span, hideHealthBars));
-    });
-    return `<div class="mvc-stage layout-hero-sep" style="--mvc-cols:${5 + 1 + rightBudget};grid-template-columns:repeat(${5 + 1 + rightBudget}, minmax(0,1fr))">${parts.join('')}</div>`;
-  }
-
-  // Grouped role layout: Allies PD_ALLY_COLS / Bystanders PD_BYSTANDER_COLS / Threats PD_THREAT_COLS.
+  // Grouped role layout: Players PD_ALLY_COLS / Bystanders PD_BYSTANDER_COLS / Threats PD_THREAT_COLS.
   // All three present → fixed design budgets (stage grid shrinks to the sum so columns fill width).
   // Two present → the same design ratios scaled to the full 10-col width. One present → full width.
   const hasA = a.length > 0, hasN = n.length > 0, hasE = e.length > 0;
@@ -686,27 +650,15 @@ function renderFighterCard(t, scene, hideHealthBars = false) {
     }
   }
   const modeBadge = heroModeBadge(t);
-  if (PD_CARD_H) {
-    // Horizontal card prototype (?cards=h): portrait left, vertical health bar,
-    // Name/Boost/Hinder/Defend stacked right. Portrait stays square.
-    const bar = meter
-      ? `<div class="health-bar-track pd-vbar"><div class="health-bar-fill ${meter.band}" style="--hp:${meter.pct}%"></div></div>`
-      : '<div class="pd-vbar-spacer" aria-hidden="true"></div>';
-    return `<div class="mvc-card ${t.kind} pd-h">
-      <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
-      ${bar}
-      <div class="pd-card-body"><div class="mvc-plate">${escHtml(t.name)}</div>${modeBadge}${bhdRowHtml(t, scene)}</div>
-    </div>`;
-  }
-  const meterHtml = meter
-    ? `<div class="health-bar-track"><div class="health-bar-fill ${meter.band}" style="width:${meter.pct}%;--hp:${meter.pct}%"></div></div>`
-    : '';
-  return `<div class="mvc-card ${t.kind}">
+  // Horizontal card (shipped shape): portrait left, vertical health bar,
+  // Name/Boost/Hinder/Defend stacked right. Portrait stays square.
+  const bar = meter
+    ? `<div class="health-bar-track pd-vbar"><div class="health-bar-fill ${meter.band}" style="--hp:${meter.pct}%"></div></div>`
+    : '<div class="pd-vbar-spacer" aria-hidden="true"></div>';
+  return `<div class="mvc-card ${t.kind} pd-h">
     <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
-    <div class="mvc-plate">${escHtml(t.name)}</div>
-    ${modeBadge}
-    ${meterHtml}
-    ${bhdRowHtml(t, scene)}
+    ${bar}
+    <div class="pd-card-body"><div class="mvc-plate">${escHtml(t.name)}</div>${modeBadge}${bhdRowHtml(t, scene)}</div>
   </div>`;
 }
 

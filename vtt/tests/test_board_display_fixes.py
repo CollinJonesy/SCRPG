@@ -94,20 +94,13 @@ class TestBoardDisplayFixes(unittest.TestCase):
         self.assertIn('scene-bg-host', DISP)
         self.assertNotIn('loc.background', DISP)
 
-    def test_pd_dynamic_columns_with_blank_between_groups(self):
-        """Grouped role layout 3/2/PD_THREAT_COLS; hero-sep blank at col 6; never >10 per row."""
+    def test_pd_dynamic_columns_4_col_grouped(self):
+        """Grouped role layout: Players 1 / Bystanders 1 / Threats 2 = 4 columns; hero-sep removed."""
         self.assertIn('function pdMvcStageHtml', DISP)
-        self.assertIn('useHeroSep', DISP)
-        self.assertIn('layout-hero-sep', DISP)
-        # Dynamic hero-sep threshold (1–4 others) supersedes the old totalTokens < 10 rule
-        self.assertIn('rightTokens.length >= 1 && rightTokens.length <= 4', DISP)
+        # Old hero-sep bank is gone
+        self.assertNotIn('useHeroSep', DISP)
+        self.assertNotIn('layout-hero-sep', DISP)
         self.assertIn("pdMvcSideHtml('ALLIES', 'allies', a, scene, PD_ALLY_COLS, PD_ALLY_COLS, hideHealthBars)", DISP)
-        self.assertIn("pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5, hideHealthBars)", DISP)
-        self.assertIn('mvc-blank', DISP)
-        # Hero-sep grid sizes to 5+1+N so columns stay wide when N < 4
-        self.assertIn('--mvc-cols:${5 + 1 + rightBudget}', DISP)
-        self.assertIn('repeat(10, minmax(0, 1fr))', DHTML)
-        self.assertIn('.mvc-blank', DHTML)
         # Row capacity capped — never token-count columns
         side = DISP[DISP.index('function pdMvcSideHtml'):DISP.index('function pdAllocateSpans')]
         self.assertIn('Math.min(10', side)

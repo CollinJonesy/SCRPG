@@ -33,18 +33,18 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('function isNonCombatToken', self.src)
         self.assertIn("/api/csv/npcs", self.src)
 
-    def test_pd_default_is_grouped_roles_3_2_3(self):
-        """Grouped role layout: Allies 3 / Bystanders 2 / Threats PD_THREAT_COLS (3, tunable)."""
+    def test_pd_default_is_4_col_roles_1_1_2(self):
+        """Grouped role layout: Players 1 / Bystanders 1 / Threats 2 — 4 total columns."""
         body = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
         # Tunable constants exist and default to the closed design
-        self.assertIn('const PD_ALLY_COLS = 3;', self.src)
-        self.assertIn('const PD_BYSTANDER_COLS = 2;', self.src)
-        self.assertIn('const PD_THREAT_COLS = 3;', self.src)
-        # Grouped layout spans come from the constants, not hard-coded 3/2/5
+        self.assertIn('const PD_ALLY_COLS = 1;', self.src)
+        self.assertIn('const PD_BYSTANDER_COLS = 1;', self.src)
+        self.assertIn('const PD_THREAT_COLS = 2;', self.src)
+        # Grouped layout spans come from the constants
         self.assertIn("pdMvcSideHtml('ALLIES', 'allies', a, scene, PD_ALLY_COLS, PD_ALLY_COLS, hideHealthBars)", body)
         self.assertIn("pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, PD_BYSTANDER_COLS, PD_BYSTANDER_COLS, hideHealthBars)", body)
         self.assertIn("pdMvcSideHtml('ENEMIES', 'enemies', e, scene, PD_THREAT_COLS, PD_THREAT_COLS, hideHealthBars)", body)
-        # All-three-present stage grid shrinks to the design sum (3+2+3)
+        # All-three-present stage grid shrinks to the design sum (1+1+2)
         self.assertIn('cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;', body)
         self.assertIn('grid-template-columns:repeat(${cols}, minmax(0,1fr))', body)
 
@@ -60,24 +60,12 @@ class TestDisplayJsContracts(unittest.TestCase):
         # colCount comes from span/count, not tokens.length as the grid size
         self.assertIn('count != null ? count : colSpan', side)
         self.assertNotIn('count != null ? count : Math.max(n, 1)', side)
-        # Hero-sep locked to 5+1+N columns (N = right side tokens, 1–4), never 5+1+rightCount
-        body = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
-        self.assertIn('--mvc-cols:${5 + 1 + rightBudget}', body)
-        self.assertIn('pdAllocateSpans', body)
-        self.assertIn('], rightBudget)', body)
-        self.assertNotIn('5 + 1 + Math.max(rightCount', body)
 
-    def test_pd_hero_sep_dynamic_others_1_to_4(self):
-        """PCs + 1–4 others → 5-slot hero bank, blank, others ×N. ≥5 others → grouped layout."""
-        body = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
-        # Dynamic threshold: hero-sep only when right side has 1..4 tokens
-        self.assertIn('rightTokens.length >= 1 && rightTokens.length <= 4', body)
-        self.assertIn('useHeroSep', body)
-        self.assertIn('layout-hero-sep', body)
-        self.assertIn("pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5, hideHealthBars)", body)
-        self.assertIn('rightBudget = Math.min(rightTokens.length, 4);', body)
-        self.assertIn('mvc-blank', body)
-        self.assertIn('.mvc-blank', self.html)
+    def test_pd_no_hero_sep_bank(self):
+        """The 4-column design removed the old 5-PC-bank hero-sep layout entirely."""
+        self.assertNotIn('useHeroSep', self.src)
+        self.assertNotIn('layout-hero-sep', self.src)
+        self.assertNotIn('pcsFront', self.src)
 
     def test_pd_groups_by_role_not_affiliation(self):
         """renderScene groups: PCs→Allies, Bystander NPCs→Bystanders, everything else→Threats."""
@@ -99,16 +87,20 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('fitHeroNamePlates();', sched)
         self.assertIn('fitStageToViewport();', sched)
 
-    def test_pd_horizontal_card_prototype_dual_css(self):
-        """?cards=h horizontal prototype exists, scoped to .pd-h, styled in BOTH stylesheets."""
-        self.assertIn('const PD_CARD_H', self.src)
-        self.assertIn("get('cards') === 'h'", self.src)
+    def test_pd_horizontal_card_is_shipped_shape(self):
+        """Horizontal card (portrait left, vertical bar, Name/BHD right) is the only card shape; no toggle."""
+        self.assertNotIn('PD_CARD_H', self.src)
+        self.assertNotIn("get('cards')", self.src)
         card = self.src[self.src.index('function renderFighterCard'):]
-        self.assertIn("pd-h", card)
+        self.assertIn('pd-h', card)
         self.assertIn('pd-vbar', card)
         self.assertIn('pd-card-body', card)
+        # The old vertical card markup (plate as direct child of mvc-card) is gone
+        self.assertNotIn('mvc-card ${t.kind}">', card)
         self.assertIn('.pd-h.mvc-card', self.html)
         self.assertIn('.pd-h .pd-vbar', self.html)
+        # No on-screen card toggle button
+        self.assertNotIn('cardToggle', self.html)
         with_css = DISPLAY.parent.joinpath('style.css').read_text(encoding='utf-8')
         self.assertIn('.pd-h.mvc-card', with_css)
         self.assertIn('.pd-h .pd-vbar', with_css)
