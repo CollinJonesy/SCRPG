@@ -178,6 +178,22 @@ class TestAppJsContracts(unittest.TestCase):
         idx = (Path(__file__).resolve().parent.parent / 'index.html').read_text(encoding='utf-8')
         self.assertNotIn('data-view="collections"', idx)
 
+    def test_issues_scenes_row_load_to_board_first_column(self):
+        """Scene rows carry a Load to Board button in the FIRST column, not the editor footer only."""
+        start = self.src.index('function renderIssuesScenesTable')
+        end = self.src.index('async function onIssuesScenesEnvChange')
+        body = self.src[start:end]
+        # Header leads with the Load to Board column
+        self.assertLess(body.index('<th>Load to Board</th>'), body.index('<th>Collection Name</th>'))
+        # Button cell precedes the collection name cell in every row
+        self.assertLess(body.index('${loadCell}'), body.index('<td class="name-field">${escHtml(r.collectionName'))
+        # Button stops row navigation and reuses the existing loader
+        self.assertIn('no-row-nav', body)
+        self.assertIn('event.stopPropagation()', body)
+        self.assertIn("loadSceneToBoard('${escAttr(r.sceneSlug)}')", body)
+        # Empty-row colspan accounts for the new column
+        self.assertIn('colspan="7"', body)
+
     def test_rules_index_glossary_is_one_click(self):
         """Index & Glossary opens content on one click — not a collapsible folder."""
         self.assertIn('function isIndexGlossaryRule', self.src)

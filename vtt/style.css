@@ -445,6 +445,17 @@ table.lib-table tr.lib-row-clickable td.no-row-nav { cursor: default; }
   padding: 0 2px;
 }
 .token-controls button:hover { opacity: 1; }
+.token-move-select {
+  max-width: 90px;
+  font-size: 11px;
+  padding: 0 1px;
+  border: none;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-ink);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.token-move-select option { color: #111; }
 
 /* Health bar */
 

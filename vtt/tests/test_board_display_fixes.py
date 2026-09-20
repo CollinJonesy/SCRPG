@@ -29,6 +29,26 @@ class TestBoardDisplayFixes(unittest.TestCase):
         self.assertIn("=== 'Enemy'", body)
         self.assertIn('sortAllyTokens', body)
 
+    def test_token_move_to_location_dropdown(self):
+        """Every movable token card has a Move-to-location dropdown routing through moveToken()."""
+        start = APP.index('function renderToken(')
+        end = APP.index('function toggleToken')
+        body = APP[start:end]
+        self.assertIn('token-move-select', body)
+        self.assertIn('tokenMoveOptionsHtml(t)', body)
+        # Routes through the single source of truth
+        self.assertIn("moveToken('${t.id}', this.value)", body)
+        # Header + controls stop propagation so collapse/remove still work
+        self.assertIn('onclick="event.stopPropagation()"', body)
+        # Immobile heroes get no dropdown
+        self.assertIn("immobile ? '' :", body)
+        # Options cover scene locations + Unplaced
+        opts = APP[APP.index('function tokenMoveOptionsHtml'):APP.index('function moveToken')]
+        self.assertIn('state.scene && state.scene.locations', opts)
+        self.assertIn('Unplaced</option>', opts)
+        # Styled in the shared stylesheet
+        self.assertIn('.token-move-select', CSS)
+
     def test_spawn_location_dropdown(self):
         self.assertIn('id="spawnLocation"', INDEX)
         self.assertIn('+ Add to Location', INDEX)

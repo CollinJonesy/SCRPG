@@ -2060,7 +2060,7 @@ function renderIssuesScenesTable() {
   }
   const envOpts = (state.environments || []).slice().sort((a, b) => naturalNameSort(a.Name, b.Name));
   let html = `<table class="lib-table"><thead><tr>
-    <th>Collection Name</th><th>Issue Name</th><th>Scene Name</th>
+    <th>Load to Board</th><th>Collection Name</th><th>Issue Name</th><th>Scene Name</th>
     <th>Scene Type</th><th>Scene Difficulty</th><th>Environment</th>
   </tr></thead><tbody>`;
   rows.forEach((r, i) => {
@@ -2073,7 +2073,11 @@ function renderIssuesScenesTable() {
           ${envOpts.map(e => `<option value="${escAttr(e.Slug)}" ${r.environment === e.Slug ? 'selected' : ''}>${escHtml(e.Name || e.Slug)}</option>`).join('')}
         </select></td>`
       : '<td></td>';
+    const loadCell = r.kind === 'scene'
+      ? `<td class="no-row-nav" onclick="event.stopPropagation()"><button type="button" class="btn btn-accent btn-sm" title="Load this scene onto the board" onclick="loadSceneToBoard('${escAttr(r.sceneSlug)}')">Load to Board</button></td>`
+      : '<td></td>';
     html += `<tr class="lib-row-clickable" onclick="${nav}">
+      ${loadCell}
       <td class="name-field">${escHtml(r.collectionName || (r.kind === 'collection' ? '—' : ''))}</td>
       <td class="name-field">${escHtml(r.issueName || '')}</td>
       <td class="name-field">${escHtml(r.sceneName || '')}</td>
@@ -2082,7 +2086,7 @@ function renderIssuesScenesTable() {
       ${envCell}
     </tr>`;
   });
-  if (!rows.length) html += '<tr><td colspan="6" class="empty-hint">No collections, issues, or scenes yet. Click "+ Add Row".</td></tr>';
+  if (!rows.length) html += '<tr><td colspan="7" class="empty-hint">No collections, issues, or scenes yet. Click "+ Add Row".</td></tr>';
   html += '</tbody></table>';
   el.innerHTML = html;
 }
@@ -3051,6 +3055,13 @@ function locationNameById(locId) {
   return (loc && loc.name) ? loc.name : 'unknown';
 }
 
+function tokenMoveOptionsHtml(t) {
+  const locs = (state.scene && state.scene.locations) || [];
+  const current = t.locationId || '';
+  return locs.map(l => `<option value="${escAttr(l.id)}" ${current === l.id ? 'selected' : ''}>${escHtml(l.name)}</option>`).join('')
+    + `<option value="" ${current === '' ? 'selected' : ''}>Unplaced</option>`;
+}
+
 function moveToken(tokenId, locId) {
   const tok = state.scene.tokens.find(t => t.id === tokenId);
   if (!tok) return;
@@ -3170,9 +3181,15 @@ function renderToken(t, small) {
   // Immobile mode (e.g. Destroyer Mode): the token cannot be moved.
   const immobile = t.kind === 'hero' && !!heroCurrentMode(t)?.immobile;
   card.draggable = !immobile;
+  const moveCtl = immobile ? '' : `<select class="token-move-select" title="Move to another location" onchange="event.stopPropagation();moveToken('${t.id}', this.value)">
+      ${tokenMoveOptionsHtml(t)}
+    </select>`;
   let body = `${state.turnMarks && state.turnMarks[t.id] ? `<div class="turn-badge">${state.turnMarks[t.id]}</div>` : ''}
     <div class="mvc-plate token-header" onclick="toggleToken(this)" style="cursor:pointer;"><span>${escHtml(t.name)}</span>
-      <div class="token-controls"><button type="button" title="Remove from scene" onclick="event.stopImmediatePropagation();removeToken('${t.id}')">✕</button></div>
+      <div class="token-controls" onclick="event.stopPropagation()">
+        ${moveCtl}
+        <button type="button" title="Remove from scene" onclick="event.stopImmediatePropagation();removeToken('${t.id}')">✕</button>
+      </div>
     </div>`;
   const content = document.createElement('div');
   content.className = 'token-content';
