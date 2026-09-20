@@ -225,41 +225,38 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
   if (!all.length) return '<div class="mvc-stage" style="--mvc-cols:10"></div>';
 
   // Grouped role layout: Players PD_ALLY_COLS / Bystanders PD_BYSTANDER_COLS / Threats PD_THREAT_COLS.
-  // All three present → fixed design budgets (stage grid shrinks to the sum so columns fill width).
-  // Two present → the same design ratios scaled to the full 10-col width. One present → full width.
+  // Budget is ALWAYS the 4-column design: each present group gets its design share
+  // of the 4-column budget (absent groups' columns are redistributed proportionally),
+  // so cards stay huge regardless of which groups the location has. One group → full 4.
   const hasA = a.length > 0, hasN = n.length > 0, hasE = e.length > 0;
   const ratios = [PD_ALLY_COLS, PD_BYSTANDER_COLS, PD_THREAT_COLS];
-  const presentRatios = [hasA, hasN, hasE].map((has, i) => has ? ratios[i] : 0).filter(r => r > 0);
+  const presentIdx = [hasA, hasN, hasE].map((has, i) => has ? i : -1).filter(i => i >= 0);
   let layoutClass = 'layout-ane';
   const parts = [];
-  let cols = 10;
-  if (hasA && hasN && hasE) {
-    layoutClass = 'layout-ane';
-    cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, PD_ALLY_COLS, PD_ALLY_COLS, hideHealthBars));
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, PD_BYSTANDER_COLS, PD_BYSTANDER_COLS, hideHealthBars));
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, PD_THREAT_COLS, PD_THREAT_COLS, hideHealthBars));
-  } else if (presentRatios.length === 2) {
-    const rSum = presentRatios[0] + presentRatios[1];
-    const spanA = Math.round((10 * presentRatios[0]) / rSum);
-    const spanB = 10 - spanA;
-    const gA = hasA ? [a, 'ALLIES', 'allies'] : [n, 'NEUTRAL', 'neutral'];
-    const gB = hasE ? [e, 'ENEMIES', 'enemies'] : [n, 'NEUTRAL', 'neutral'];
-    if (hasA && hasN) layoutClass = 'layout-an';
-    else if (hasA && hasE) layoutClass = 'layout-ae';
-    else layoutClass = 'layout-ne';
-    parts.push(pdMvcSideHtml(gA[1], gA[2], gA[0], scene, spanA, spanA, hideHealthBars));
-    parts.push(pdMvcSideHtml(gB[1], gB[2], gB[0], scene, spanB, spanB, hideHealthBars));
-  } else if (hasA) {
-    layoutClass = 'layout-a';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 10, 10, hideHealthBars));
-  } else if (hasN) {
-    layoutClass = 'layout-n';
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 10, 10, hideHealthBars));
-  } else {
-    layoutClass = 'layout-e';
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 10, 10, hideHealthBars));
+  let cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;
+  const rSum = presentIdx.reduce((s, i) => s + ratios[i], 0);
+  const spans = presentIdx.map(i => Math.max(1, Math.round((4 * ratios[i]) / rSum)));
+  // Fix rounding so spans sum exactly to the 4-col budget (shrink largest on overflow, grow largest on underflow)
+  let sum = spans.reduce((a, b) => a + b, 0);
+  while (sum > cols) {
+    const biggest = spans.indexOf(Math.max(...spans));
+    if (spans[biggest] <= 1) break;
+    spans[biggest] -= 1; sum -= 1;
   }
+  while (sum < cols) {
+    const biggest = spans.indexOf(Math.max(...spans));
+    spans[biggest] += 1; sum += 1;
+  }
+  presentIdx.forEach((i, k) => {
+    const tokensArr = i === 0 ? a : i === 1 ? n : e;
+    const label = i === 0 ? 'ALLIES' : i === 1 ? 'NEUTRAL' : 'ENEMIES';
+    const cls = i === 0 ? 'allies' : i === 1 ? 'neutral' : 'enemies';
+    parts.push(pdMvcSideHtml(label, cls, tokensArr, scene, spans[k], spans[k], hideHealthBars));
+  });
+  if (presentIdx.length === 3) layoutClass = 'layout-ane';
+  else if (presentIdx.includes(0) && presentIdx.includes(1)) layoutClass = 'layout-an';
+  else if (presentIdx.includes(0)) layoutClass = 'layout-ae';
+  else layoutClass = 'layout-ne';
   return `<div class="mvc-stage ${layoutClass}" style="--mvc-cols:${cols};grid-template-columns:repeat(${cols}, minmax(0,1fr))">${parts.join('')}</div>`;
 }
 function sortNeutralTokens(tokens) {
