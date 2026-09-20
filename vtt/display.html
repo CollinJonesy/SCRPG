@@ -103,6 +103,17 @@
   }
   #displayFrame, #displayStage { position: relative; }
   #displayStage > * { position: relative; z-index: 1; }
+  /* ---- PD view box (foundation): a fixed 1920×1080 design space that is scaled
+     uniformly to fit the real viewport. Nothing can render outside it, and everything
+     inside scales together — layout in design px, fit via one transform. ---- */
+  #pdViewBox {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1920px;
+    height: 1080px;
+    transform-origin: top left;
+    /* scale + centering offsets are set by fitViewBox() in display.js */
+  }
   .mvc-stage {
     /* Column budget is set per-layout inline (--mvc-cols + grid-template-columns):
        hero-sep = 10 (5+1+N), grouped role layout = Allies 3 / Bystanders 2 / Threats N. */
@@ -302,6 +313,7 @@
 <div id="rollOverlay" class="hidden"></div>
 
 <div id="displayFrame">
+<div id="pdViewBox">
 <div id="displayStage">
   <div class="display-tracker-center">
     <h1 id="displaySceneName">No active scene</h1>

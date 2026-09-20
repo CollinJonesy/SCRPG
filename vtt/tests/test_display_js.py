@@ -75,18 +75,20 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('let enemies = sortEnemyTokens(here.filter(t => !isPcHeroToken(t) && !isNonCombatToken(t)));', body)
 
     def test_pd_fit_to_viewport_never_scrolls(self):
-        """A fit-to-viewport pass scales the locations row to exactly fit (no clip) and runs after every render + resize."""
+        """View-box foundation: #pdViewBox (fixed 1920×1080 design space) is scaled uniformly to the real viewport and centered."""
+        self.assertIn('id="pdViewBox"', self.html)
+        self.assertIn('width: 1920px', self.html)
+        self.assertIn('height: 1080px', self.html)
+        self.assertIn('transform-origin: top left', self.html)
         self.assertIn('function fitStageToViewport', self.src)
         fit = self.src[self.src.index('function fitStageToViewport'):]
         fit = fit[:fit.index('\nfunction ', 10)] if '\nfunction ' in fit[10:] else fit
-        # Exact-fit scale — a location must never be clipped off-screen
-        self.assertIn('const k = avail / content;', fit)
-        self.assertIn("row.style.transform = `scale(${k})`", fit)
-        self.assertIn("row.style.overflow = 'hidden'", fit)
-        # Wired into the post-render hook alongside name fitting
-        sched = self.src[self.src.index('function scheduleFitHeroNames'):self.src.index('function fitStageToViewport')]
-        self.assertIn('fitHeroNamePlates();', sched)
-        self.assertIn('fitStageToViewport();', sched)
+        # Uniform scale — the min of width and height ratios, so nothing overflows
+        self.assertIn('Math.min(availW / 1920, availH / 1080)', fit)
+        self.assertIn("box.style.transform = `scale(${k})`", fit)
+        # Centered offsets so the box never clips at the edges
+        self.assertIn('offsetX', fit)
+        self.assertIn('offsetY', fit)
 
     def test_pd_font_scales_with_cell_space(self):
         """fitHeroNamePlates grows/shrinks type with the column width (cell-derived ceiling)."""

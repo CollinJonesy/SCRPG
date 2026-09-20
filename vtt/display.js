@@ -336,29 +336,23 @@ function scheduleFitHeroNames() {
 }
 window.addEventListener('resize', scheduleFitHeroNames);
 
-/** Fit-to-viewport pass: PD must NEVER scroll. Scale the locations row down (floor 0.6)
- *  when its natural content height exceeds the available row height, and pin the row's
- *  layout box to the available height with overflow hidden so nothing can scroll it.
- *  Runs after every renderScene (via scheduleFitHeroNames) and on resize; idempotent. */
+/** Fit-to-viewport pass (view-box foundation): scale the entire 1920×1080 design
+ *  space uniformly to fit the real viewport and center it. Nothing can render
+ *  outside the box (#displayFrame clips), and everything inside scales together,
+ *  so PD "takes care of itself" — no per-row pinning, no clip, no scroll. */
 function fitStageToViewport() {
-  const row = document.getElementById('locationsRow');
-  if (!row || row.classList.contains('hidden')) return;
-  row.style.height = '';
-  row.style.overflow = '';
-  row.style.transform = '';
-  row.style.transformOrigin = 'top center';
-  const avail = row.clientHeight;
-  const content = row.scrollHeight;
-  if (!avail || !content) return;
-  if (content > avail) {
-    // Scale to exactly fit so a location can never be clipped off-screen —
-    // no legibility floor: hiding a whole location is worse than smaller type,
-    // and the per-box font scaling below keeps type as large as the box allows.
-    const k = avail / content;
-    row.style.height = avail + 'px';
-    row.style.overflow = 'hidden';
-    row.style.transform = `scale(${k})`;
-  }
+  const frame = document.getElementById('displayFrame');
+  const box = document.getElementById('pdViewBox');
+  if (!frame || !box) return;
+  const availW = frame.clientWidth;
+  const availH = frame.clientHeight;
+  if (!availW || !availH) return;
+  const k = Math.min(availW / 1920, availH / 1080);
+  const offsetX = Math.max(0, (availW - 1920 * k) / 2);
+  const offsetY = Math.max(0, (availH - 1080 * k) / 2);
+  box.style.transform = `scale(${k})`;
+  box.style.left = Math.round(offsetX) + 'px';
+  box.style.top = Math.round(offsetY) + 'px';
 }
 
 let lastVisualSig = '';
