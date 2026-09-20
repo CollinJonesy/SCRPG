@@ -97,7 +97,8 @@
   #displayFrame, #displayStage { position: relative; }
   #displayStage > * { position: relative; z-index: 1; }
   .mvc-stage {
-    /* Always a 10-column stage. Sides span 3/2/5 (or 5/5 / full). */
+    /* Column budget is set per-layout inline (--mvc-cols + grid-template-columns):
+       hero-sep = 10 (5+1+N), grouped role layout = Allies 3 / Bystanders 2 / Threats N. */
     display: grid;
     grid-template-columns: repeat(10, minmax(0, 1fr));
     gap: 0.7vw;
@@ -223,6 +224,13 @@
   .mvc-card.villain .bhd-stat,
   .mvc-card.minion .bhd-stat,
   .mvc-card.lieutenant .bhd-stat { padding: 0.7vh 0.1vw; }
+  /* Horizontal card prototype (?cards=h) — scoped to .pd-h; vertical cards unaffected. */
+  .pd-h.mvc-card { flex-direction: row; align-items: stretch; gap: 0.4vw; }
+  .pd-h .mvc-art { width: 42%; flex: 0 0 auto; height: auto; }
+  .pd-h .pd-card-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  .pd-h .pd-vbar { width: 1.1vh; height: auto; flex: 0 0 auto; align-self: stretch; margin: 0; position: relative; }
+  .pd-h .pd-vbar .health-bar-fill { width: 100%; height: var(--hp, 100%); position: absolute; bottom: 0; left: 0; transition: height .3s ease; }
+  .pd-vbar-spacer { width: 1.1vh; flex: 0 0 auto; visibility: hidden; }
   .mvc-empty { color: var(--text-lo); font-style: italic; padding: 2vh; font-size: 1.6vh; }
   .mvc-ko { text-align: center; color: var(--text-lo); margin-top: 0.6vh; font-size: 1.4vh; }
   #displayChallenges {

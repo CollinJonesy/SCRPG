@@ -36,6 +36,18 @@ function isNonCombatToken(t) {
   return !!row && /^bystander$/i.test(String(row.Type || ''));
 }
 
+/* ---- PD session-prep layout (closed design) ---- */
+// Side column budgets for the grouped role layout: Allies 3 / Bystanders 2 / Threats N.
+// PD_THREAT_COLS is a tuning knob: set to 4 to try one wider Threats column on a 4K TV.
+const PD_ALLY_COLS = 3;
+const PD_BYSTANDER_COLS = 2;
+const PD_THREAT_COLS = 3;
+// Card shape: default vertical (portrait on top). ?cards=h switches to the horizontal
+// card prototype: portrait left, vertical health bar, Name/Boost/Hinder/Defend right.
+const PD_CARD_H = (() => {
+  try { return new URLSearchParams(location.search).get('cards') === 'h'; } catch (e) { return false; }
+})();
+
 function ensureMods(scene) {
   if (!scene) return [];
   if (!Array.isArray(scene.mods)) scene.mods = [];
@@ -154,15 +166,17 @@ function sortAllyTokens(tokens) {
 /**
  * Build the PD mvc-stage for one location.
  *
- * HARD RULE: never more than 10 token columns in any row (stage is max 10 cols;
- * each side's mvc-row uses the side's span as column count so extras WRAP).
+ * HARD RULE: never more than 10 token columns in any row (each side's
+ * mvc-row uses the side's span as column count so extras WRAP).
  *
- * Default: classic 10-col Ally 3 / Neutral 2 / Enemy 5 (empty sides expand
- * 5/5 or full-width). Tokens wrap inside their side at that side's width.
+ * Hero-sep (≥1 PC AND 1–4 other tokens): 5-slot PC hero bank | blank at
+ * column 6 | others ×N (N = number of right-side tokens, 1–4). Still exactly
+ * 10 stage columns — never expands past 10.
  *
- * Special (total tokens < 10 AND ≥1 PC hero AND ≥1 other token):
- *   5-slot PC hero bank | blank at column 6 | remaining width (4 cols) for others.
- * Still exactly 10 stage columns — never expands past 10.
+ * Grouped role layout (default otherwise): Allies PD_ALLY_COLS (3) /
+ * Bystanders PD_BYSTANDER_COLS (2) / Threats PD_THREAT_COLS (3). Groups are
+ * by ROLE: PCs, Bystander NPCs, and one combined Threats group. Stage grid
+ * width = sum of present side spans so columns fill the width.
  */
 function pdMvcSideHtml(label, cls, tokens, scene, span, count, hideHealthBars = false) {
   const n = tokens.length;
@@ -220,19 +234,22 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
 
   const pcs = all.filter(isPcHeroToken);
   const others = all.filter(t => !isPcHeroToken(t));
-  const totalTokens = all.length;
-  const useHeroSep = totalTokens < 10 && pcs.length > 0 && others.length > 0;
+
+  // Hero-sep: [PC bank ×5][blank ×1][others ×N] where N = number of non-bank tokens,
+  // dynamic 1–4. At ≥5 non-PC tokens (or no PCs) use the grouped role layout instead.
+  const pcsFront = pcs.slice(0, 5);
+  const pcsOverflow = pcs.slice(5);
+  const rightTokens = pcsOverflow.concat(others);
+  const useHeroSep = pcs.length > 0 && rightTokens.length >= 1 && rightTokens.length <= 4;
 
   if (useHeroSep) {
-    // Always 10 cols: [PC bank ×5][blank ×1][others ×4]
-    const pcsFront = pcs.slice(0, 5);
-    const pcsOverflow = pcs.slice(5);
-    const rightTokens = pcsOverflow.concat(others);
+    // Always 10 cols: [PC bank ×5][blank ×1][others ×N]
+    const rightBudget = Math.min(rightTokens.length, 4);
     const rightGroups = pdAllocateSpans([
       { label: 'ALLIES', cls: 'allies', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Ally') },
       { label: 'NEUTRAL', cls: 'neutral', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Neutral') },
       { label: 'ENEMIES', cls: 'enemies', tokens: rightTokens.filter(t => tokenAffiliation(t) === 'Enemy') },
-    ], 4);
+    ], rightBudget);
     const parts = [
       pdMvcSideHtml('ALLIES', 'allies', pcsFront, scene, 5, 5, hideHealthBars),
       '<div class="mvc-blank" aria-hidden="true"></div>',
@@ -240,30 +257,35 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
     rightGroups.forEach(g => {
       parts.push(pdMvcSideHtml(g.label, g.cls, g.tokens, scene, g.span, g.span, hideHealthBars));
     });
-    return `<div class="mvc-stage layout-hero-sep" style="--mvc-cols:10">${parts.join('')}</div>`;
+    return `<div class="mvc-stage layout-hero-sep" style="--mvc-cols:${5 + 1 + rightBudget};grid-template-columns:repeat(${5 + 1 + rightBudget}, minmax(0,1fr))">${parts.join('')}</div>`;
   }
 
-  // Default assortment: always 10-col Ally3 / Neutral2 / Enemy5
+  // Grouped role layout: Allies PD_ALLY_COLS / Bystanders PD_BYSTANDER_COLS / Threats PD_THREAT_COLS.
+  // All three present → fixed design budgets (stage grid shrinks to the sum so columns fill width).
+  // Two present → the same design ratios scaled to the full 10-col width. One present → full width.
   const hasA = a.length > 0, hasN = n.length > 0, hasE = e.length > 0;
+  const ratios = [PD_ALLY_COLS, PD_BYSTANDER_COLS, PD_THREAT_COLS];
+  const presentRatios = [hasA, hasN, hasE].map((has, i) => has ? ratios[i] : 0).filter(r => r > 0);
   let layoutClass = 'layout-ane';
   const parts = [];
+  let cols = 10;
   if (hasA && hasN && hasE) {
     layoutClass = 'layout-ane';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 3, 3, hideHealthBars));
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 2, 2, hideHealthBars));
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5, hideHealthBars));
-  } else if (hasA && hasN && !hasE) {
-    layoutClass = 'layout-an';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5, hideHealthBars));
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5, hideHealthBars));
-  } else if (hasA && !hasN && hasE) {
-    layoutClass = 'layout-ae';
-    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 5, 5, hideHealthBars));
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5, hideHealthBars));
-  } else if (!hasA && hasN && hasE) {
-    layoutClass = 'layout-ne';
-    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, 5, 5, hideHealthBars));
-    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 5, 5, hideHealthBars));
+    cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;
+    parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, PD_ALLY_COLS, PD_ALLY_COLS, hideHealthBars));
+    parts.push(pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, PD_BYSTANDER_COLS, PD_BYSTANDER_COLS, hideHealthBars));
+    parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, PD_THREAT_COLS, PD_THREAT_COLS, hideHealthBars));
+  } else if (presentRatios.length === 2) {
+    const rSum = presentRatios[0] + presentRatios[1];
+    const spanA = Math.round((10 * presentRatios[0]) / rSum);
+    const spanB = 10 - spanA;
+    const gA = hasA ? [a, 'ALLIES', 'allies'] : [n, 'NEUTRAL', 'neutral'];
+    const gB = hasE ? [e, 'ENEMIES', 'enemies'] : [n, 'NEUTRAL', 'neutral'];
+    if (hasA && hasN) layoutClass = 'layout-an';
+    else if (hasA && hasE) layoutClass = 'layout-ae';
+    else layoutClass = 'layout-ne';
+    parts.push(pdMvcSideHtml(gA[1], gA[2], gA[0], scene, spanA, spanA, hideHealthBars));
+    parts.push(pdMvcSideHtml(gB[1], gB[2], gB[0], scene, spanB, spanB, hideHealthBars));
   } else if (hasA) {
     layoutClass = 'layout-a';
     parts.push(pdMvcSideHtml('ALLIES', 'allies', a, scene, 10, 10, hideHealthBars));
@@ -274,7 +296,7 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
     layoutClass = 'layout-e';
     parts.push(pdMvcSideHtml('ENEMIES', 'enemies', e, scene, 10, 10, hideHealthBars));
   }
-  return `<div class="mvc-stage ${layoutClass}" style="--mvc-cols:10">${parts.join('')}</div>`;
+  return `<div class="mvc-stage ${layoutClass}" style="--mvc-cols:${cols};grid-template-columns:repeat(${cols}, minmax(0,1fr))">${parts.join('')}</div>`;
 }
 function sortNeutralTokens(tokens) {
   return (tokens || []).slice()
@@ -340,9 +362,29 @@ function fitHeroNamePlates() {
   });
 }
 function scheduleFitHeroNames() {
-  requestAnimationFrame(() => requestAnimationFrame(fitHeroNamePlates));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    fitHeroNamePlates();
+    fitStageToViewport();
+  }));
 }
 window.addEventListener('resize', scheduleFitHeroNames);
+
+/** Fit-to-viewport pass: PD must NEVER scroll. Scale the locations row down (floor 0.6)
+ *  when its natural content height exceeds the available row height. Runs after every
+ *  renderScene (via scheduleFitHeroNames) and on resize; idempotent per render. */
+function fitStageToViewport() {
+  const row = document.getElementById('locationsRow');
+  if (!row || row.classList.contains('hidden')) return;
+  row.style.transform = '';
+  row.style.transformOrigin = 'top center';
+  const avail = row.clientHeight;
+  const content = row.scrollHeight;
+  if (!avail || !content) return;
+  if (content > avail) {
+    const k = Math.max(0.6, avail / content);
+    row.style.transform = `scale(${k})`;
+  }
+}
 
 let lastVisualSig = '';
 function renderScene(scene) {
@@ -395,12 +437,14 @@ function renderScene(scene) {
     const here = at(loc.id);
     // PC heroes only (players.csv) unlock a location — NPC Type=Hero does not.
     const pcsHere = here.filter(t => isPcHeroToken(t));
-    let allies = sortAllyTokens(here.filter(t => tokenAffiliation(t) === 'Ally'));
-    let neutrals = sortNeutralTokens(here.filter(t => tokenAffiliation(t) === 'Neutral'));
-    let enemies = sortEnemyTokens(here.filter(t => tokenAffiliation(t) === 'Enemy'));
+    // Role grouping (closed design): PCs → Allies; Bystander NPCs → Bystanders;
+    // everything else (villains, lieutenants, minions, other NPCs) → one Threats group.
+    let allies = sortAllyTokens(pcsHere);
+    let neutrals = sortNeutralTokens(here.filter(t => !isPcHeroToken(t) && isNonCombatToken(t)));
+    let enemies = sortEnemyTokens(here.filter(t => !isPcHeroToken(t) && !isNonCombatToken(t)));
     // Hide all non-PC tokens until a players.csv PC is present.
     if (!pcsHere.length) {
-      allies = allies.filter(isPcHeroToken); // empty
+      allies = [];
       neutrals = [];
       enemies = [];
     }
@@ -620,26 +664,41 @@ function lieutenantHealthBar(startingDie, currentDie) {
   return { pct: hit[0], band: hit[1] };
 }
 function renderFighterCard(t, scene, hideHealthBars = false) {
-  let meter = '';
+  let meter = null;
   if (!hideHealthBars) {
     if (t.kind === 'villain') {
       const row = libVillains.find(v => v.Slug === t.slug) || {};
       const maxHealth = Number(row.MaxHealth) || Number(t.maxHealth) || 20;
       const currentHealth = Number(t.currentHealth) || maxHealth;
       const { pct, band } = villainHealthBar(currentHealth, maxHealth);
-      meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
+      meter = { pct, band };
     } else if (t.kind === 'lieutenant') {
       const row = libRowForToken(t) || {};
       const { pct, band } = lieutenantHealthBar(row.Die, t.currentDie);
-      meter = `<div class="health-bar-track"><div class="health-bar-fill ${band}" style="width:${pct}%"></div></div>`;
+      meter = { pct, band };
     }
   }
   const modeBadge = heroModeBadge(t);
+  if (PD_CARD_H) {
+    // Horizontal card prototype (?cards=h): portrait left, vertical health bar,
+    // Name/Boost/Hinder/Defend stacked right. Portrait stays square.
+    const bar = meter
+      ? `<div class="health-bar-track pd-vbar"><div class="health-bar-fill ${meter.band}" style="--hp:${meter.pct}%"></div></div>`
+      : '<div class="pd-vbar-spacer" aria-hidden="true"></div>';
+    return `<div class="mvc-card ${t.kind} pd-h">
+      <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
+      ${bar}
+      <div class="pd-card-body"><div class="mvc-plate">${escHtml(t.name)}</div>${modeBadge}${bhdRowHtml(t, scene)}</div>
+    </div>`;
+  }
+  const meterHtml = meter
+    ? `<div class="health-bar-track"><div class="health-bar-fill ${meter.band}" style="width:${meter.pct}%;--hp:${meter.pct}%"></div></div>`
+    : '';
   return `<div class="mvc-card ${t.kind}">
     <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
     <div class="mvc-plate">${escHtml(t.name)}</div>
     ${modeBadge}
-    ${meter}
+    ${meterHtml}
     ${bhdRowHtml(t, scene)}
   </div>`;
 }
