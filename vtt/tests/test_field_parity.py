@@ -113,6 +113,11 @@ class TestLibraryBuilderFieldParity(unittest.TestCase):
             self.assertIn('Affiliation', src, name)
             self.assertIn('affiliation', src, name)
 
+    def test_hero_builder_can_mark_non_player_heroes(self):
+        html = self.builders['builder.html']
+        self.assertIn('id="playerControlled"', html)
+        self.assertIn("player: document.getElementById('playerControlled')", html)
+
 
 if __name__ == '__main__':
     unittest.main()

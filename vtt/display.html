@@ -69,7 +69,18 @@
     align-items: stretch;
     overflow: hidden;
   }
-  .locations-row { flex: 1 1 auto; min-height: 0; gap: 1vh; overflow: hidden; }
+  .locations-row {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 1vh;
+    overflow: hidden;
+    /* Locations sit SIDE BY SIDE (wrap when narrow) instead of stacked, so a
+       location can never be cut off below the screen. Each block gets an equal
+       column and its stage fills that column's width. */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(46vw, 100%), 1fr));
+    align-items: stretch;
+  }
   .location-block { margin: 0; }
   .location-header {
     font-family: var(--font-display);
