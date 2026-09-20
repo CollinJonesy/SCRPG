@@ -37,10 +37,11 @@ function isNonCombatToken(t) {
 }
 
 /* ---- PD session-prep layout (closed design) ---- */
-// Column budgets for the grouped role layout: Players 2 / Bystanders 2 / Threats 3 = 7 total.
-// Horizontal cards are the shipped card shape.
-const PD_ALLY_COLS = 2;
-const PD_BYSTANDER_COLS = 2;
+// Column budgets for the grouped role layout: Players 3 / Bystanders 3 / Threats 3
+// (3 per group keeps tokens legible when a location has only some groups present,
+// because a lone group gets the full width at 3 columns). Horizontal cards shipped.
+const PD_ALLY_COLS = 3;
+const PD_BYSTANDER_COLS = 3;
 const PD_THREAT_COLS = 3;
 
 function ensureMods(scene) {
@@ -235,8 +236,8 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
   const parts = [];
   let cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;
   const rSum = presentIdx.reduce((s, i) => s + ratios[i], 0);
-  const spans = presentIdx.map(i => Math.max(1, Math.round((7 * ratios[i]) / rSum)));
-  // Fix rounding so spans sum exactly to the 7-col budget (shrink largest on overflow, grow largest on underflow)
+  const spans = presentIdx.map(i => Math.max(1, Math.round((9 * ratios[i]) / rSum)));
+  // Fix rounding so spans sum exactly to the 9-col budget (shrink largest on overflow, grow largest on underflow)
   let sum = spans.reduce((a, b) => a + b, 0);
   while (sum > cols) {
     const biggest = spans.indexOf(Math.max(...spans));

@@ -33,12 +33,12 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('function isNonCombatToken', self.src)
         self.assertIn("/api/csv/npcs", self.src)
 
-    def test_pd_default_is_7_col_roles_2_2_3(self):
-        """Grouped role layout: Players 2 / Bystanders 2 / Threats 3 — 7 total columns."""
+    def test_pd_default_is_9_col_roles_3_3_3(self):
+        """Grouped role layout: Players 3 / Bystanders 3 / Threats 3 — 9 total columns."""
         body = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
         # Tunable constants exist and default to the closed design
-        self.assertIn('const PD_ALLY_COLS = 2;', self.src)
-        self.assertIn('const PD_BYSTANDER_COLS = 2;', self.src)
+        self.assertIn('const PD_ALLY_COLS = 3;', self.src)
+        self.assertIn('const PD_BYSTANDER_COLS = 3;', self.src)
         self.assertIn('const PD_THREAT_COLS = 3;', self.src)
         # Grouped layout renders every present group with its computed span (loop, not per-case literals)
         self.assertIn('presentIdx.forEach((i, k) => {', body)
