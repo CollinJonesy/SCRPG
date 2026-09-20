@@ -1,0 +1,45 @@
+Slug,Name,EffectType,Severity,Formula,Description
+hinder-max-penalty,Penalty (Max die),Hinder,Minor,Max die,Inflict a penalty on a hero based on the Max die.
+hinder-min-persistent,Persistent Penalty (Min die),Hinder,Minor,"Min die, persistent & exclusive",Inflict a persistent and exclusive penalty on a hero based on the Min die.
+hinder-lose-green,Lose a Green Ability,Hinder,Minor,,A hero temporarily loses access to one of their Green abilities.
+hinder-reduce-die,Power/Quality Reduced,Hinder,Minor,,One of the hero's powers or qualities is temporarily reduced in die size.
+hinder-maxmin-persistent,Persistent Penalty (Max+Min),Hinder,Major,"Max+Min dice, persistent & exclusive","Inflict a penalty on a hero based on the Max+Min dice, persistent and exclusive."
+hinder-location-wide,Location-Wide Penalty,Hinder,Major,Max die,Inflict a penalty on all heroes in the same location based on the hero's Max die.
+hinder-lose-multiple,Lose Multiple Abilities,Hinder,Major,,A hero temporarily loses access to a number of their abilities.
+hinder-lose-power,Lose a Power/Quality,Hinder,Major,,The hero temporarily loses access to one or more of their powers or qualities.
+boost-enemy-max,Enemy Bonus (Max die),Boost (Enemies),Minor,Max die,Grant a bonus to a villain or group of minions/lieutenants based on the Max die.
+boost-enemy-min-persistent,Persistent Enemy Bonus (Min die),Boost (Enemies),Minor,"Min die, persistent & exclusive",Grant a persistent and exclusive bonus to a villain or group of minions/lieutenants based on the Min die.
+boost-upgrade-villain-die,Upgrade Villain Die,Boost (Enemies),Minor,,Upgrade a villain's power or quality die temporarily.
+boost-enemy-maxmin-persistent,Persistent Enemy Bonus (Max+Min),Boost (Enemies),Major,"Max+Min dice, persistent & exclusive","Grant a bonus to a villain or group of minions/lieutenants based on the Max+Min dice, persistent and exclusive."
+boost-all-enemies,All Enemies Bonus,Boost (Enemies),Major,Max die,Grant a bonus to all villains/minions/lieutenants based on the hero's Max die.
+boost-upgrade-all-villain-dice,Upgrade All Villain Dice,Boost (Enemies),Major,,Upgrade all of a villain's power or quality dice temporarily.
+damage-hero-mid,Damage to Hero (Mid die),Damage (Allies),Minor,Mid die,Deal damage to a hero based on the Mid die.
+damage-location-min,Location-Wide Damage (Min die),Damage (Allies),Minor,Min die,Deal damage to all heroes in the same location based on the Min die.
+damage-hero-maxmin,Damage to Hero (Max+Min),Damage (Allies),Major,Max+Min dice,Deal damage to a hero based on the Max+Min dice.
+damage-location-mid,Location-Wide Damage (Mid die),Damage (Allies),Major,Mid die,Deal damage to all heroes in the same location based on the Mid die.
+damage-scene-wide,Scene-Wide Damage,Damage (Allies),Major,Mid die,"Deal damage to all characters (heroes, minions, bystanders, etc.) in the scene based on the Mid die."
+defend-enemy-max,Defend an Enemy (Max die),Defend (Enemies),Minor,Max die,Defend a nearby villain or single minion/lieutenant with the Max die.
+defend-enemy-midmax,Defend an Enemy (Mid+Max),Defend (Enemies),Major,Mid+Max dice,Defend a nearby villain or single minion/lieutenant with the Mid+Max dice.
+defend-all-enemies,Defend All Enemies,Defend (Enemies),Major,Max die,Defend all nearby enemies with the Max die.
+threats-minor,Add Threats (Minor),Add Threats,Minor,Quantity = Min die,Add a quantity of hostile or neutral threats equal to the Min die of the roll that caused the twist.
+threats-major,Add Threats (Major),Add Threats,Major,Quantity = Mid die,Add a quantity of hostile or neutral threats equal to the Mid die of the roll that caused the twist.
+create-challenge,Piggyback a New Challenge,Create Challenge,Any,,"Introduce a new challenge building on what the hero just accomplished. Never invalidates the original success -- twists add cost, they don't remove wins."
+advance-tracker,Advance the Scene Tracker,Advance Scene Tracker,Any,,Move the Scene Tracker forward as an effect of the twist.
+combination,Combine Twist Types,Combination,Any,,"Mix two or more twist types for a bigger moment, e.g. Hinder with the Max die while also adding minions equal to the Min die. Especially good for mixing story twists with mechanical ones."
+story-difficult-choice,Difficult Choice,Story Consequence,Any,,The heroes must make a difficult choice.
+story-bargain,Bargain Something Away,Story Consequence,Any,,The heroes must bargain something away.
+story-trap,Fall Into a Trap,Story Consequence,Any,,The heroes fall into a trap.
+story-separated,Separated,Story Consequence,Any,,The heroes are separated from each other.
+story-sacrifice,Sacrifice Something Important,Story Consequence,Any,,The heroes must sacrifice something important.
+story-identity-risk,Identity at Risk,Story Consequence,Any,,The heroes are in danger of revealing their identity.
+story-wrong-about-ally,Wrong About an Ally,Story Consequence,Any,,The heroes discover they were wrong about an ally.
+meanwhile-secret,Villain Discovers a Secret,Story Complication (Later),Any,,Meanwhile: a villain discovers your treasured secret.
+meanwhile-resource,Resource in Danger,Story Complication (Later),Any,,Meanwhile: one of your resources is in danger.
+meanwhile-betrayal,Ally Contemplates Betrayal,Story Complication (Later),Any,,Meanwhile: a trusted ally contemplates betrayal.
+meanwhile-base-found,Kid Finds Your Base,Story Complication (Later),Any,,Meanwhile: a kid stumbles across the entrance to your base.
+meanwhile-life-event,Missed Life Event,Story Complication (Later),Any,,Meanwhile: you miss an important life event.
+meanwhile-weakness-exposed,Reporter Learns a Weakness,Story Complication (Later),Any,,Meanwhile: a reporter learns your embarrassing weakness.
+meanwhile-watched,Watched from Unseen Cameras,Story Complication (Later),Any,,Meanwhile: someone watches from unseen cameras.
+meanwhile-foes-ally,Old Foes Ally,Story Complication (Later),Any,,Meanwhile: old foes of yours make an alliance.
+meanwhile-plot-progresses,Enemy Plot Progresses,Story Complication (Later),Any,,Meanwhile: an enemy progresses their plot.
+meanwhile-vehicle-sabotaged,Vehicle Sabotaged,Story Complication (Later),Any,,Meanwhile: someone sabotages your vehicle.

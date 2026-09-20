@@ -1,0 +1,9 @@
+Slug,Name,Type,Die,Faction,PerHero,Active,Origin,Affiliation
+bank-teller-2,Bank Teller,Bystander,,,,true,custom,Neutral
+diesel,Diesel,Lieutenant,d12,EMP,,true,custom,Ally
+marguerite,Marguerite,Bystander,d4,,,true,custom,Ally
+mr-chan,Mr. Chan,Bystander,d4,,,true,custom,Ally
+super-fan,Super Fan,Bystander,d4,,,true,custom,Neutral
+branch-manager,Branch Manager,Bystander,,,,true,custom,Neutral
+id10t,ID10T,Lieutenant,d6,Hub Police Department,,true,custom,Ally
+detective-jordan,Detective Jordan,Lieutenant,d8,Hub Police Department,,true,custom,Ally
