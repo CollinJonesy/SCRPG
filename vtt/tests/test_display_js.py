@@ -40,10 +40,9 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('const PD_ALLY_COLS = 1;', self.src)
         self.assertIn('const PD_BYSTANDER_COLS = 1;', self.src)
         self.assertIn('const PD_THREAT_COLS = 2;', self.src)
-        # Grouped layout spans come from the constants
-        self.assertIn("pdMvcSideHtml('ALLIES', 'allies', a, scene, PD_ALLY_COLS, PD_ALLY_COLS, hideHealthBars)", body)
-        self.assertIn("pdMvcSideHtml('NEUTRAL', 'neutral', n, scene, PD_BYSTANDER_COLS, PD_BYSTANDER_COLS, hideHealthBars)", body)
-        self.assertIn("pdMvcSideHtml('ENEMIES', 'enemies', e, scene, PD_THREAT_COLS, PD_THREAT_COLS, hideHealthBars)", body)
+        # Grouped layout renders every present group with its computed span (loop, not per-case literals)
+        self.assertIn('presentIdx.forEach((i, k) => {', body)
+        self.assertIn('pdMvcSideHtml(label, cls, tokensArr, scene, spans[k], spans[k], hideHealthBars)', body)
         # All-three-present stage grid shrinks to the design sum (1+1+2)
         self.assertIn('cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;', body)
         self.assertIn('grid-template-columns:repeat(${cols}, minmax(0,1fr))', body)
