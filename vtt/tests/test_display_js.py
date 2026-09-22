@@ -152,6 +152,11 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('(colsOverride && colsOverride.threats) || PD_THREAT_CAP', stage)
         render = self.src[self.src.index('function renderScene'):self.src.index('function pathDisplayOutcome')]
         self.assertIn('pl ? pl.groupCols : null', render)
+        # Width-derived token budget: the location's floor share becomes its
+        # token-column budget when no explicit per-group override is set.
+        self.assertIn("const budget = (pl && !pl.groupCols)", render)
+        self.assertIn('pl.colSpan * 10 / layoutInfo.cols', render)
+        self.assertIn('if (budget) pdAllocateSpans(groups, budget)', self.src)
 
     def test_pd_portrait_art_is_square(self):
         self.assertIn('aspect-ratio: 1 / 1', self.html)

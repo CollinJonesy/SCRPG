@@ -217,7 +217,7 @@ function pdAllocateSpans(groups, budget) {
   }
   return present;
 }
-function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false, colsOverride = null) {
+function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false, colsOverride = null, budget = null) {
   const a = allies || [];
   const n = neutrals || [];
   const e = enemies || [];
@@ -239,6 +239,12 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
     { tokens: e, cap: caps[2], label: 'ENEMIES', cls: 'enemies' },
   ].filter(g => g.tokens.length);
   groups.forEach(g => { g.span = Math.min(g.cap, g.tokens.length); });
+  // Width-derived budget (Scene Builder authored layout): the location's share
+  // of the floor (its colSpan scaled into the 10-column stage budget) is
+  // distributed across the present groups proportionally — a 5-floor-column
+  // location gets ~5 token columns instead of wrapping into the fixed caps.
+  // Explicit per-group overrides (colsOverride) win over the width budget.
+  if (budget) pdAllocateSpans(groups, budget);
   let total = groups.reduce((s, g) => s + g.span, 0);
   while (total > 10) {
     const biggest = groups.reduce((a, b) => (b.span > a.span ? b : a));
@@ -465,14 +471,18 @@ function renderScene(scene) {
     }
 
     // Authored layout: this location occupies its grid box (header spans the box),
-    // and may override the per-group token columns for this location.
+    // and may override the per-group token columns for this location. Without an
+    // explicit override, the location's floor share becomes its token budget.
     const pl = layoutInfo ? layoutInfo.byLoc[loc.id] : null;
     const blockStyle = pl
       ? ` style="grid-column:${pl.col} / span ${pl.colSpan};grid-row:${pl.row} / span ${pl.rowSpan};"`
       : '';
+    const budget = (pl && !pl.groupCols)
+      ? Math.max(1, Math.min(10, Math.round(pl.colSpan * 10 / layoutInfo.cols)))
+      : null;
     return `<section class="location-block"${blockStyle}>
       <div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
-      ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars, pl ? pl.groupCols : null)}
+      ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars, pl ? pl.groupCols : null, budget)}
     </section>`;
   }).join('')
     + (ko.length ? `<div class="mvc-ko"${layoutInfo ? ' style="grid-column:1 / -1;"' : ''}>Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');

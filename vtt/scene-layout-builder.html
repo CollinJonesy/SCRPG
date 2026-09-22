@@ -306,7 +306,7 @@ function renderCanvas() {
       .slice().sort((a, b2) =>
         ((a.kind === 'hero') ? 0 : 1) - ((b2.kind === 'hero') ? 0 : 1)
         || String(a.name).localeCompare(String(b2.name)));
-    const stage = slbStageHtml(visible, groupCapsFor(b), b.w * cw * 0.9);
+    const stage = slbStageLayout(visible, b, cw);
     const tile = document.createElement('div');
     tile.className = 'slb-tile' + (selected === i ? ' selected' : '');
     tile.style.left = (b.x * 100) + '%';
@@ -323,7 +323,7 @@ function renderCanvas() {
     if (fitted < LEGIBILITY_MIN_PX) tile.classList.add('warn');
     tile.innerHTML = `
       <div class="slb-tile-header" style="font-size:${Math.min(fontPx, 40)}px;">${esc(b.name)}</div>
-      <div class="slb-stage" style="grid-template-columns:repeat(${stageColsFor(visible, groupCapsFor(b))}, minmax(0,1fr))">${stage || '<div class="slb-token-empty">No tokens in this location yet</div>'}</div>
+      <div class="slb-stage" style="grid-template-columns:repeat(${stage.cols}, minmax(0,1fr))">${stage.html || '<div class="slb-token-empty">No tokens in this location yet</div>'}</div>
       <div class="slb-ez slb-ez-n" data-dir="n" title="Drag to resize"></div>
       <div class="slb-ez slb-ez-s" data-dir="s" title="Drag to resize"></div>
       <div class="slb-ez slb-ez-w" data-dir="w" title="Drag to resize columns"></div>
@@ -338,6 +338,7 @@ function renderCanvas() {
 /* ---- PD-mirroring token stage: Players / Bystanders / Threats columns ---- */
 const PD_DEFAULT_COLS = { allies: 2, bystanders: 2, threats: 4 };
 function groupCapsFor(b) { return Object.assign({}, PD_DEFAULT_COLS, b.cols || {}); }
+function hasExplicitCols(b) { return !!(b.cols && Object.keys(b.cols).length); }
 function slbStageGroups(visible, caps) {
   const isPlayer = t => t.kind === 'hero' && !t.npc;
   const isThreat = t => t.kind === 'villain' || t.kind === 'minion' || t.kind === 'lieutenant';
@@ -347,12 +348,48 @@ function slbStageGroups(visible, caps) {
     { toks: visible.filter(isThreat), cap: caps.threats, cls: 'slb-g-threat' },
   ].filter(g => g.toks.length);
 }
-function stageColsFor(visible, caps) {
-  return Math.max(1, slbStageGroups(visible, caps).reduce((s, g) => s + g.cap, 0));
+/* Mirrors pdAllocateSpans in display.js — keep the two in sync. Splits a column
+   budget across groups proportionally (each ≥1, sum = budget). */
+function slbAllocateSpans(groups, budget) {
+  if (!groups.length) return;
+  const b = Math.max(1, Math.min(10, budget));
+  if (groups.length === 1) { groups[0].span = b; return; }
+  const total = groups.reduce((s, g) => s + g.toks.length, 0);
+  let used = 0;
+  groups.forEach((g, i) => {
+    if (i === groups.length - 1) g.span = Math.max(1, b - used);
+    else { g.span = Math.max(1, Math.round((b * g.toks.length) / total)); used += g.span; }
+  });
+  let sum = groups.reduce((s, g) => s + g.span, 0);
+  while (sum > b) {
+    const big = groups.slice().sort((x, y) => y.span - x.span)[0];
+    if (big.span <= 1) break;
+    big.span -= 1; sum -= 1;
+  }
+  while (sum < b) {
+    const big = groups.slice().sort((x, y) => y.toks.length - x.toks.length)[0];
+    big.span += 1; sum += 1;
+  }
 }
-function slbStageHtml(visible, caps, tileContentPx) {
+/* Layout for one tile's token stage: explicit per-group cols win; otherwise the
+   tile's floor share (its width fraction × the 10-column stage budget) is
+   distributed across present groups — same as the Player Display now does. */
+function slbStageLayout(visible, b, canvasPx) {
+  const caps = groupCapsFor(b);
   const groups = slbStageGroups(visible, caps);
-  if (!groups.length) return '';
+  if (!groups.length) return { html: '', cols: 1 };
+  if (hasExplicitCols(b)) {
+    groups.forEach(g => { g.span = Math.min(g.cap, Math.max(1, g.toks.length)); });
+  } else {
+    groups.forEach(g => { g.span = Math.max(1, g.toks.length); });
+    slbAllocateSpans(groups, Math.round(b.w * 10));
+  }
+  let cols = groups.reduce((s, g) => s + g.span, 0);
+  while (cols > 10) {
+    const big = groups.slice().sort((x, y) => y.span - x.span)[0];
+    if (big.span <= 1) break;
+    big.span -= 1; cols -= 1;
+  }
   const card = (t, namePx) => {
     const pk = t.kind === 'hero' ? 'hero' : t.kind === 'villain' ? 'villain' : 'minion';
     return `<div class="slb-token-card ${esc(t.kind)}">
@@ -360,16 +397,18 @@ function slbStageHtml(visible, caps, tileContentPx) {
       <div class="slb-token-name" style="font-size:${namePx}px;">${esc(t.name)}</div>
     </div>`;
   };
-  return groups.map(g => {
+  const tileContentPx = b.w * (canvasPx || 1) * 0.9;
+  const html = groups.map(g => {
     // Name type scales with the cell width like fitHeroNamePlates does on PD.
-    const namePx = Math.max(6, Math.min(13, Math.round((tileContentPx / g.cap) * 0.2)));
-    const max = g.cap * 2;
+    const namePx = Math.max(6, Math.min(13, Math.round((tileContentPx / g.span) * 0.2)));
+    const max = g.span * 2;
     const cards = g.toks.slice(0, max).map(t => card(t, namePx)).join('');
     const more = g.toks.length > max ? `<div class="slb-token-card slb-token-more">+${g.toks.length - max}</div>` : '';
-    return `<div class="slb-side ${g.cls}" style="grid-column:span ${g.cap};--slb-cap:${g.cap}">
+    return `<div class="slb-side ${g.cls}" style="grid-column:span ${g.span};--slb-cap:${g.span}">
       <div class="slb-side-row">${cards}${more}</div>
     </div>`;
   }).join('');
+  return { html, cols };
 }
 
 function addLocation(locId) {
