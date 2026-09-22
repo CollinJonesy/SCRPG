@@ -136,6 +136,7 @@
     <select id="sceneSelect" class="scene-difficulty-select" onchange="onScenePick(this.value)"></select>
     <span id="saveStatus" class="slb-status"></span>
     <span style="flex:1"></span>
+    <button type="button" class="btn btn-small btn-ghost" onclick="applyStandardLayout()" title="The Bank Robbery standard: two full-height stacks — first location 7 columns, the rest share the right 5">Standard Layout</button>
     <button type="button" class="btn btn-small btn-ghost" onclick="recalibrateFromOccupancy()" title="Re-fit boxes to current token occupancy">Recalibrate</button>
     <button type="button" class="btn btn-small btn-ghost" onclick="resetToStacked()" title="Remove the layout — Player Display returns to the default stacked view">Reset to Stacked</button>
     <button type="button" class="btn btn-small btn-accent" onclick="saveLayout()">Save Layout</button>
@@ -536,6 +537,21 @@ function resetToStacked() {
   boxes = [];
   render();
   document.getElementById('saveStatus').textContent = 'Layout removed — Save to persist';
+}
+
+/* The Bank Robbery standard (Collin's target shape, 2026-09-22): 12×8 grid,
+   first location 7 full-height columns; remaining locations share the right
+   5 columns, stacked vertically. Group cols keep the saved defaults. */
+function applyStandardLayout() {
+  if (!scene || !(scene.locations || []).length) return;
+  const locs = scene.locations;
+  const restCount = locs.length - 1;
+  const restRow = restCount > 0 ? Math.max(1, GRID_ROWS / restCount) : GRID_ROWS;
+  boxes = locs.map((l, i) => i === 0
+    ? { locId: l.id, name: l.name, x: 0, y: 0, w: 7 / GRID_COLS, h: 1 }
+    : { locId: l.id, name: l.name, x: 7 / GRID_COLS, y: (i - 1) * restRow / GRID_ROWS, w: 5 / GRID_COLS, h: restRow / GRID_ROWS });
+  selected = null;
+  render();
 }
 
 function recalibrateFromOccupancy() {
