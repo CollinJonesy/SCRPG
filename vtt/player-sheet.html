@@ -507,8 +507,8 @@ function renderSheet(p) {
           <div class="hint-reminders">${HP_REMINDER}</div>
         </div>
         <div class="card">
-          <h2 class="collapsible-head" onclick="toggleLocationCard()">Location <span class="chev" id="locChev">▸</span></h2>
-          <div id="locBox" style="display:none;">${occupantsHtml(p)}</div>
+          <h2 class="collapsible-head" onclick="toggleLocationCard()">Location <span class="chev" id="locChev">${locOpen ? '▾' : '▸'}</span></h2>
+          <div id="locBox" style="display:${locOpen ? 'block' : 'none'};">${occupantsHtml(p)}</div>
         </div>
       </div>
     </div>
