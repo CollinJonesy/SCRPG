@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG — Scene Display Layout Builder</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { padding: 16px 20px 24px; }
+  .slb-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .slb-header h1 { font-family: var(--font-display); font-size: 24px; margin: 0; letter-spacing: 1px; }
+  .slb-main { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+  .slb-left { display: flex; flex-direction: column; gap: 10px; }
+  .slb-loc-list { display: flex; flex-direction: column; gap: 6px; }
+  .slb-loc-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--ink-2); color: var(--text-hi); border: 2px solid var(--gutter);
+    padding: 7px 10px; font-family: var(--font-display); font-size: 16px; cursor: pointer;
+  }
+  .slb-loc-item.placed { border-color: var(--accent); opacity: 0.75; cursor: default; }
+  .slb-loc-item .slb-loc-add { font-family: var(--font-body); font-size: 11px; color: var(--text-lo); }
+  .slb-toggle { display: flex; gap: 0; margin-top: 4px; }
+  .slb-toggle button {
+    flex: 1; font-family: var(--font-display); font-size: 16px; letter-spacing: 1px;
+    padding: 8px 0; background: transparent; color: var(--text-lo);
+    border: 2px solid var(--gutter); cursor: pointer;
+  }
+  .slb-toggle button.active { background: var(--paper); color: var(--text-ink); }
+  .slb-hint { font-family: var(--font-body); font-size: 12px; color: var(--text-lo); line-height: 1.4; }
+  /* Canvas mirrors the Player Display floor (16:9). */
+  .slb-canvas-wrap { position: relative; }
+  .slb-canvas {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    background: linear-gradient(180deg, #14171f 0%, #0b0d12 100%);
+    border: 3px solid var(--gutter); overflow: hidden;
+  }
+  .slb-grid { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+  .slb-grid.show .slb-cell { background: rgba(36, 84, 232, 0.07); }
+  .slb-grid .slb-cell { position: absolute; border: 1px solid rgba(255,255,255,0.05); box-sizing: border-box; }
+  .slb-tile {
+    position: absolute; z-index: 1; box-sizing: border-box;
+    background: var(--ink-2); border: 2px solid #4169E1;
+    display: flex; flex-direction: column; overflow: hidden; cursor: grab;
+    user-select: none; touch-action: none;
+  }
+  .slb-tile.selected { border-color: #ffd9b0; box-shadow: 0 0 0 2px rgba(255,217,176,.35); }
+  .slb-tile.warn { border-color: #c47f00; }
+  .slb-tile .slb-tile-header {
+    font-family: var(--font-display); letter-spacing: 0.06em; color: #4169E1;
+    text-align: center; line-height: 1.1; padding: 4% 4% 0; white-space: nowrap; overflow: hidden;
+  }
+  .slb-tile.warn .slb-tile-header { color: #c47f00; }
+  .slb-tile .slb-mini-card {
+    flex: 1 1 auto; margin: 4%; background: linear-gradient(180deg, #1a1e2a 0%, #0b0d12 100%);
+    border: 2px solid #2454E8; display: flex; flex-direction: column; min-height: 0;
+  }
+  .slb-tile .slb-mini-art { width: 100%; aspect-ratio: 1 / 1; background: #000; flex: 0 0 auto; opacity: .8; }
+  .slb-tile .slb-mini-plate {
+    font-family: var(--font-display); text-align: center; line-height: 1.1;
+    padding: 6% 4%; white-space: nowrap; overflow: hidden; color: var(--text-hi);
+  }
+  .slb-tile .slb-mini-bhd { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2%; margin: 0 4% 4%; }
+  .slb-tile .slb-mini-bhd span {
+    font-family: var(--font-data); font-size: 8px; text-align: center; color: var(--text-lo);
+    background: var(--ink); padding: 2px 0; overflow: hidden;
+  }
+  .slb-tile .slb-resize {
+    position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
+    cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.5) 50%);
+  }
+  .slb-tile .slb-remove {
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; line-height: 18px;
+    text-align: center; background: var(--red); color: #fff; cursor: pointer; font-size: 12px; z-index: 2;
+  }
+  .slb-screen-label {
+    position: absolute; top: 6px; left: 10px; font-family: var(--font-data); font-size: 10px;
+    color: rgba(255,255,255,.3); letter-spacing: 2px; text-transform: uppercase; z-index: 0;
+  }
+  .slb-status { font-family: var(--font-data); font-size: 12px; color: var(--green); min-width: 120px; }
+</style>
+</head>
+<body>
+  <div class="slb-header">
+    <h1>Scene Display Layout Builder</h1>
+    <select id="sceneSelect" class="scene-difficulty-select" onchange="onScenePick(this.value)"></select>
+    <span id="saveStatus" class="slb-status"></span>
+    <span style="flex:1"></span>
+    <button type="button" class="btn btn-small btn-ghost" onclick="recalibrateFromOccupancy()" title="Re-fit boxes to current token occupancy">Recalibrate</button>
+    <button type="button" class="btn btn-small btn-ghost" onclick="resetToStacked()" title="Remove the layout — Player Display returns to the default stacked view">Reset to Stacked</button>
+    <button type="button" class="btn btn-small btn-accent" onclick="saveLayout()">Save Layout</button>
+  </div>
+
+  <div class="slb-main">
+    <div class="slb-left">
+      <label class="field-label" style="margin:0;">Locations in this Scene</label>
+      <div id="locList" class="slb-loc-list"></div>
+      <!-- Placement mode toggle: bottom-left, under the location elements (per Collin). -->
+      <div class="slb-toggle">
+        <button id="modeSnap" type="button" onclick="setMode('snap')">Snap</button>
+        <button id="modeFree" type="button" onclick="setMode('free')">Free</button>
+      </div>
+      <div class="slb-hint" id="modeHint"></div>
+      <div class="slb-hint">Click a location above to add it. Drag tiles to arrange; drag the corner to resize. Amber outline = the location name will render too small to read from the couch — make the box wider.</div>
+    </div>
+    <div class="slb-canvas-wrap">
+      <div class="slb-canvas" id="canvas">
+        <div class="slb-screen-label">Player Display floor (16:9)</div>
+        <div class="slb-grid" id="gridLayer"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Scene Display Layout Builder: authors scene.layout = { cols, rows, placements[] }.
+   Tiles are stored as fractional boxes; Snap mode quantizes to the cell grid and
+   windows to edges/corners; Free mode drags continuously and quantizes on save. */
+const GRID_COLS = 12, GRID_ROWS = 8;
+const LEGIBILITY_MIN_PX = 28; // fitted name px under this → warn (too small at 10 ft)
+let sceneSlug = new URLSearchParams(location.search).get('scene') || '';
+let scene = null;
+let mode = 'snap'; // 'snap' | 'free' — tooling preference, not scene data
+let selected = null;
+// frac boxes: { locId, name, x, y, w, h } in 0..1 canvas fractions
+let boxes = [];
+
+function esc(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+async function init() {
+  const res = await fetch('/api/scenes');
+  const items = await res.json();
+  const sel = document.getElementById('sceneSelect');
+  sel.innerHTML = '<option value="">— pick a scene —</option>' +
+    items.map(s => `<option value="${esc(s.slug)}" ${s.slug === sceneSlug ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+  setMode(mode);
+  if (sceneSlug) await loadScene(sceneSlug);
+}
+
+async function loadScene(slug) {
+  const res = await fetch('/api/scenes/' + encodeURIComponent(slug));
+  if (!res.ok) { alert('Scene not found: ' + slug); return; }
+  scene = await res.json();
+  sceneSlug = slug;
+  boxes = [];
+  const locs = scene.locations || [];
+  const layout = scene.layout && Array.isArray(scene.layout.placements) ? scene.layout.placements : null;
+  if (layout) {
+    const cols = Math.max(1, scene.layout.cols || GRID_COLS), rows = Math.max(1, scene.layout.rows || GRID_ROWS);
+    (scene.layout.placements || []).forEach(p => {
+      const loc = locs.find(l => l.id === p.location);
+      if (!loc) return;
+      boxes.push({
+        locId: loc.id, name: loc.name,
+        x: ((p.col - 1) / cols), y: ((p.row - 1) / rows),
+        w: (p.colSpan / cols), h: (p.rowSpan / rows),
+      });
+    });
+  }
+  render();
+}
+
+function onScenePick(v) { if (v) location.href = '/scene-layout-builder.html?scene=' + encodeURIComponent(v); }
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeSnap').classList.toggle('active', m === 'snap');
+  document.getElementById('modeFree').classList.toggle('active', m === 'free');
+  document.getElementById('modeHint').textContent = m === 'snap'
+    ? 'Snap: tiles quantize to the grid and window to screen edges/corners when dragged near.'
+    : 'Free: tiles move continuously; positions quantize to the grid only on Save.';
+  render();
+}
+
+function placedLocIds() { return new Set(boxes.map(b => b.locId)); }
+
+function render() {
+  renderLocList();
+  renderCanvas();
+}
+
+function renderLocList() {
+  const el = document.getElementById('locList');
+  const placed = placedLocIds();
+  const locs = (scene && scene.locations) || [];
+  el.innerHTML = locs.length
+    ? locs.map(l => {
+        const isPlaced = placed.has(l.id);
+        return `<div class="slb-loc-item ${isPlaced ? 'placed' : ''}" ${isPlaced ? '' : `onclick="addLocation('${esc(l.id)}')"`}>
+          <span>${esc(l.name)}</span><span class="slb-loc-add">${isPlaced ? 'placed ✓' : '+ add'}</span>
+        </div>`;
+      }).join('')
+    : '<div class="slb-hint">No locations on this scene yet — add them in the Scene Editor first.</div>';
+}
+
+function renderCanvas() {
+  const canvas = document.getElementById('canvas');
+  canvas.querySelectorAll('.slb-tile').forEach(t => t.remove());
+  const grid = document.getElementById('gridLayer');
+  grid.innerHTML = '';
+  grid.classList.toggle('show', mode === 'snap');
+  const cw = canvas.clientWidth || 1, ch = canvas.clientHeight || 1;
+  for (let c = 0; c < GRID_COLS; c++) for (let r = 0; r < GRID_ROWS; r++) {
+    const cell = document.createElement('div');
+    cell.className = 'slb-cell';
+    cell.style.left = (c / GRID_COLS * 100) + '%';
+    cell.style.top = (r / GRID_ROWS * 100) + '%';
+    cell.style.width = (100 / GRID_COLS) + '%';
+    cell.style.height = (100 / GRID_ROWS) + '%';
+    grid.appendChild(cell);
+  }
+  boxes.forEach((b, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'slb-tile' + (selected === i ? ' selected' : '');
+    tile.style.left = (b.x * 100) + '%';
+    tile.style.top = (b.y * 100) + '%';
+    tile.style.width = (b.w * 100) + '%';
+    tile.style.height = (b.h * 100) + '%';
+    // Legibility preview: name at the same ceiling ratio fitHeroNamePlates uses
+    // (0.2 × box width); warn when the full name won't fit or fits too small.
+    const ctx = document.createElement('canvas').getContext('2d');
+    const fontPx = Math.max(10, b.w * cw * 0.2);
+    ctx.font = '700 ' + fontPx + 'px Bangers, cursive';
+    const nameW = ctx.measureText(b.name || '').width;
+    const fitted = nameW <= b.w * cw * 0.96 ? fontPx : Math.max(6, fontPx * (b.w * cw * 0.96) / nameW);
+    if (fitted < LEGIBILITY_MIN_PX) tile.classList.add('warn');
+    tile.innerHTML = `
+      <div class="slb-tile-header" style="font-size:${Math.min(fontPx, 40)}px;">${esc(b.name)}</div>
+      <div class="slb-mini-card">
+        <div class="slb-mini-art"></div>
+        <div class="slb-mini-plate" style="font-size:${Math.min(fitted, 22)}px;">${esc(b.name)}</div>
+        <div class="slb-mini-bhd"><span>BOOST</span><span>HINDER</span><span>DEFEND</span></div>
+      </div>
+      <div class="slb-remove" title="Remove from layout" onclick="event.stopPropagation(); removeBox(${i})">×</div>
+      <div class="slb-resize"></div>`;
+    attachDrag(tile, i);
+    tile.addEventListener('pointerdown', () => { selected = i; renderCanvas(); });
+    canvas.appendChild(tile);
+  });
+}
+
+function addLocation(locId) {
+  const loc = ((scene && scene.locations) || []).find(l => l.id === locId);
+  if (!loc || placedLocIds().has(locId)) return;
+  const n = boxes.length;
+  boxes.push({ locId, name: loc.name, x: 0, y: 0, w: 1 / 2, h: 1 / Math.max(1, Math.ceil(((scene.locations || []).length) / 2)) });
+  selected = n;
+  render();
+}
+
+function removeBox(i) { boxes.splice(i, 1); selected = null; render(); }
+
+/* ---- Drag + resize (pointer events; works mouse + touch) ---- */
+function attachDrag(tile, i) {
+  const canvas = document.getElementById('canvas');
+  const resizeEl = tile.querySelector('.slb-resize');
+  let drag = null;
+  const frac = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  };
+  const quantize = (v, step) => mode === 'snap' ? Math.round(v / step) * step : v;
+  const windowSnap = (b) => {
+    if (mode !== 'snap') return b;
+    const E = 0.10; // edge zone fraction
+    let { x, y, w, h } = b;
+    const nearL = b.x < E, nearR = b.x + b.w > 1 - E, nearT = b.y < E, nearB = b.y + b.h > 1 - E;
+    if (nearL) { x = 0; w = Math.max(w, 0.5); }
+    if (nearR) { w = Math.max(w, 0.5); x = 1 - w; }
+    if (nearT) { y = 0; h = Math.max(h, 0.5); }
+    if (nearB) { h = Math.max(h, 0.5); y = 1 - h; }
+    if (nearL && nearR) { x = 0; w = 1; }
+    if (nearT && nearB) { y = 0; h = 1; }
+    return { x, y, w, h };
+  };
+  const move = (e) => {
+    if (!drag) return;
+    e.preventDefault();
+    const p = frac(e);
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (drag.kind === 'move') {
+      let x = quantize(p.x - drag.offX, 1 / GRID_COLS);
+      let y = quantize(p.y - drag.offY, 1 / GRID_ROWS);
+      x = Math.max(0, Math.min(1 - boxes[i].w, x));
+      y = Math.max(0, Math.min(1 - boxes[i].h, y));
+      Object.assign(boxes[i], windowSnap({ x, y, w: boxes[i].w, h: boxes[i].h }));
+    } else {
+      let w = quantize(p.x - boxes[i].x + 1 / GRID_COLS / 2, 1 / GRID_COLS);
+      let h = quantize(p.y - boxes[i].y + 1 / GRID_ROWS / 2, 1 / GRID_ROWS);
+      boxes[i].w = Math.max(1.5 / GRID_COLS, Math.min(1 - boxes[i].x, w));
+      boxes[i].h = Math.max(1 / GRID_ROWS, Math.min(1 - boxes[i].y, h));
+    }
+    renderCanvas();
+  };
+  const up = () => { drag = null; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  tile.addEventListener('pointerdown', (e) => {
+    if (e.target === resizeEl) drag = { kind: 'resize' };
+    else {
+      const p = frac(e);
+      drag = { kind: 'move', offX: p.x - boxes[i].x, offY: p.y - boxes[i].y };
+    }
+    selected = i;
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    e.preventDefault();
+  });
+}
+
+/* ---- Quantize free boxes to the cell grid on save ---- */
+function quantizedLayout() {
+  const placements = boxes.map(b => {
+    const col = Math.max(1, Math.min(GRID_COLS, Math.round(b.x * GRID_COLS) + 1));
+    const row = Math.max(1, Math.min(GRID_ROWS, Math.round(b.y * GRID_ROWS) + 1));
+    const colSpan = Math.max(1, Math.min(GRID_COLS - col + 1, Math.round(b.w * GRID_COLS)));
+    const rowSpan = Math.max(1, Math.min(GRID_ROWS - row + 1, Math.round(b.h * GRID_ROWS)));
+    return { location: b.locId, col, row, colSpan, rowSpan };
+  });
+  return { cols: GRID_COLS, rows: GRID_ROWS, placements };
+}
+
+async function saveLayout() {
+  if (!scene || !sceneSlug) { alert('Pick a scene first.'); return; }
+  scene.layout = quantizedLayout();
+  const res = await fetch('/api/scenes/' + encodeURIComponent(sceneSlug), {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scene),
+  });
+  document.getElementById('saveStatus').textContent = res.ok ? 'Saved ✓' : 'Save failed';
+  setTimeout(() => { document.getElementById('saveStatus').textContent = ''; }, 2500);
+}
+
+function resetToStacked() {
+  if (!scene) return;
+  delete scene.layout;
+  boxes = [];
+  render();
+  document.getElementById('saveStatus').textContent = 'Layout removed — Save to persist';
+}
+
+function recalibrateFromOccupancy() {
+  if (!scene || !(scene.locations || []).length) return;
+  const total = Math.max(10, scene.locations.length);
+  const weights = scene.locations.map(l =>
+    Math.max(1, (scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === l.id).length));
+  const wsum = weights.reduce((a, b) => a + b, 0);
+  let spans = weights.map(w => Math.max(1, Math.floor(total * w / wsum)));
+  let used = spans.reduce((a, b) => a + b, 0);
+  while (used > total) { const mi = spans.indexOf(Math.max(...spans)); if (spans[mi] <= 1) break; spans[mi]--; used--; }
+  while (used < total) { spans[spans.indexOf(Math.min(...spans))] += 1; used++; }
+  let col = 1;
+  boxes = scene.locations.map((l, i) => {
+    const b = { locId: l.id, name: l.name, x: (col - 1) / total, y: 0, w: spans[i] / total, h: 1 };
+    col += spans[i];
+    return b;
+  });
+  selected = null;
+  render();
+}
+
+window.addEventListener('resize', () => renderCanvas());
+init();
+</script>
+</body>
+</html>

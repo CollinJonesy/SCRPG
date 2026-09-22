@@ -2324,6 +2324,44 @@ const saveSceneDebounced = debounce(async () => {
   if (status) status.textContent = 'Saved ✓';
 }, 500);
 
+/* ---- Display Layout recalibrate: re-fit the PD location boxes to current
+   occupancy (explicit GM click only — never automatic). Writes scene.layout as
+   one proportional row; display.js clamps/validates. ---- */
+function occupancyLayoutPlacements(scene, cols) {
+  const locs = (scene && scene.locations) || [];
+  if (!locs.length) return null;
+  const n = locs.length;
+  const total = Math.max(10, n);
+  const counts = locs.map(l => (scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === l.id).length);
+  const weights = counts.map(c => Math.max(1, c));
+  const wsum = weights.reduce((a, b) => a + b, 0);
+  let spans = weights.map(w => Math.max(1, Math.floor(total * w / wsum)));
+  let used = spans.reduce((a, b) => a + b, 0);
+  while (used > total) {
+    const mi = spans.indexOf(Math.max(...spans));
+    if (spans[mi] <= 1) break;
+    spans[mi] -= 1; used -= 1;
+  }
+  while (used < total) { spans[spans.indexOf(Math.min(...spans))] += 1; used += 1; }
+  let col = 1;
+  const placements = locs.map((l, i) => {
+    const p = { location: l.id, col, row: 1, colSpan: spans[i], rowSpan: 1 };
+    col += spans[i];
+    return p;
+  });
+  return { cols: total, rows: 1, placements };
+}
+function recalibrateSceneLayout() {
+  const s = state.scene;
+  if (!s || !(s.locations || []).length) { toast('No scene locations to recalibrate.'); return; }
+  const layout = occupancyLayoutPlacements(s, 10);
+  if (!layout) return;
+  s.layout = layout;
+  saveSceneDebounced();
+  renderBoard();
+  toast('Player Display layout recalibrated to token occupancy.');
+}
+
 /* ---------------- Activity Log ---------------- */
 
 const SKIP_TURN_ACTIONS = new Set([
@@ -2478,6 +2516,11 @@ function renderSceneEditor() {
     <label class="field-label">Locations</label>
     <div id="locationsEditorList"></div>
     <button class="btn btn-small btn-accent" onclick="addLocation()">+ Add Location</button>
+    <div style="margin-top:8px;">
+      <a class="btn btn-small btn-ghost" href="/scene-layout-builder.html?scene=${escAttr(state.editingSlug || s.__slug || '')}" target="_blank">Edit Display Layout ↗</a>
+      <button type="button" class="btn btn-small btn-ghost" onclick="recalibrateSceneLayout()" title="Re-fit the Player Display location boxes to current token occupancy">Recalibrate Layout</button>
+      <p class="empty-hint">Display Layout arranges the locations on the Player Display TV. No layout = default stacked view.</p>
+    </div>
 
     <label class="field-label">Challenges</label>
     <p class="empty-hint">Scene-only. Add here, then Load to Board to mark successes live.</p>

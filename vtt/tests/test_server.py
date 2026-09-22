@@ -240,6 +240,11 @@ class TestActiveSceneAndRevealedRoll(ServerTestCase):
         self.assertEqual(status, 200)
         self.assertNotIn('layout', json.loads(data))
 
+    def test_scene_layout_builder_page_served(self):
+        status, data = self.request('GET', '/scene-layout-builder.html')
+        self.assertEqual(status, 200)
+        self.assertIn(b'Scene Display Layout Builder', data)
+
     def test_revealed_roll_round_trip(self):
         status, _ = self.request('PUT', '/api/revealed-roll', body=b'{"tokenName": "Test", "min": 1}')
         self.assertEqual(status, 200)

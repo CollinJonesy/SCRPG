@@ -149,6 +149,27 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('VILLAIN_TWIST_HELP', body)
         self.assertIn('return;', body)
 
+    def test_recalibrate_layout_occupancy_proportional(self):
+        """Recalibrate Layout: occupancy-proportional placements, explicit click only, persists via scene save."""
+        self.assertIn('function recalibrateSceneLayout', self.src)
+        self.assertIn('function occupancyLayoutPlacements', self.src)
+        body = self.src[self.src.index('function recalibrateSceneLayout'):self.src.index('function recalibrateSceneLayout') + 900]
+        self.assertIn('s.layout = layout', body)
+        self.assertIn('saveSceneDebounced()', body)
+        self.assertIn('id="recalibrateLayoutBtn"', Path(APP.parent / 'index.html').read_text(encoding='utf-8'))
+        occ = self.src[self.src.index('function occupancyLayoutPlacements'):self.src.index('function recalibrateSceneLayout')]
+        self.assertIn('const counts = locs.map(l => (scene.tokens || [])', occ)
+        self.assertIn('Math.max(1, c)', occ)
+        self.assertIn('const total = Math.max(10, n);', occ)
+
+    def test_scene_editor_links_display_layout_builder(self):
+        """Scene Editor exposes the visual Display Layout builder + recalibrate; hint explains no-layout default."""
+        self.assertIn('Edit Display Layout', self.src)
+        self.assertIn('/scene-layout-builder.html?scene=', self.src)
+        idx = self.src.index('Edit Display Layout')
+        self.assertIn('recalibrateSceneLayout()', self.src[idx:idx + 400])
+        self.assertIn('No layout = default stacked view', self.src)
+
     def test_next_scene_in_issue_order(self):
         """GM Board Next Scene loads the following sceneSlugs entry and sits by Difficulty."""
         self.assertIn('function findNextSceneSlugInIssue', self.src)

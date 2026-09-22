@@ -169,6 +169,7 @@ STATIC_FILES = {
     '/issue-builder.html': ('issue-builder.html', 'text/html; charset=utf-8'),
     '/minion-builder.html': ('minion-builder.html', 'text/html; charset=utf-8'),
     '/environment-builder.html': ('environment-builder.html', 'text/html; charset=utf-8'),
+    '/scene-layout-builder.html': ('scene-layout-builder.html', 'text/html; charset=utf-8'),
 }
 
 IMAGE_EXT_BY_CONTENT_TYPE = {
