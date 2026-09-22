@@ -273,14 +273,17 @@ function abilitiesHtml(p) {
   if (filter === 'all') {
     shown = all;
   } else if (filter === 'status') {
-    const zoneNow = currentBandLetter(p) === 'g' ? 'Green' : currentBandLetter(p) === 'y' ? 'Yellow' : 'Red';
-    shown = all.filter(a => (a.Zone || 'Green') === zoneNow);
+    // Cumulative availability: Green status = Green only; Yellow = Green+Yellow;
+    // Red = everything except Out.
+    const rank = { Green: 0, Yellow: 1, Red: 2 };
+    const curRank = rank[currentBandLetter(p) === 'g' ? 'Green' : currentBandLetter(p) === 'y' ? 'Yellow' : 'Red'] ?? 0;
+    shown = all.filter(a => (rank[a.Zone || 'Green'] ?? 3) <= curRank);
   } else {
     // Mode view: that mode's picked powers + the always-available switch abilities.
     shown = all.filter(a => String(a.Mode || '').trim() === filter || !String(a.Mode || '').trim());
   }
   const modes = modesOf(p.abilities);
-  const modeLabel = m => String(m).replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' Mode';
+  const modeLabel = m => String(m).replace(/[-_]+/g, ' ').replace(/\bmodular\b/ig, '').replace(/\s+/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase()) + ' Mode';
   const buttons = [
     `<button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>`,
     `<button class="btn ${filter === 'status' ? 'primary' : ''}" onclick="setAbilFilter('status')">Status</button>`,
