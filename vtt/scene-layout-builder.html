@@ -66,25 +66,54 @@
     background: var(--ink); padding: 2px 0; overflow: hidden;
   }
   .slb-tile .slb-resize {
-    position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
+    position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; z-index: 4;
     cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.5) 50%);
   }
   .slb-tile .slb-remove {
-    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; line-height: 18px;
-    text-align: center; background: var(--red); color: #fff; cursor: pointer; font-size: 12px; z-index: 2;
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; line-height: 18px; z-index: 5;
+    text-align: center; background: var(--red); color: #fff; cursor: pointer; font-size: 12px;
   }
   .slb-screen-label {
     position: absolute; top: 6px; left: 10px; font-family: var(--font-data); font-size: 10px;
     color: rgba(255,255,255,.3); letter-spacing: 2px; text-transform: uppercase; z-index: 0;
   }
   .slb-status { font-family: var(--font-data); font-size: 12px; color: var(--green); min-width: 120px; }
-  /* Token occupancy chips inside a tile (read-only preview of board state). */
-  .slb-tile-tokens { display: flex; flex-wrap: wrap; gap: 3px; padding: 0 4%; max-height: 30%; overflow: hidden; }
-  .slb-token-chip {
-    font-family: var(--font-data); font-size: 9px; color: var(--text-hi);
-    background: var(--ink); border: 1px solid #333744; border-radius: 8px;
-    padding: 1px 6px; white-space: nowrap; overflow: hidden; max-width: 100%;
+  /* Token cards inside a tile — real mini vertical tokens (portrait + name),
+     mirroring what the Player Display renders. */
+  .slb-tile-tokens {
+    flex: 1 1 auto; min-height: 0; overflow: hidden;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(22%, 1fr));
+    gap: 4px; padding: 2% 4%; align-content: start;
   }
+  .slb-token-card {
+    border: 2px solid #2454E8; min-width: 0; overflow: hidden;
+    background: linear-gradient(180deg, #1a1e2a 0%, #0b0d12 100%);
+    display: flex; flex-direction: column;
+  }
+  .slb-token-card.villain { border-color: #6e0b0b; }
+  .slb-token-card.minion { border-color: #e6ff00; }
+  .slb-token-card.lieutenant { border-color: #b45309; }
+  .slb-token-art { width: 100%; aspect-ratio: 1 / 1; background: #000; flex: 0 0 auto; }
+  .slb-token-art img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .slb-token-name {
+    font-family: var(--font-display); font-size: 9px; line-height: 1.1;
+    text-align: center; padding: 2px 2px 3px; color: var(--text-hi);
+    white-space: nowrap; overflow: hidden;
+  }
+  .slb-token-more {
+    align-items: center; justify-content: center; color: var(--text-lo);
+    font-family: var(--font-data); font-size: 11px;
+  }
+  .slb-token-empty {
+    grid-column: 1 / -1; color: var(--text-lo); font-style: italic;
+    font-family: var(--font-data); font-size: 10px; align-self: center; justify-self: center;
+  }
+  /* Edge resize zones: drag any edge (the header's side edges resize columns). */
+  .slb-ez { position: absolute; z-index: 3; }
+  .slb-ez-n { top: 0; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+  .slb-ez-s { bottom: 0; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+  .slb-ez-w { left: 0; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+  .slb-ez-e { right: 0; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
 </style>
 </head>
 <body>
@@ -128,6 +157,7 @@ let sceneSlug = new URLSearchParams(location.search).get('scene') || '';
 let scene = null;
 let mode = 'snap'; // 'snap' | 'free' — tooling preference, not scene data
 let selected = null;
+let dragActive = false; // suppresses the live-refresh tick during a drag
 // frac boxes: { locId, name, x, y, w, h } in 0..1 canvas fractions
 let boxes = [];
 
@@ -216,11 +246,21 @@ function renderCanvas() {
     grid.appendChild(cell);
   }
   boxes.forEach((b, i) => {
-    // Occupancy preview: tokens currently in this location (board state, read-only
-    // here — tokens are added/removed on the GM board).
-    const here = ((scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === b.locId) || []);
-    const chips = here.slice(0, 8).map(t => `<span class="slb-token-chip">${esc(t.name)}</span>`).join('')
-      + (here.length > 8 ? `<span class="slb-token-chip">+${here.length - 8}</span>` : '');
+    // Token preview: real mini cards (portrait + name), mirroring what the PD
+    // shows — hidden entirely until a PC hero is present (same PD rule).
+    const all = ((scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === b.locId)) || [];
+    const hasPc = all.some(t => t.kind === 'hero' && !t.npc);
+    const visible = hasPc ? all.slice().sort((a, b2) =>
+      ((a.kind === 'hero') ? 0 : 1) - ((b2.kind === 'hero') ? 0 : 1)
+      || String(a.name).localeCompare(String(b2.name))) : [];
+    const cards = visible.slice(0, 12).map(t => {
+      const pk = t.kind === 'hero' ? 'hero' : t.kind === 'villain' ? 'villain' : 'minion';
+      return `<div class="slb-token-card ${esc(t.kind)}">
+        <div class="slb-token-art"><img src="/api/backgrounds/${encodeURIComponent('portrait-' + pk + '-' + (t.slug || ''))}" alt="" onerror="this.style.display='none'"></div>
+        <div class="slb-token-name">${esc(t.name)}</div>
+      </div>`;
+    }).join('')
+      + (visible.length > 12 ? `<div class="slb-token-card slb-token-more">+${visible.length - 12}</div>` : '');
     const tile = document.createElement('div');
     tile.className = 'slb-tile' + (selected === i ? ' selected' : '');
     tile.style.left = (b.x * 100) + '%';
@@ -237,16 +277,14 @@ function renderCanvas() {
     if (fitted < LEGIBILITY_MIN_PX) tile.classList.add('warn');
     tile.innerHTML = `
       <div class="slb-tile-header" style="font-size:${Math.min(fontPx, 40)}px;">${esc(b.name)}</div>
-      ${chips ? `<div class="slb-tile-tokens">${chips}</div>` : ''}
-      <div class="slb-mini-card">
-        <div class="slb-mini-art"></div>
-        <div class="slb-mini-plate" style="font-size:${Math.min(fitted, 22)}px;">${esc(b.name)}</div>
-        <div class="slb-mini-bhd"><span>BOOST</span><span>HINDER</span><span>DEFEND</span></div>
-      </div>
+      <div class="slb-tile-tokens">${cards || '<div class="slb-token-empty">No PC tokens in this location yet</div>'}</div>
+      <div class="slb-ez slb-ez-n" data-dir="n" title="Drag to resize"></div>
+      <div class="slb-ez slb-ez-s" data-dir="s" title="Drag to resize"></div>
+      <div class="slb-ez slb-ez-w" data-dir="w" title="Drag to resize columns"></div>
+      <div class="slb-ez slb-ez-e" data-dir="e" title="Drag to resize columns"></div>
       <div class="slb-remove" title="Remove from layout" onclick="event.stopPropagation(); removeBox(${i})">×</div>
-      <div class="slb-resize"></div>`;
+      <div class="slb-resize" data-dir="xy" title="Drag to resize"></div>`;
     attachDrag(tile, i);
-    tile.addEventListener('pointerdown', () => { selected = i; renderCanvas(); });
     canvas.appendChild(tile);
   });
 }
@@ -265,7 +303,6 @@ function removeBox(i) { boxes.splice(i, 1); selected = null; render(); }
 /* ---- Drag + resize (pointer events; works mouse + touch) ---- */
 function attachDrag(tile, i) {
   const canvas = document.getElementById('canvas');
-  const resizeEl = tile.querySelector('.slb-resize');
   let drag = null;
   const frac = (e) => {
     const r = canvas.getBoundingClientRect();
@@ -289,18 +326,33 @@ function attachDrag(tile, i) {
     if (!drag) return;
     e.preventDefault();
     const p = frac(e);
-    if (drag.kind === 'move') {
+    const k = drag.kind;
+    if (k === 'move') {
       let x = quantize(p.x - drag.offX, 1 / GRID_COLS);
       let y = quantize(p.y - drag.offY, 1 / GRID_ROWS);
       x = Math.max(0, Math.min(1 - boxes[i].w, x));
       y = Math.max(0, Math.min(1 - boxes[i].h, y));
       Object.assign(boxes[i], windowSnap({ x, y, w: boxes[i].w, h: boxes[i].h }));
-    } else {
-      let w = quantize(p.x - boxes[i].x + 1 / GRID_COLS / 2, 1 / GRID_COLS);
-      let h = quantize(p.y - boxes[i].y + 1 / GRID_ROWS / 2, 1 / GRID_ROWS);
-      boxes[i].w = Math.max(1.5 / GRID_COLS, Math.min(1 - boxes[i].x, w));
-      boxes[i].h = Math.max(1 / GRID_ROWS, Math.min(1 - boxes[i].y, h));
+    } else if (k === 'resize') {          // corner: both axes
+      boxes[i].w = quantize(p.x - boxes[i].x + 1 / GRID_COLS / 2, 1 / GRID_COLS);
+      boxes[i].h = quantize(p.y - boxes[i].y + 1 / GRID_ROWS / 2, 1 / GRID_ROWS);
+    } else if (k === 'resize-e') {        // right edge: width (columns)
+      boxes[i].w = quantize(p.x - boxes[i].x + 1 / GRID_COLS / 2, 1 / GRID_COLS);
+    } else if (k === 'resize-w') {        // left edge: width, box grows leftward
+      const right = boxes[i].x + boxes[i].w;
+      boxes[i].x = quantize(p.x, 1 / GRID_COLS);
+      boxes[i].w = right - boxes[i].x;
+    } else if (k === 'resize-s') {        // bottom edge: height (rows)
+      boxes[i].h = quantize(p.y - boxes[i].y + 1 / GRID_ROWS / 2, 1 / GRID_ROWS);
+    } else if (k === 'resize-n') {        // top edge: height, box grows upward
+      const bottom = boxes[i].y + boxes[i].h;
+      boxes[i].y = quantize(p.y, 1 / GRID_ROWS);
+      boxes[i].h = bottom - boxes[i].y;
     }
+    boxes[i].w = Math.max(1.5 / GRID_COLS, Math.min(1 - boxes[i].x, boxes[i].w));
+    boxes[i].h = Math.max(1 / GRID_ROWS, Math.min(1 - boxes[i].y, boxes[i].h));
+    boxes[i].x = Math.max(0, Math.min(1 - boxes[i].w, boxes[i].x));
+    boxes[i].y = Math.max(0, Math.min(1 - boxes[i].h, boxes[i].y));
     // Update the tile element directly — a full re-render mid-drag would destroy
     // the element under the pointer (kills touch capture and stutters).
     tile.style.left = (boxes[i].x * 100) + '%';
@@ -308,16 +360,23 @@ function attachDrag(tile, i) {
     tile.style.width = (boxes[i].w * 100) + '%';
     tile.style.height = (boxes[i].h * 100) + '%';
   };
-  const up = () => { drag = null; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); render(); };
+  const up = () => {
+    drag = null; dragActive = false;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    render();
+  };
   tile.addEventListener('pointerdown', (e) => {
     // The × button is a click, not a drag — never start a drag from it (and
     // never preventDefault on it, which would swallow the click entirely).
     if (e.target.classList.contains('slb-remove')) return;
-    if (e.target === resizeEl) drag = { kind: 'resize' };
+    const dir = e.target.dataset ? e.target.dataset.dir : null;
+    if (dir) drag = { kind: dir === 'xy' ? 'resize' : 'resize-' + dir };
     else {
       const p = frac(e);
       drag = { kind: 'move', offX: p.x - boxes[i].x, offY: p.y - boxes[i].y };
     }
+    dragActive = true;
     selected = i;
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -376,6 +435,9 @@ function recalibrateFromOccupancy() {
 }
 
 window.addEventListener('resize', () => renderCanvas());
+// Live refresh: token positions/portraits mirror the GM board every 5s (paused
+// during a drag so an active tile can't be pulled out from under the pointer).
+setInterval(() => { if (!dragActive && scene) renderCanvas(); }, 5000);
 init();
 </script>
 </body>
