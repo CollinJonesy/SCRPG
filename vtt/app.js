@@ -4881,13 +4881,13 @@ async function renderSheetsView() {
     const key = keys[slug] || '';
     const link = key ? `${location.origin}/player-sheet.html?hero=${encodeURIComponent(slug)}&key=${encodeURIComponent(key)}` : '';
     return `<tr>
-      <td>${esc(h.Name || slug)}</td>
-      <td>${esc(h.Player || '')}</td>
+      <td>${escAttr(h.Name || slug)}</td>
+      <td>${escAttr(h.Player || '')}</td>
       <td>${key ? '<span style="color:var(--accent);">Linked</span>' : '<span class="empty-hint">No key</span>'}</td>
       <td class="no-row-nav">
-        <button class="btn btn-small btn-accent" onclick="generateSheetKey('${esc(slug)}')">${key ? 'Reset Key' : 'Generate Key'}</button>
-        ${key ? `<button class="btn btn-small btn-ghost" onclick="copySheetLink('${esc(slug)}')">Copy Link</button>` : ''}
-        <button class="btn btn-small btn-ghost" onclick="viewSheetNotes('${esc(slug)}', this)">Notes</button>
+        <button class="btn btn-small btn-accent" onclick="generateSheetKey('${escAttr(slug)}')">${key ? 'Reset Key' : 'Generate Key'}</button>
+        ${key ? `<button class="btn btn-small btn-ghost" onclick="copySheetLink('${escAttr(slug)}')">Copy Link</button>` : ''}
+        <button class="btn btn-small btn-ghost" onclick="viewSheetNotes('${escAttr(slug)}', this)">Notes</button>
       </td>
     </tr>`;
   }).join('');
@@ -4898,15 +4898,15 @@ async function renderSheetsView() {
   const targetSel = document.getElementById('alertTarget');
   const prev = targetSel.value;
   targetSel.innerHTML = '<option value="all">All players</option>' +
-    heroes.map(h => `<option value="${esc(h.Slug.trim())}">${esc(h.Name || h.Slug)} (${esc(h.Player || '')})</option>`).join('');
+    heroes.map(h => `<option value="${escAttr(h.Slug.trim())}">${escAttr(h.Name || h.Slug)} (${escAttr(h.Player || '')})</option>`).join('');
   if ([...targetSel.options].some(o => o.value === prev)) targetSel.value = prev;
 
   // Sent alerts
   const listPanel = document.getElementById('alertListPanel');
   const items = (alerts || []).slice().reverse().map(a => `
     <div class="alert-hist" style="border-left-color:var(--gold);">
-      ${esc(a.text)} <span class="empty-hint">→ ${a.targets === 'all' ? 'All players' : esc((a.targets || []).join(', '))}</span>
-      <div class="empty-hint" style="font-size:11px;">${esc(a.ts || '')} · dismissed by ${((a.dismissed || []).length)} · <a href="#" onclick="deleteAlert('${esc(a.id)}');return false;" style="color:var(--text-lo);">delete</a></div>
+      ${escAttr(a.text)} <span class="empty-hint">→ ${a.targets === 'all' ? 'All players' : escAttr((a.targets || []).join(', '))}</span>
+      <div class="empty-hint" style="font-size:11px;">${escAttr(a.ts || '')} · dismissed by ${((a.dismissed || []).length)} · <a href="#" onclick="deleteAlert('${escAttr(a.id)}');return false;" style="color:var(--text-lo);">delete</a></div>
     </div>`).join('');
   listPanel.innerHTML = items || '<span class="empty-hint">No alerts sent yet.</span>';
 
@@ -4914,8 +4914,8 @@ async function renderSheetsView() {
   const actPanel = document.getElementById('sheetActivityPanel');
   const heroName = slug => { const h = heroes.find(x => x.Slug.trim() === slug); return h ? (h.Name || slug) : slug; };
   actPanel.innerHTML = (activity || []).slice().reverse().map(e => `
-    <div class="alert-hist"><b>${esc(heroName(e.hero || ''))}</b> — ${esc(e.action || '')}${e.detail ? ' <span class="empty-hint">(' + esc(e.detail) + ')</span>' : ''}
-      <span class="empty-hint" style="float:right;font-size:11px;">${esc(e.ts || '')}</span></div>`).join('')
+    <div class="alert-hist"><b>${escAttr(heroName(e.hero || ''))}</b> — ${escAttr(e.action || '')}${e.detail ? ' <span class="empty-hint">(' + escAttr(e.detail) + ')</span>' : ''}
+      <span class="empty-hint" style="float:right;font-size:11px;">${escAttr(e.ts || '')}</span></div>`).join('')
     || '<span class="empty-hint">Nothing yet. Player actions on their sheets will appear here.</span>';
 }
 
@@ -4973,8 +4973,8 @@ async function deleteAlert(id) {
 async function viewSheetNotes(slug) {
   const text = await fetch('/api/sheet-notes/' + encodeURIComponent(slug)).then(r => r.text());
   document.getElementById('referenceModalBody').innerHTML =
-    `<h3 style="font-family:var(--font-display);font-size:22px;">${esc(heroNameFromSlug(slug))} — Sheet Notes</h3>` +
-    `<pre style="white-space:pre-wrap;font-family:var(--font-body);font-size:14px;">${esc(text || '(No notes yet.)')}</pre>`;
+    `<h3 style="font-family:var(--font-display);font-size:22px;">${escAttr(heroNameFromSlug(slug))} — Sheet Notes</h3>` +
+    `<pre style="white-space:pre-wrap;font-family:var(--font-body);font-size:14px;">${escAttr(text || '(No notes yet.)')}</pre>`;
   document.getElementById('referenceModal').classList.remove('hidden');
 }
 

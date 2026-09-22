@@ -22,6 +22,11 @@
 
 * { box-sizing: border-box; }
 
+/* Sheets menu: display-font headings in dark ink on the light page */
+#sheetsView h2, #sheetsView h3 { color: var(--text-ink, #14171F); letter-spacing: .5px; }
+#sheetsView table { width: 100%; border-collapse: collapse; }
+#sheetsView th, #sheetsView td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--paper-dim, #E4DFCF); }
+
 html, body {
   margin: 0;
   padding: 0;
