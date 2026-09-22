@@ -266,28 +266,72 @@ function currentBandLetter(p) {
   return bandLetter(cur);
 }
 
-function abilitiesHtml(p) {
-  const filter = (window.__abilFilter || 'all');
-  const all = abilitiesSorted(p.abilities);
-  let shown;
-  if (filter === 'all') {
-    shown = all;
-  } else if (filter === 'status') {
-    // Cumulative availability: Green status = Green only; Yellow = Green+Yellow;
-    // Red = everything except Out.
+const SWITCH_ABILITIES = ['switch', 'quick switch', 'emergency switch'];
+
+// Mode-aware ability filtering.
+//  - 'all': everything.
+//  - 'status': cumulative availability (G -> G, Y -> G+Y, R -> all but Out),
+//    and ALWAYS excludes mode-specific rows — a hero only has their mode's
+//    abilities while IN that mode. Default-mode (Mode blank) rows only.
+//  - 'mode:<slug>': strict membership from the hero's ## Modes JSON — that
+//    mode's picked powers + principles + the Switch family (+ Out).
+//    Powerless modes suppress every ability card.
+function abilitiesForFilter(p, filter, all) {
+  if (filter === 'all') return all;
+  if (filter === 'status') {
     const rank = { Green: 0, Yellow: 1, Red: 2 };
     const curRank = rank[currentBandLetter(p) === 'g' ? 'Green' : currentBandLetter(p) === 'y' ? 'Yellow' : 'Red'] ?? 0;
-    shown = all.filter(a => (rank[a.Zone || 'Green'] ?? 3) <= curRank);
-  } else {
-    // Mode view: that mode's picked powers + the always-available switch abilities.
-    shown = all.filter(a => String(a.Mode || '').trim() === filter || !String(a.Mode || '').trim());
+    return all.filter(a => !(a.Mode || '').trim() && (rank[a.Zone || 'Green'] ?? 3) <= curRank);
   }
-  const modes = modesOf(p.abilities);
-  const modeLabel = m => String(m).replace(/[-_]+/g, ' ').replace(/\bmodular\b/ig, '').replace(/\s+/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase()) + ' Mode';
+  const slug = String(filter).replace(/^mode:/, '');
+  const mode = (p.modes || []).find(m => String(m.slug || '') === slug);
+  if (!mode) return all.filter(a => !(a.Mode || '').trim());
+  if (mode.powerless) return [];
+  if (slug === 'default') return all.filter(a => !(a.Mode || '').trim());
+  const powerNames = new Set(Object.keys(mode.powers || {}).map(n => String(n).toLowerCase()));
+  return all.filter(a => {
+    const am = String(a.Mode || '').trim();
+    if (am === slug) return true;
+    if (am) return false;
+    const n = String(a.Name || '').toLowerCase();
+    return powerNames.has(n) || /^principle\b/.test(n) || SWITCH_ABILITIES.includes(n) || n === 'out';
+  });
+}
+
+function modeButtonLabel(m) {
+  const name = String(m.name || m.slug || '').replace(/\bmodular\b/ig, '').replace(/\s+/g, ' ').trim();
+  return (name || String(m.slug)) + (/mode$/i.test(name) ? '' : ' Mode');
+}
+
+async function switchToMode(slug) {
+  // Foundation for player-driven Mode switching (full Switch-ability flow is Phase 2).
+  try {
+    await fetch('/api/player-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hero: HERO, key: KEY, mode: slug }) });
+  } catch (e) { /* still flip the local filter; the poll will reconcile */ }
+  window.__abilFilter = 'mode:' + slug;
+  renderSheet(lastPayload);
+}
+
+function abilitiesHtml(p) {
+  const isModular = (p.modes || []).length > 0;
+  if (isModular && window.__abilFilter === undefined) window.__abilFilter = 'mode:' + (p.currentMode || 'default');
+  const filter = (window.__abilFilter === undefined ? 'all' : window.__abilFilter);
+  const all = abilitiesSorted(p.abilities);
+  const shown = abilitiesForFilter(p, filter, all);
+  const curMode = String(p.currentMode || 'default');
   const buttons = [
     `<button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>`,
     `<button class="btn ${filter === 'status' ? 'primary' : ''}" onclick="setAbilFilter('status')">Status</button>`,
-  ].concat(modes.map(m => `<button class="btn ${filter === m ? 'primary' : ''}" onclick="setAbilFilter('${esc(m)}')">${esc(modeLabel(m))}</button>`));
+  ];
+  if (isModular) {
+    for (const m of p.modes) {
+      const slug = String(m.slug || '');
+      const active = filter === 'mode:' + slug;
+      const current = curMode === slug ? ' ●' : '';
+      buttons.push(`<button class="btn ${active ? 'primary' : ''}" onclick="switchToMode('${esc(slug)}')">${esc(modeButtonLabel(m))}${current}</button>`);
+    }
+  }
   const rows = shown.map(a => `
     <div class="abil z-${esc(a.Zone || 'Green')}">
       <div class="a-head"><span class="a-name">${esc(a.DisplayName || a.Name)}</span><span class="a-zone">${esc(a.Zone || 'Green')}${a.Mode ? ' · ' + esc(a.Mode) : ''}</span></div>

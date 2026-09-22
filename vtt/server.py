@@ -492,6 +492,23 @@ def npc_type_for(campaign: Path, slug: str) -> str:
     return ''
 
 
+def hero_modes_md(campaign: Path, hero: str) -> list:
+    """Structured ## Modes JSON from the hero's markdown (empty list if none)."""
+    if not is_safe_slug(hero):
+        return []
+    p = campaign / 'md' / 'heroes' / (hero + '.md')
+    if not p.exists():
+        return []
+    m = re.search(r'##\s*Modes\s*\n+```json\n([\s\S]*?)```', p.read_text(encoding='utf-8'))
+    if not m:
+        return []
+    try:
+        arr = json.loads(m.group(1))
+        return arr if isinstance(arr, list) else []
+    except Exception:
+        return []
+
+
 def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
     """Full read-only sheet payload for one hero — everything the player device
     may see. Hiding rules mirror the Player Display: no villain health numbers,
@@ -590,6 +607,8 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
             'round': (scene or {}).get('round') or 1,
         },
         'tracker': (scene or {}).get('tracker') or None,
+        'modes': hero_modes_md(campaign, hero),
+        'currentMode': str((my_token or {}).get('currentMode') or 'default'),
         'location': {'id': (location or {}).get('id'), 'name': (location or {}).get('name')},
         'occupants': occupants,
         'myToken': {
@@ -1561,6 +1580,44 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 record_sheet_activity(campaign, hero, 'Notes updated',
                                       'edited' if existed else 'created')
                 return self._send_text(json.dumps({'ok': True}), 200, 'application/json')
+            if path == '/api/player-mode':
+                # Foundation for player-driven Mode switching (Phase 2 will build
+                # the full Switch-ability flow on top of this). Server-side scene
+                # mutation — never a client scene PUT.
+                # Body: {hero, key, mode}
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                hero = str(payload.get('hero') or '').strip()
+                mode = str(payload.get('mode') or '').strip()
+                if not sheet_key_valid(campaign, hero, str(payload.get('key') or '')):
+                    return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
+                known = {str(m.get('slug') or '').strip() for m in hero_modes_md(campaign, hero)}
+                known.add('default')
+                if mode not in known:
+                    return self._send_text(json.dumps({'error': 'unknown mode'}), 400, 'application/json')
+                active = _load_json_file(campaign / 'active_scene.json', {})
+                scene_slug = str(active.get('slug') or '') if isinstance(active, dict) else ''
+                if not scene_slug or not is_safe_slug(scene_slug):
+                    return self._send_text(json.dumps({'error': 'no active scene'}), 400, 'application/json')
+                sp = campaign / 'scenes' / (scene_slug + '.json')
+                if not sp.exists():
+                    return self._send_text(json.dumps({'error': 'no active scene'}), 400, 'application/json')
+                try:
+                    scene = json.loads(sp.read_text(encoding='utf-8'))
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad scene'}), 500, 'application/json')
+                tok = next((t for t in scene.get('tokens') or []
+                            if t.get('kind') == 'hero' and (t.get('slug') or '').strip() == hero), None)
+                if tok is None:
+                    return self._send_text(json.dumps({'error': 'hero not on board'}), 400, 'application/json')
+                tok['currentMode'] = mode
+                sp.write_text(json.dumps(scene, indent=2), encoding='utf-8')
+                mode_name = next((str(m.get('name') or m.get('slug')) for m in hero_modes_md(campaign, hero)
+                                  if str(m.get('slug') or '').strip() == mode), mode)
+                record_sheet_activity(campaign, hero, 'Mode changed', '→ ' + mode_name)
+                return self._send_text(json.dumps({'ok': True, 'currentMode': mode}), 200, 'application/json')
             if path == '/api/alerts':
                 # GM compose/delete; player dismiss (key-gated).
                 # {op:'compose', targets:'all'|[slugs], text} |

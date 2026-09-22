@@ -225,5 +225,52 @@ class TestSheetPayloadSceneData(ServerTestCase):
         self.assertEqual(srv.npc_type_for(self.campaign, 'nobody'), '')
 
 
+class TestPlayerMode(ServerTestCase):
+    def seed_modular(self):
+        seed_hero(self.campaign)
+        (self.campaign / 'md' / 'heroes' / 'test-hero.md').write_text(
+            '# Test Hero\n\n## Modes\n\n```json\n'
+            + json.dumps([
+                {'slug': 'default', 'name': 'Default Mode', 'default': True, 'powerless': False,
+                 'powers': {'Strength': 'd8'}},
+                {'slug': 'modular-debilitator', 'name': 'Debilitator Mode', 'default': False,
+                 'powerless': False, 'powers': {'Strength': 'd10'}},
+                {'slug': 'powerless-mode', 'name': 'Powerless Mode', 'default': False,
+                 'powerless': True, 'powers': {}},
+            ]) + '\n```\n', encoding='utf-8')
+        seed_scene(self.campaign, tokens=[
+            {'id': 't1', 'kind': 'hero', 'slug': 'test-hero', 'name': 'Test Hero',
+             'locationId': 'loc1', 'currentHealth': 20, 'maxHealth': 30}])
+        srv._save_json_file(self.campaign / 'sheet-keys.json', {'test-hero': 'k123'})
+
+    def test_mode_endpoint_round_trip(self):
+        self.seed_modular()
+        body = json.dumps({'hero': 'test-hero', 'key': 'k123', 'mode': 'modular-debilitator'})
+        status, data = self.request('POST', '/api/player-mode', body)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(data)['currentMode'], 'modular-debilitator')
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        tok = next(t for t in scene['tokens'] if t['slug'] == 'test-hero')
+        self.assertEqual(tok['currentMode'], 'modular-debilitator')
+        # back to default
+        status, _ = self.request('POST', '/api/player-mode',
+                                 json.dumps({'hero': 'test-hero', 'key': 'k123', 'mode': 'default'}))
+        self.assertEqual(status, 200)
+        # payload reflects it
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        p = json.loads(data)
+        self.assertEqual(p['currentMode'], 'default')
+        self.assertEqual(len(p['modes']), 3)
+
+    def test_mode_endpoint_rejects(self):
+        self.seed_modular()
+        status, _ = self.request('POST', '/api/player-mode',
+                                 json.dumps({'hero': 'test-hero', 'key': 'bad', 'mode': 'default'}))
+        self.assertEqual(status, 403)
+        status, _ = self.request('POST', '/api/player-mode',
+                                 json.dumps({'hero': 'test-hero', 'key': 'k123', 'mode': 'nope'}))
+        self.assertEqual(status, 400)
+
+
 if __name__ == '__main__':
     unittest.main()
