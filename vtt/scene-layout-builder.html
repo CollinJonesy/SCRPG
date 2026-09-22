@@ -10,8 +10,15 @@
   body { padding: 16px 20px 24px; }
   .slb-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .slb-header h1 { font-family: var(--font-display); font-size: 24px; margin: 0; letter-spacing: 1px; }
-  .slb-main { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
-  .slb-left { display: flex; flex-direction: column; gap: 10px; }
+  /* Everything fits the viewport: header row on top, canvas fills the rest. */
+  .slb-main { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: stretch; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  .slb-left { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
+  .slb-canvas-wrap { height: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .slb-canvas {
+    position: relative; height: 100%; aspect-ratio: 16 / 9; max-width: 100%;
+    background: linear-gradient(180deg, #14171f 0%, #0b0d12 100%);
+    border: 3px solid var(--gutter); overflow: hidden;
+  }
   .slb-loc-list { display: flex; flex-direction: column; gap: 6px; }
   .slb-loc-item {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -28,13 +35,6 @@
   }
   .slb-toggle button.active { background: var(--paper); color: var(--text-ink); }
   .slb-hint { font-family: var(--font-body); font-size: 12px; color: var(--text-lo); line-height: 1.4; }
-  /* Canvas mirrors the Player Display floor (16:9). */
-  .slb-canvas-wrap { position: relative; }
-  .slb-canvas {
-    position: relative; width: 100%; aspect-ratio: 16 / 9;
-    background: linear-gradient(180deg, #14171f 0%, #0b0d12 100%);
-    border: 3px solid var(--gutter); overflow: hidden;
-  }
   .slb-grid { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
   .slb-grid.show .slb-cell { background: rgba(36, 84, 232, 0.07); }
   .slb-grid .slb-cell { position: absolute; border: 1px solid rgba(255,255,255,0.05); box-sizing: border-box; }
@@ -78,6 +78,13 @@
     color: rgba(255,255,255,.3); letter-spacing: 2px; text-transform: uppercase; z-index: 0;
   }
   .slb-status { font-family: var(--font-data); font-size: 12px; color: var(--green); min-width: 120px; }
+  /* Token occupancy chips inside a tile (read-only preview of board state). */
+  .slb-tile-tokens { display: flex; flex-wrap: wrap; gap: 3px; padding: 0 4%; max-height: 30%; overflow: hidden; }
+  .slb-token-chip {
+    font-family: var(--font-data); font-size: 9px; color: var(--text-hi);
+    background: var(--ink); border: 1px solid #333744; border-radius: 8px;
+    padding: 1px 6px; white-space: nowrap; overflow: hidden; max-width: 100%;
+  }
 </style>
 </head>
 <body>
@@ -209,6 +216,11 @@ function renderCanvas() {
     grid.appendChild(cell);
   }
   boxes.forEach((b, i) => {
+    // Occupancy preview: tokens currently in this location (board state, read-only
+    // here — tokens are added/removed on the GM board).
+    const here = ((scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === b.locId) || []);
+    const chips = here.slice(0, 8).map(t => `<span class="slb-token-chip">${esc(t.name)}</span>`).join('')
+      + (here.length > 8 ? `<span class="slb-token-chip">+${here.length - 8}</span>` : '');
     const tile = document.createElement('div');
     tile.className = 'slb-tile' + (selected === i ? ' selected' : '');
     tile.style.left = (b.x * 100) + '%';
@@ -225,6 +237,7 @@ function renderCanvas() {
     if (fitted < LEGIBILITY_MIN_PX) tile.classList.add('warn');
     tile.innerHTML = `
       <div class="slb-tile-header" style="font-size:${Math.min(fontPx, 40)}px;">${esc(b.name)}</div>
+      ${chips ? `<div class="slb-tile-tokens">${chips}</div>` : ''}
       <div class="slb-mini-card">
         <div class="slb-mini-art"></div>
         <div class="slb-mini-plate" style="font-size:${Math.min(fitted, 22)}px;">${esc(b.name)}</div>
@@ -276,7 +289,6 @@ function attachDrag(tile, i) {
     if (!drag) return;
     e.preventDefault();
     const p = frac(e);
-    const cw = canvas.clientWidth, ch = canvas.clientHeight;
     if (drag.kind === 'move') {
       let x = quantize(p.x - drag.offX, 1 / GRID_COLS);
       let y = quantize(p.y - drag.offY, 1 / GRID_ROWS);
@@ -289,10 +301,18 @@ function attachDrag(tile, i) {
       boxes[i].w = Math.max(1.5 / GRID_COLS, Math.min(1 - boxes[i].x, w));
       boxes[i].h = Math.max(1 / GRID_ROWS, Math.min(1 - boxes[i].y, h));
     }
-    renderCanvas();
+    // Update the tile element directly — a full re-render mid-drag would destroy
+    // the element under the pointer (kills touch capture and stutters).
+    tile.style.left = (boxes[i].x * 100) + '%';
+    tile.style.top = (boxes[i].y * 100) + '%';
+    tile.style.width = (boxes[i].w * 100) + '%';
+    tile.style.height = (boxes[i].h * 100) + '%';
   };
-  const up = () => { drag = null; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  const up = () => { drag = null; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); render(); };
   tile.addEventListener('pointerdown', (e) => {
+    // The × button is a click, not a drag — never start a drag from it (and
+    // never preventDefault on it, which would swallow the click entirely).
+    if (e.target.classList.contains('slb-remove')) return;
     if (e.target === resizeEl) drag = { kind: 'resize' };
     else {
       const p = frac(e);
