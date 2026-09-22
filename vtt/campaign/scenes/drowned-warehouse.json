@@ -1,0 +1,69 @@
+{
+  "name": "Drowned Warehouse",
+  "difficulty": "Moderate",
+  "sceneType": "Action",
+  "tracker": {
+    "stars": [
+      "green",
+      "yellow",
+      "yellow",
+      "yellow",
+      "red",
+      "red",
+      "red",
+      "red"
+    ],
+    "position": 0
+  },
+  "locations": [
+    {
+      "id": "loc-jk4pvnp2",
+      "name": "Main Location"
+    },
+    {
+      "id": "loc-i7o4s5xx",
+      "name": "New Location",
+      "locationSlug": ""
+    }
+  ],
+  "background": "drowned-warehouse-bg",
+  "environment": null,
+  "challenges": [
+    {
+      "id": "chal-sqnic0b2",
+      "title": "Gather Evidence",
+      "type": "Multiple Solutions",
+      "paths": [
+        {
+          "label": "Smash & Grab",
+          "successesNeeded": 2,
+          "successesMarked": 0,
+          "hidden": false,
+          "failed": false
+        },
+        {
+          "label": "Stealthy Approach",
+          "successesNeeded": 3,
+          "successesMarked": 0,
+          "hidden": false,
+          "failed": false
+        }
+      ],
+      "timerMode": "turns",
+      "timerTurnsRemaining": 2,
+      "timerTriggerZone": "red",
+      "consequence": "",
+      "doomsdaySpeed": "1",
+      "outcome": "",
+      "impactScale": "",
+      "solution": "",
+      "hidden": true
+    }
+  ],
+  "tokens": [],
+  "mods": [],
+  "gmNotes": "",
+  "activityLog": [],
+  "round": 1,
+  "__slug": "drowned-warehouse"
+}

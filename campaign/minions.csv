@@ -1,0 +1,48 @@
+Slug,Name,Type,Die,Faction,PerHero,Active,Origin,Affiliation
+bestial-chomper,Bestial Chomper,Minion,d8,Aliens,,false,premade,Enemy
+dymkharn-the-gladiator,Dymkharn the Gladiator,Lieutenant,d10,Aliens,,false,premade,Enemy
+mentally-empowered-humanoid,Mentally-Empowered Humanoid,Minion,d12,Aliens,,false,premade,Enemy
+tech-enhanced-humanoid,Tech-Enhanced Humanoid,Minion,d10,Aliens,,false,premade,Enemy
+strange-extraterrestrial,Strange Extraterrestrial,Minion,d6,Aliens,,false,premade,Enemy
+battalion-commander,Battalion Commander,Lieutenant,d8,Blade Battalion (Mordengrad),,false,premade,Enemy
+covert-trooper,Covert Trooper,Minion,d8,Blade Battalion (Mordengrad),,false,premade,Enemy
+force-trooper,Force Trooper,Minion,d10,Blade Battalion (Mordengrad),,false,premade,Enemy
+technical-trooper,Technical Trooper,Minion,d6,Blade Battalion (Mordengrad),,false,premade,Enemy
+roboticized-trooper,Roboticized Trooper,Minion,d10,Blade Battalion (Mordengrad),,false,premade,Enemy
+ambulatory-drone,Ambulatory Drone,Minion,d6,Blade Drones (Mordengrad),,false,premade,Enemy
+hover-drone,Hover Drone,Minion,d10,Blade Drones (Mordengrad),,false,premade,Enemy
+defensive-drone,Defensive Drone,Minion,d6,Blade Drones (Mordengrad),,false,premade,Enemy
+reconstruction-drone,Reconstruction Drone,Minion,d8,Blade Drones (Mordengrad),,false,premade,Enemy
+auto-turret,Auto-Turret,Minion,d8,Devices,,false,premade,Enemy
+colossal-robot,Colossal Robot,Lieutenant,d12,Devices,,false,premade,Enemy
+heavy-plated-megatruck,Heavy Plated MegaTruck,Minion,d10,Devices,,false,premade,Enemy
+humanoid-robot,Humanoid Robot,Minion,d6,Devices,,false,premade,Enemy
+walking-tank,Walking Tank,Lieutenant,d10,Devices,,false,premade,Enemy
+ember-shaman,Ember Shaman,Lieutenant,d8,Magmarian,,false,premade,Enemy
+inner-core-tunneler,Inner Core Tunneler,Minion,d10,Magmarian,,false,premade,Enemy
+crystal-collector,Crystal Collector,Minion,d8,Magmarian,,false,premade,Enemy
+magman-rebel,Magman Rebel,Minion,d4,Magmarian,,false,premade,Enemy
+seismic-defender,Seismic Defender,Minion,d12,Magmarian,,false,premade,Enemy
+ur-crystal-behemoth,Ur-Crystal Behemoth,Lieutenant,d10,Magmarian,,false,premade,Enemy
+demonoid-insect,Demonoid Insect,Minion,d6,"Thematic (tied to xxtz'Hulissh's Hul-Spawn family, or freestanding)",,false,premade,Enemy
+fleshchildren,Fleshchildren,Minion,d10,Thematic (Biomancer),,false,premade,Enemy
+homunculus,Homunculus,Lieutenant,d10,Thematic (Biomancer),,false,premade,Enemy
+hul-spawn,Hul-Spawn,Minion,d6,Thematic (xxtz'Hulissh),,false,premade,Enemy
+firearm,Firearm,Lieutenant,d4,Typical Combatants,,false,premade,Enemy
+gangster,Gangster,Minion,d10,Typical Combatants,,false,premade,Enemy
+mean-streets-pugilist,Mean Streets Pugilist,Minion,d4,Typical Combatants,,false,premade,Enemy
+mean-streets-rioter,Mean Streets Rioter,Minion,d6,Typical Combatants,,false,premade,Enemy
+mean-streets-shooter,Mean Streets Shooter,Minion,d6,Typical Combatants,,false,premade,Enemy
+mean-streets-tough-guy,Mean Streets Tough Guy,Minion,d4,Typical Combatants,,false,premade,Enemy
+mean-streets-wrecker,Mean Streets Wrecker,Minion,d6,Typical Combatants,,false,premade,Enemy
+ninja,Ninja,Minion,d10,Typical Combatants,,false,premade,Enemy
+seer,Seer,Lieutenant,d10,Typical Combatants,,false,premade,Enemy
+soldier-grunt,Soldier Grunt,Minion,d4,Typical Combatants,,false,premade,Enemy
+soldier-sergeant,Soldier Sergeant,Lieutenant,d4,Typical Combatants,,false,premade,Enemy
+technician,Technician,Minion,d6,Typical Combatants,,false,premade,Enemy
+bunsen-burner,Bunsen Burner,Lieutenant,d10,,,true,custom,Enemy
+minus,Minus,Lieutenant,d8,Shockers,,true,custom,Enemy
+shocker-initiate,Shocker Initiate,Minion,d6,Shockers,1,true,custom,Enemy
+plus,Plus,Lieutenant,d8,Shockers,,true,custom,Enemy
+storm-imps,Storm Imps,Minion,d8,,1,false,premade,Enemy
+faceless-elder-tentacle,Faceless Elder Tentacle,Lieutenant,d10,,,false,premade,Enemy

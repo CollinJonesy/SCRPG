@@ -1,0 +1,33 @@
+{
+  "name": "Montage #1",
+  "difficulty": "Easy",
+  "sceneType": "Montage",
+  "tracker": {
+    "stars": [
+      "green",
+      "green",
+      "yellow",
+      "yellow",
+      "yellow",
+      "yellow",
+      "red",
+      "red"
+    ],
+    "position": 0
+  },
+  "locations": [
+    {
+      "id": "loc-pjdpmgsl",
+      "name": "Main Location"
+    }
+  ],
+  "background": null,
+  "environment": null,
+  "challenges": [],
+  "tokens": [],
+  "mods": [],
+  "gmNotes": "",
+  "activityLog": [],
+  "round": 1,
+  "__slug": "montage-1"
+}

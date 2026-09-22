@@ -91,7 +91,11 @@ As long as you are manifesting effects related to a power you have at d12, autom
   "heroCount": 5,
   "origin": "custom",
   "issues": [
-    "session-1"
+    "session-1",
+    "session-2",
+    "session-4",
+    "session-3",
+    "session-5"
   ]
 }
 ```

@@ -251,7 +251,7 @@ function startNew(){
   editing=null;
   document.getElementById('name').value='';
   document.getElementById('slug').value='';
-  document.getElementById('type').value=NPC_MODE?'Hero':'Minion';
+  document.getElementById('type').value=NPC_MODE?'Bystander':'Minion';
   document.getElementById('faction').value='';
   document.getElementById('description').value='';
   document.getElementById('tactics').value='';
@@ -364,12 +364,12 @@ async function saveRow(){
 if (NPC_MODE){
   document.title='SCRPG NPC Builder';
   const h=document.getElementById('builderTitle'); if(h) h.textContent='NPC Builder';
-  const b=document.getElementById('builderBlurb'); if(b) b.textContent='Build Heroes or Bystander NPCs (also Minion/Lieutenant). Bystander has no Boost/Hinder/Defend/Attack/Overcome on the board.';
+  const b=document.getElementById('builderBlurb'); if(b) b.textContent='Build Bystander, Minion, or Lieutenant NPCs. Build non-player Heroes in the Hero Builder.';
   const w=document.getElementById('npcFlagWrap'); if(w) w.classList.remove('hidden');
   const npcEl=document.getElementById('rowNpc'); if(npcEl) npcEl.checked=true;
   const typeEl=document.getElementById('type');
   if (typeEl){
-    typeEl.innerHTML='<option>Hero</option><option>Bystander</option><option>Minion</option><option>Lieutenant</option>';
+    typeEl.innerHTML='<option>Bystander</option><option>Minion</option><option>Lieutenant</option>';
   }
 }
 loadLanding();

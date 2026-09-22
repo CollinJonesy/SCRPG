@@ -16,7 +16,7 @@
 - **Hair:** None
 - **Skin:** None?
 - **Build:** Mist?
-- **Costume/Equipment:** —
+- **Costume/Equipment:** Technologically Powered Cloak, camouflaging their face in complete shadow.
 
 ## Look
 
@@ -41,26 +41,26 @@ _None yet._
 ## Abilities
 
 ### [A] [Attack] "Deadly Blink"
-Attack multiple nearby targets using [quality]. Then, end up wherever you want in the scene.
+Attack multiple nearby targets using [Stealth]. Then, end up wherever you want in the scene.
 
-### [I] [Attack, Defend, Hinder] "Fade From Sight"
-If you take an action on your turn that does not involve an Attack or Hinder, also use your Min die to Defend against all Attacks against you until your next turn.
+### [R] [Defend, Boost] "Defensive Dash"
+When Attacked, Defend yourself by rolling for your single [Alertness] die. Boost yourself with the amount of damage reduced.
 
-### [I] [None] "Even Odds"
-At the start of your turn, gain a bonus equal to the number of opponents that Attacked you since your last turn.
+### [R] [Attack, Defend] "Malicious Deflection"
+Defend against an Attack by rolling your single status die. Deal that much damage to a different nearby target.
 
-### [I] [None] "Tangled Fray"
-If you are outnumbered by nearby opponents, reduce all damage dealt to you by 2.
+### [A] [Attack, Defend] "Human Shield"
+Attack one target using [Alertness] and use your Max+Min dice. Defend against all Attacks made by targets other than that target with your Mid die until the start of your next turn. All Defended damage is dealt to the target of your Attack.
 
 ## Upgrades
 
-### [I] [None] "Quality Upgrade"
-Increase all quality dice by one size, except the custom roleplaying quality. If any quality would increase above d12, instead add another ability from the villain's approach.
+### [I] [None] "Power Upgrade"
+Increase all power dice by one size. If any power would increase above d12, instead add another ability from the villain's archetype.
 
 ## Mastery
 
-### [I] [Overcome] "Master of the Unfathomable"
-If you are in a situation involving eldritch and disturbing forces, automatically succeed at an Overcome to do the bidding of a being beyond human concerns.
+### [I] [Overcome] "Master Behind the Curtain"
+As long as you are not directly involved in the fray and are using your influence indirectly, automatically succeed at an Overcome to manipulate a situation.
 
 ## Builder
 
@@ -70,20 +70,28 @@ If you are in a situation involving eldritch and disturbing forces, automaticall
   "ar": "guerrilla",
   "pickedAp": [
     "ninja-deadly-blink",
-    "ninja-fade-from-sight"
+    "ninja-defensive-dash"
   ],
   "pickedAr": [
-    "guerrilla-even-odds",
-    "guerrilla-tangled-fray"
+    "guerrilla-malicious-deflection",
+    "guerrilla-human-shield"
   ],
-  "binds": {},
+  "binds": {
+    "ninja-deadly-blink": "Stealth",
+    "ninja-defensive-dash": "Alertness",
+    "guerrilla-human-shield": "Alertness"
+  },
   "displayNames": {},
-  "up": "quality-upgrade",
-  "ma": "master-of-the-unfathomable",
+  "up": "power-upgrade",
+  "ma": "master-behind-the-curtain",
   "heroCount": 5,
   "origin": "custom",
   "issues": [
-    "session-1"
+    "session-1",
+    "session-2",
+    "session-3",
+    "session-4",
+    "session-5"
   ]
 }
 ```

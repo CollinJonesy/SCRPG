@@ -4,6 +4,11 @@ from pathlib import Path
 
 DISPLAY = Path(__file__).resolve().parent.parent / 'display.js'
 DISPLAY_HTML = Path(__file__).resolve().parent.parent / 'display.html'
+STYLE_CSS = DISPLAY_HTML.parent / 'style.css'
+
+
+def with_css():
+    return STYLE_CSS.read_text(encoding='utf-8')
 
 
 class TestDisplayJsContracts(unittest.TestCase):
@@ -33,19 +38,15 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('function isNonCombatToken', self.src)
         self.assertIn("/api/csv/npcs", self.src)
 
-    def test_pd_default_is_9_col_roles_3_3_3(self):
-        """Grouped role layout: Players 3 / Bystanders 3 / Threats 3 — 9 total columns."""
+    def test_pd_default_is_capped_roles_2_2_4(self):
+        """Per-group column CAPS: Players 2 / Bystanders 2 / Villains 4 (dynamic, not fixed)."""
+        self.assertIn('const PD_ALLY_CAP = 2;', self.src)
+        self.assertIn('const PD_BYSTANDER_CAP = 2;', self.src)
+        self.assertIn('const PD_THREAT_CAP = 4;', self.src)
         body = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
-        # Tunable constants exist and default to the closed design
-        self.assertIn('const PD_ALLY_COLS = 3;', self.src)
-        self.assertIn('const PD_BYSTANDER_COLS = 3;', self.src)
-        self.assertIn('const PD_THREAT_COLS = 3;', self.src)
-        # Grouped layout renders every present group with its computed span (loop, not per-case literals)
-        self.assertIn('presentIdx.forEach((i, k) => {', body)
-        self.assertIn('pdMvcSideHtml(label, cls, tokensArr, scene, spans[k], spans[k], hideHealthBars)', body)
-        # All-three-present stage grid shrinks to the design sum (1+1+2)
-        self.assertIn('cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;', body)
-        self.assertIn('grid-template-columns:repeat(${cols}, minmax(0,1fr))', body)
+        # Span = min(cap, token count): small rosters get bigger cards, extras wrap
+        self.assertIn('g.span = Math.min(g.cap, g.tokens.length);', body)
+        self.assertIn('layout-groups', body)
 
     def test_pd_hides_affiliation_side_headers(self):
         """Player Display locations omit Allies / Neutral / Enemies labels."""
@@ -95,23 +96,34 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('colWidth * 0.2', fit)
         self.assertIn('Math.max(24', fit)  # 24px baseline floor, grows with cell
 
-    def test_pd_horizontal_card_is_shipped_shape(self):
-        """Horizontal card (portrait left, vertical bar, Name/BHD right) is the only card shape; no toggle."""
+    def test_pd_vertical_card_is_shipped_shape(self):
+        """Vertical card (portrait top, bar, Name/BHD below) is the only card shape; no toggle."""
         self.assertNotIn('PD_CARD_H', self.src)
         self.assertNotIn("get('cards')", self.src)
         card = self.src[self.src.index('function renderFighterCard'):]
-        self.assertIn('pd-h', card)
-        self.assertIn('pd-vbar', card)
-        self.assertIn('pd-card-body', card)
-        # The old vertical card markup (plate as direct child of mvc-card) is gone
-        self.assertNotIn('mvc-card ${t.kind}">', card)
-        self.assertIn('.pd-h.mvc-card', self.html)
-        self.assertIn('.pd-h .pd-vbar', self.html)
+        self.assertIn('mvc-card ${t.kind}', card)
+        self.assertIn('mvc-plate', card)
+        # The horizontal card markup/CSS is fully removed (reverted to vertical).
+        self.assertNotIn('pd-h', self.src)
+        self.assertNotIn('pd-h', self.html)
+        self.assertNotIn('pd-h', with_css())
+        self.assertNotIn('pd-vbar', self.src)
+        self.assertNotIn('pd-vbar', self.html)
+        self.assertNotIn('pd-vbar', with_css())
         # No on-screen card toggle button
         self.assertNotIn('cardToggle', self.html)
-        with_css = DISPLAY.parent.joinpath('style.css').read_text(encoding='utf-8')
-        self.assertIn('.pd-h.mvc-card', with_css)
-        self.assertIn('.pd-h .pd-vbar', with_css)
+        # Horizontal health bar fill rides on width again (vertical card shape).
+        self.assertIn('style="width:${meter.pct}%"', card)
+
+    def test_pd_challenges_in_header_zone(self):
+        """Challenges strip lives in the header zone (above locations), out of the floor budget."""
+        idx_header = self.html.index('<div id="displayChallenges">')
+        idx_tracker = self.html.index('displayTrackerRow')
+        idx_locations = self.html.index('<div id="locationsRow"')
+        self.assertLess(idx_tracker, idx_header)
+        self.assertLess(idx_header, idx_locations)
+        self.assertNotIn('id="displayChallenges"', self.html[idx_locations:])
+        self.assertIn('#displayChallenges:empty { display: none; }', self.html)
 
     def test_pd_portrait_art_is_square(self):
         self.assertIn('aspect-ratio: 1 / 1', self.html)

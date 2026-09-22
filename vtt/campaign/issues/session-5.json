@@ -2,7 +2,10 @@
   "name": "Session 5",
   "notes": "",
   "sceneSlugs": [],
-  "villainSlugs": [],
+  "villainSlugs": [
+    "nightwalker",
+    "stunt-double"
+  ],
   "heroSlugs": [
     "handyman",
     "pink-panther",

@@ -27,7 +27,7 @@
     flex-direction: column;
     align-items: stretch;
     box-sizing: border-box;
-    padding: 1vh 2vw 1.2vh;
+    padding: 0.5vh 1vw 0.6vh;
   }
   .display-tracker-center {
     text-align: center;
@@ -251,34 +251,35 @@
   .mvc-card.villain .bhd-stat,
   .mvc-card.minion .bhd-stat,
   .mvc-card.lieutenant .bhd-stat { padding: 0.7vh 0.1vw; }
-  /* Horizontal card prototype (?cards=h) — scoped to .pd-h; vertical cards unaffected. */
-  .pd-h.mvc-card { flex-direction: row; align-items: stretch; gap: 0.4vw; }
-  .pd-h .mvc-art { width: 42%; flex: 0 0 auto; height: auto; }
-  .pd-h .pd-card-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-  .pd-h .pd-vbar { width: 1.1vh; height: auto; flex: 0 0 auto; align-self: stretch; margin: 0; position: relative; }
-  .pd-h .pd-vbar .health-bar-fill { width: 100%; height: var(--hp, 100%); position: absolute; bottom: 0; left: 0; transition: height .3s ease; }
-  .pd-vbar-spacer { width: 1.1vh; flex: 0 0 auto; visibility: hidden; }
   .mvc-empty { color: var(--text-lo); font-style: italic; padding: 2vh; font-size: 1.6vh; }
   .mvc-ko { text-align: center; color: var(--text-lo); margin-top: 0.6vh; font-size: 1.4vh; }
+  /* Challenges chip strip in the header zone — out of the locations floor budget. */
   #displayChallenges {
-    padding: 0.6vh 0 0;
+    padding: 0.2vh 0 0;
     width: 100%;
     flex: 0 0 auto;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.8vw;
+    gap: 0.4vh 1.2vw;
     justify-content: center;
+    align-items: flex-start;
   }
+  #displayChallenges:empty { display: none; }
   #displayChallenges .challenge-board-card {
     min-width: 0;
-    font-size: clamp(14px, 1.8vh, 22px);
-    padding: 0.8vh 1vw;
+    font-size: clamp(13px, 1.7vh, 20px);
+    padding: 0.4vh 0.8vw;
     margin: 0;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.2vh 1.4vw;
+    align-items: center;
+    justify-content: center;
   }
-  #displayChallenges .challenge-board-top { margin-bottom: 0.4vh; gap: 1vw; }
-  #displayChallenges .challenge-board-title { font-size: clamp(18px, 2.4vh, 32px); }
-  #displayChallenges .challenge-path-row { margin-bottom: 0.3vh; }
-  #displayChallenges .challenge-path-label { font-size: clamp(16px, 2.2vh, 28px); font-family: var(--font-body); font-weight: 600; }
+  #displayChallenges .challenge-board-top { margin: 0; gap: 0.8vw; }
+  #displayChallenges .challenge-board-title { font-size: clamp(14px, 1.9vh, 24px); }
+  #displayChallenges .challenge-path-row { margin: 0; gap: 0.5vw; align-items: center; }
+  #displayChallenges .challenge-path-label { font-size: clamp(13px, 1.8vh, 22px); font-family: var(--font-body); font-weight: 600; }
   #displayChallenges .challenge-success-title { text-decoration: line-through; }
   #displayChallenges .challenge-outcome {
     display: inline-flex;
@@ -329,12 +330,14 @@
   <div class="display-tracker-wrap">
     <div id="displayTrackerRow"></div>
   </div>
+  <!-- Challenges render in the header zone (near scene name + tracker) so they
+       never consume the locations floor budget. Compact chip strip. -->
+  <div id="displayChallenges"></div>
   <div id="displayEnvironment" class="board-environment"></div>
 
   <main class="view display-main">
     <div id="displayEmpty" class="empty-display">Waiting for the GM to load a scene…</div>
     <div id="locationsRow" class="locations-row"></div>
-    <div id="displayChallenges"></div>
   </main>
 </div>
 </div>

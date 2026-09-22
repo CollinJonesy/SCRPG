@@ -1,0 +1,3 @@
+# Discovering the Evidence
+
+The team leaves the warehouse, gets to a safehouse, and discuss their findings, which includes a manifest for a large shipment of munitions, all purchased locally by a Shell Corporation, that no one has heard of before, Apex Logistics. Before they conclude their meeting, a faceless Villain appears, having heard their whole conversation, but he teleports into the shadow just as quickly as he was discovered.

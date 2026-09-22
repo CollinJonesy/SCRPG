@@ -12,7 +12,7 @@
       "red",
       "red"
     ],
-    "position": 0
+    "position": 3
   },
   "locations": [
     {
@@ -48,7 +48,7 @@
         {
           "label": "Challenge Timer",
           "successesNeeded": 3,
-          "successesMarked": 0,
+          "successesMarked": 2,
           "hidden": true,
           "failed": false
         }
@@ -128,74 +128,38 @@
   ],
   "tokens": [
     {
-      "id": "tok-ru7kpkfx",
-      "kind": "hero",
-      "slug": "titus-andromeda",
-      "name": "Titus Andromeda",
-      "locationId": "loc-dgjwqvjv",
-      "currentHealth": 30,
-      "maxHealth": 30
-    },
-    {
-      "id": "tok-n7v34y9w",
-      "kind": "hero",
-      "slug": "masquerade",
-      "name": "Masquerade",
-      "locationId": "loc-dgjwqvjv",
-      "currentHealth": 30,
-      "maxHealth": 30
-    },
-    {
-      "id": "tok-46y1jcb1",
-      "kind": "hero",
-      "slug": "pink-panther",
-      "name": "Pink Panther",
-      "locationId": "loc-dgjwqvjv",
-      "currentHealth": 30,
-      "maxHealth": 30
-    },
-    {
-      "id": "tok-t2plsage",
-      "kind": "hero",
-      "slug": "lumen",
-      "name": "Lumen",
-      "locationId": "loc-dgjwqvjv",
-      "currentHealth": 32,
-      "maxHealth": 32
-    },
-    {
-      "id": "tok-88u77jsi",
-      "kind": "hero",
-      "slug": "handyman",
-      "name": "Handyman",
-      "locationId": "loc-dgjwqvjv",
-      "currentHealth": 30,
-      "maxHealth": 30
-    },
-    {
-      "id": "tok-zx9t6f3t",
-      "kind": "minion",
-      "slug": "shocker-initiate",
-      "name": "Shocker Initiate",
+      "id": "tok-38ubpr17",
+      "kind": "lieutenant",
+      "slug": "plus",
+      "name": "Plus",
       "locationId": "loc-dgjwqvjv",
       "currentDie": 6,
       "ko": false,
       "npc": false,
-      "nonCombat": false
+      "nonCombat": false,
+      "affiliation": "Enemy",
+      "bhdDelta": {
+        "hinder": 0
+      }
     },
     {
-      "id": "tok-skvquj8h",
-      "kind": "minion",
-      "slug": "shocker-initiate",
-      "name": "Shocker Initiate",
+      "id": "tok-kmtdzuq2",
+      "kind": "lieutenant",
+      "slug": "minus",
+      "name": "Minus",
       "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
+      "currentDie": 8,
       "ko": false,
       "npc": false,
-      "nonCombat": false
+      "nonCombat": false,
+      "affiliation": "Enemy",
+      "bhdDelta": {
+        "hinder": 0,
+        "boost": 0
+      }
     },
     {
-      "id": "tok-595b7xpz",
+      "id": "tok-383ljvrt",
       "kind": "minion",
       "slug": "shocker-initiate",
       "name": "Shocker Initiate",
@@ -204,10 +168,84 @@
       "ko": false,
       "npc": false,
       "nonCombat": false,
-      "affiliation": "Enemy"
+      "affiliation": "Enemy",
+      "bhdDelta": {
+        "boost": 0,
+        "hinder": 2
+      }
     },
     {
-      "id": "tok-21j8sh3b",
+      "id": "tok-iarfbz3x",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-dgjwqvjv",
+      "currentDie": 6,
+      "ko": false,
+      "npc": false,
+      "nonCombat": false,
+      "affiliation": "Enemy",
+      "bhdDelta": {
+        "boost": 0,
+        "hinder": 2
+      }
+    },
+    {
+      "id": "tok-lz8zpfci",
+      "kind": "hero",
+      "slug": "titus-andromeda",
+      "name": "Titus Andromeda",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 14,
+      "maxHealth": 30,
+      "affiliation": "Ally",
+      "bhdDelta": {
+        "hinder": 0
+      }
+    },
+    {
+      "id": "tok-pen0a2r7",
+      "kind": "hero",
+      "slug": "masquerade",
+      "name": "Masquerade",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 15,
+      "maxHealth": 30,
+      "affiliation": "Ally"
+    },
+    {
+      "id": "tok-junrkuwm",
+      "kind": "hero",
+      "slug": "pink-panther",
+      "name": "Pink Panther",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 30,
+      "maxHealth": 30,
+      "affiliation": "Ally"
+    },
+    {
+      "id": "tok-68zuso96",
+      "kind": "hero",
+      "slug": "lumen",
+      "name": "Lumen",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 32,
+      "maxHealth": 32,
+      "affiliation": "Ally"
+    },
+    {
+      "id": "tok-9sk5ilb5",
+      "kind": "hero",
+      "slug": "handyman",
+      "name": "Handyman",
+      "locationId": "loc-dgjwqvjv",
+      "currentHealth": 24,
+      "maxHealth": 30,
+      "affiliation": "Ally",
+      "currentMode": "modular-debilitator"
+    },
+    {
+      "id": "tok-nlvuvjeq",
       "kind": "lieutenant",
       "slug": "bunsen-burner",
       "name": "Bunsen Burner",
@@ -219,7 +257,54 @@
       "affiliation": "Enemy"
     },
     {
-      "id": "tok-5oe7x2rv",
+      "id": "tok-2qk7cwli",
+      "kind": "minion",
+      "slug": "branch-manager",
+      "name": "Branch Manager",
+      "locationId": "loc-4ph2y7cy",
+      "currentDie": 6,
+      "ko": false,
+      "npc": true,
+      "nonCombat": false,
+      "affiliation": "Neutral"
+    },
+    {
+      "id": "tok-krbx62eb",
+      "kind": "minion",
+      "slug": "bank-teller-2",
+      "name": "Bank Teller",
+      "locationId": "loc-dgjwqvjv",
+      "ko": false,
+      "npc": true,
+      "nonCombat": false,
+      "affiliation": "Neutral"
+    },
+    {
+      "id": "tok-xbpai6qp",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-4ph2y7cy",
+      "currentDie": 6,
+      "ko": false,
+      "npc": false,
+      "nonCombat": false,
+      "affiliation": "Enemy"
+    },
+    {
+      "id": "tok-1rzjs8mv",
+      "kind": "minion",
+      "slug": "shocker-initiate",
+      "name": "Shocker Initiate",
+      "locationId": "loc-4ph2y7cy",
+      "currentDie": 6,
+      "ko": false,
+      "npc": false,
+      "nonCombat": false,
+      "affiliation": "Enemy"
+    },
+    {
+      "id": "tok-sjwj8yfp",
       "kind": "minion",
       "slug": "shocker-initiate",
       "name": "Shocker Initiate",
@@ -228,110 +313,19 @@
       "ko": false,
       "npc": false,
       "nonCombat": false,
-      "affiliation": "Enemy"
+      "affiliation": "Enemy",
+      "bhdDelta": {
+        "hinder": 2
+      }
     },
     {
-      "id": "tok-n5s91y3x",
+      "id": "tok-0956pujr",
       "kind": "minion",
       "slug": "shocker-initiate",
       "name": "Shocker Initiate",
-      "locationId": "loc-dgjwqvjv",
+      "locationId": "loc-4ph2y7cy",
       "currentDie": 6,
       "ko": false,
-      "npc": false,
-      "nonCombat": false,
-      "affiliation": "Enemy"
-    },
-    {
-      "id": "tok-pp9xvp2d",
-      "kind": "lieutenant",
-      "slug": "minus",
-      "name": "Minus",
-      "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
-      "ko": true,
-      "npc": false,
-      "nonCombat": false,
-      "affiliation": "Enemy"
-    },
-    {
-      "id": "tok-rbiqex6q",
-      "kind": "lieutenant",
-      "slug": "plus",
-      "name": "Plus",
-      "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
-      "ko": true,
-      "npc": false,
-      "nonCombat": false,
-      "affiliation": "Enemy"
-    },
-    {
-      "id": "tok-6w96m9c8",
-      "kind": "minion",
-      "slug": "bank-teller-2",
-      "name": "Bank Teller",
-      "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
-      "ko": false,
-      "npc": true,
-      "nonCombat": true,
-      "affiliation": "Neutral"
-    },
-    {
-      "id": "tok-auvcd8wk",
-      "kind": "minion",
-      "slug": "bank-teller-2",
-      "name": "Bank Teller",
-      "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
-      "ko": false,
-      "npc": true,
-      "nonCombat": true,
-      "affiliation": "Neutral"
-    },
-    {
-      "id": "tok-1sauz03s",
-      "kind": "minion",
-      "slug": "bank-teller-2",
-      "name": "Bank Teller",
-      "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
-      "ko": false,
-      "npc": true,
-      "nonCombat": true,
-      "affiliation": "Neutral"
-    },
-    {
-      "id": "tok-m5itvv6s",
-      "kind": "minion",
-      "slug": "bank-teller-2",
-      "name": "Bank Teller",
-      "locationId": "loc-dgjwqvjv",
-      "currentDie": 6,
-      "ko": false,
-      "npc": true,
-      "nonCombat": true,
-      "affiliation": "Neutral"
-    },
-    {
-      "id": "tok-k7xak7uo",
-      "kind": "villain",
-      "slug": "stunt-double",
-      "name": "Stunt Double",
-      "locationId": "loc-dgjwqvjv",
-      "currentHealth": 45,
-      "maxHealth": 70,
-      "affiliation": "Enemy"
-    },
-    {
-      "id": "tok-fsjbh2p8",
-      "kind": "lieutenant",
-      "slug": "minus",
-      "name": "Minus",
-      "locationId": "loc-dgjwqvjv",
-      "currentDie": 4,
-      "ko": true,
       "npc": false,
       "nonCombat": false,
       "affiliation": "Enemy"
@@ -339,7 +333,73 @@
   ],
   "gmNotes": "",
   "__slug": "session-1-scene-1",
-  "activityLog": [],
+  "activityLog": [
+    {
+      "id": "log-88grenqb",
+      "timestamp": 1789952567.922,
+      "round": 1,
+      "actor": null,
+      "action": "Tracker Advanced",
+      "target": null,
+      "result": "Scene Tracker moved to space 4 (yellow)",
+      "details": {
+        "position": 3,
+        "delta": 1
+      }
+    },
+    {
+      "id": "log-oa41bwts",
+      "timestamp": 1789953497.863,
+      "round": 1,
+      "actor": {
+        "id": "tok-pen0a2r7",
+        "name": "Masquerade",
+        "kind": "hero"
+      },
+      "action": "Attack",
+      "target": {
+        "id": "tok-38ubpr17",
+        "name": "Plus",
+        "kind": "lieutenant"
+      },
+      "result": "Encourage: save 1 vs 4 — d6",
+      "details": {
+        "effect": 4,
+        "dmg": 4,
+        "roll": 1,
+        "ability": "Encourage",
+        "turnNumber": 1
+      }
+    },
+    {
+      "id": "log-j3szx3sm",
+      "timestamp": 1789956244.419,
+      "round": 1,
+      "actor": null,
+      "action": "Challenge Progress",
+      "target": null,
+      "result": "Stop the Robbery, Part 1 — Challenge Timer: 1/3",
+      "details": {
+        "challenge": "Stop the Robbery, Part 1",
+        "path": "Challenge Timer",
+        "successesMarked": 1
+      }
+    },
+    {
+      "id": "log-u43cc2xp",
+      "timestamp": 1789956245.382,
+      "round": 1,
+      "actor": null,
+      "action": "Challenge Progress",
+      "target": null,
+      "result": "Stop the Robbery, Part 1 — Challenge Timer: 2/3",
+      "details": {
+        "challenge": "Stop the Robbery, Part 1",
+        "path": "Challenge Timer",
+        "successesMarked": 2
+      }
+    }
+  ],
   "mods": [
     {
       "id": "mod-0h7bc3ez",

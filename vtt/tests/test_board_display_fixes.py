@@ -94,17 +94,17 @@ class TestBoardDisplayFixes(unittest.TestCase):
         self.assertIn('scene-bg-host', DISP)
         self.assertNotIn('loc.background', DISP)
 
-    def test_pd_dynamic_columns_4_col_grouped(self):
-        """Grouped role layout: Players 1 / Bystanders 1 / Threats 2 = 4 columns; hero-sep removed."""
+    def test_pd_dynamic_columns_capped_groups(self):
+        """Capped per-group columns (Players 2 / Bystanders 2 / Villains 4); no 10-col stretch."""
         self.assertIn('function pdMvcStageHtml', DISP)
         # Old hero-sep bank is gone
         self.assertNotIn('useHeroSep', DISP)
         self.assertNotIn('layout-hero-sep', DISP)
-        # Old hero-sep bank is gone
-        self.assertNotIn('useHeroSep', DISP)
-        self.assertNotIn('layout-hero-sep', DISP)
-        # Budget is always the 4-column design (redistribution, not 10-col stretch)
-        self.assertIn('Math.max(1, Math.round((9 * ratios[i]) / rSum))', DISP)
+        # Per-group caps (not fixed counts): span = min(cap, token count)
+        self.assertIn('const PD_ALLY_CAP = 2;', DISP)
+        self.assertIn('const PD_BYSTANDER_CAP = 2;', DISP)
+        self.assertIn('const PD_THREAT_CAP = 4;', DISP)
+        self.assertIn('g.span = Math.min(g.cap, g.tokens.length);', DISP)
         self.assertNotIn("pdMvcSideHtml('ALLIES', 'allies', a, scene, 10, 10, hideHealthBars)", DISP)
         # Row capacity capped — never token-count columns
         side = DISP[DISP.index('function pdMvcSideHtml'):DISP.index('function pdAllocateSpans')]

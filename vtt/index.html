@@ -22,7 +22,11 @@
   </nav>
   <div class="folder-status">
     <span id="folderLabel" class="folder-label">Connecting…</span>
-    <a href="/display.html" target="_blank" class="btn btn-primary btn-small">Open Player Display &#8599;</a>
+    <a id="playerDisplayLink" href="/display.html?tv=1" target="_blank" class="btn btn-primary btn-small">Open Player Display &#8599;</a>
+    <label class="tv-toggle" style="margin-left:8px; display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-lo);">
+      <input type="checkbox" id="tvModeToggle" checked onchange="updatePlayerDisplayLink()">
+      <span>TV Mode</span>
+    </label>
   </div>
 </header>
 

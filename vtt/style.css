@@ -297,14 +297,8 @@ table.lib-table tr.lib-row-clickable td.no-row-nav { cursor: default; }
   text-transform: none;
 }
 .mvc-die { color: var(--yellow); white-space: nowrap; }
-/* Horizontal card prototype (?cards=h) — scoped to .pd-h so the vertical default is untouched.
-   Mirrors display.html <style> (PD local rules win); see fitHeroNamePlates for BHD sizing. */
-.pd-h.mvc-card { flex-direction: row; align-items: stretch; gap: 0.4vw; }
-.pd-h .mvc-art { width: 42%; flex: 0 0 auto; height: auto; }
-.pd-h .pd-card-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-.pd-h .pd-vbar { width: 1.1vh; height: auto; flex: 0 0 auto; align-self: stretch; margin: 0; position: relative; }
-.pd-h .pd-vbar .health-bar-fill { width: 100%; height: var(--hp, 100%); position: absolute; bottom: 0; left: 0; transition: height .3s ease; }
-.pd-vbar-spacer { width: 1.1vh; flex: 0 0 auto; visibility: hidden; }
+/* Vertical card is the only shape (portrait top, bar, Name/BHD below) — the
+   horizontal card scoping was removed (reverted per Collin for multi-location). */
 .mvc-empty { color: var(--text-lo); font-style: italic; padding: 24px; }
 .mvc-ko { text-align: center; color: var(--text-lo); font-size: 13px; }
 .mvc-card .health-bar-track { height: 8px; margin: 4px 0 6px; background: #222; border-radius: 3px; overflow: hidden; }

@@ -37,12 +37,11 @@ function isNonCombatToken(t) {
 }
 
 /* ---- PD session-prep layout (closed design) ---- */
-// Column budgets for the grouped role layout: Players 3 / Bystanders 3 / Threats 3
-// (3 per group keeps tokens legible when a location has only some groups present,
-// because a lone group gets the full width at 3 columns). Horizontal cards shipped.
-const PD_ALLY_COLS = 3;
-const PD_BYSTANDER_COLS = 3;
-const PD_THREAT_COLS = 3;
+// Column CAPS per group (not fixed counts): a group gets one column per token
+// up to its cap, so small rosters get bigger cards. Horizontal cards shipped.
+const PD_ALLY_CAP = 2;   // Players: max 2 columns
+const PD_BYSTANDER_CAP = 2; // Bystanders: max 2 columns
+const PD_THREAT_CAP = 4; // Villains: max 4 columns
 
 function ensureMods(scene) {
   if (!scene) return [];
@@ -169,7 +168,7 @@ function sortAllyTokens(tokens) {
  * Bystanders PD_BYSTANDER_COLS (2) / Threats PD_THREAT_COLS (3). Groups are
  * by ROLE: PCs, Bystander NPCs, and one combined Threats group. Stage grid
  * width = sum of present side spans so columns fill the width. Cards are
- * always horizontal (portrait left, vertical health bar, Name/BHD right).
+ * vertical (portrait top, Name/BHD below).
  */
 function pdMvcSideHtml(label, cls, tokens, scene, span, count, hideHealthBars = false) {
   const n = tokens.length;
@@ -225,40 +224,28 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
   const all = a.concat(n, e);
   if (!all.length) return '<div class="mvc-stage" style="--mvc-cols:10"></div>';
 
-  // Grouped role layout: Players PD_ALLY_COLS / Bystanders PD_BYSTANDER_COLS / Threats PD_THREAT_COLS.
-  // Budget is ALWAYS the 4-column design: each present group gets its design share
-  // of the 4-column budget (absent groups' columns are redistributed proportionally),
-  // so cards stay huge regardless of which groups the location has. One group → full 4.
-  const hasA = a.length > 0, hasN = n.length > 0, hasE = e.length > 0;
-  const ratios = [PD_ALLY_COLS, PD_BYSTANDER_COLS, PD_THREAT_COLS];
-  const presentIdx = [hasA, hasN, hasE].map((has, i) => has ? i : -1).filter(i => i >= 0);
-  let layoutClass = 'layout-ane';
+  // Grouped role layout: each present group gets one column per token, capped
+  // (Players 2 / Bystanders 2 / Villains 4 per closed design). Extras WRAP inside
+  // the group. Row width = sum of present groups' spans (capped at 10 overall).
+  const caps = [PD_ALLY_CAP, PD_BYSTANDER_CAP, PD_THREAT_CAP];
+  const groups = [
+    { tokens: a, cap: caps[0], label: 'ALLIES', cls: 'allies' },
+    { tokens: n, cap: caps[1], label: 'NEUTRAL', cls: 'neutral' },
+    { tokens: e, cap: caps[2], label: 'ENEMIES', cls: 'enemies' },
+  ].filter(g => g.tokens.length);
+  groups.forEach(g => { g.span = Math.min(g.cap, g.tokens.length); });
+  let total = groups.reduce((s, g) => s + g.span, 0);
+  while (total > 10) {
+    const biggest = groups.reduce((a, b) => (b.span > a.span ? b : a));
+    if (biggest.span <= 1) break;
+    biggest.span -= 1; total -= 1;
+  }
   const parts = [];
-  let cols = PD_ALLY_COLS + PD_BYSTANDER_COLS + PD_THREAT_COLS;
-  const rSum = presentIdx.reduce((s, i) => s + ratios[i], 0);
-  const spans = presentIdx.map(i => Math.max(1, Math.round((9 * ratios[i]) / rSum)));
-  // Fix rounding so spans sum exactly to the 9-col budget (shrink largest on overflow, grow largest on underflow)
-  let sum = spans.reduce((a, b) => a + b, 0);
-  while (sum > cols) {
-    const biggest = spans.indexOf(Math.max(...spans));
-    if (spans[biggest] <= 1) break;
-    spans[biggest] -= 1; sum -= 1;
-  }
-  while (sum < cols) {
-    const biggest = spans.indexOf(Math.max(...spans));
-    spans[biggest] += 1; sum += 1;
-  }
-  presentIdx.forEach((i, k) => {
-    const tokensArr = i === 0 ? a : i === 1 ? n : e;
-    const label = i === 0 ? 'ALLIES' : i === 1 ? 'NEUTRAL' : 'ENEMIES';
-    const cls = i === 0 ? 'allies' : i === 1 ? 'neutral' : 'enemies';
-    parts.push(pdMvcSideHtml(label, cls, tokensArr, scene, spans[k], spans[k], hideHealthBars));
+  groups.forEach(g => {
+    parts.push(pdMvcSideHtml(g.label, g.cls, g.tokens, scene, g.span, g.span, hideHealthBars));
   });
-  if (presentIdx.length === 3) layoutClass = 'layout-ane';
-  else if (presentIdx.includes(0) && presentIdx.includes(1)) layoutClass = 'layout-an';
-  else if (presentIdx.includes(0)) layoutClass = 'layout-ae';
-  else layoutClass = 'layout-ne';
-  return `<div class="mvc-stage ${layoutClass}" style="--mvc-cols:${cols};grid-template-columns:repeat(${cols}, minmax(0,1fr))">${parts.join('')}</div>`;
+  const cols = Math.max(1, total);
+  return `<div class="mvc-stage layout-groups" style="--mvc-cols:${cols};grid-template-columns:repeat(${cols}, minmax(0,1fr))">${parts.join('')}</div>`;
 }
 function sortNeutralTokens(tokens) {
   return (tokens || []).slice()
@@ -654,15 +641,15 @@ function renderFighterCard(t, scene, hideHealthBars = false) {
     }
   }
   const modeBadge = heroModeBadge(t);
-  // Horizontal card (shipped shape): portrait left, vertical health bar,
-  // Name/Boost/Hinder/Defend stacked right. Portrait stays square.
+  // Vertical card (shipped shape): portrait top (square), horizontal health bar
+  // under it, Name/Mode/Badges stacked below.
   const bar = meter
-    ? `<div class="health-bar-track pd-vbar"><div class="health-bar-fill ${meter.band}" style="--hp:${meter.pct}%"></div></div>`
-    : '<div class="pd-vbar-spacer" aria-hidden="true"></div>';
-  return `<div class="mvc-card ${t.kind} pd-h">
+    ? `<div class="health-bar-track"><div class="health-bar-fill ${meter.band}" style="width:${meter.pct}%"></div></div>`
+    : '';
+  return `<div class="mvc-card ${t.kind}">
     <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
     ${bar}
-    <div class="pd-card-body"><div class="mvc-plate">${escHtml(t.name)}</div>${modeBadge}${bhdRowHtml(t, scene)}</div>
+    <div class="mvc-plate">${escHtml(t.name)}</div>${modeBadge}${bhdRowHtml(t, scene)}
   </div>`;
 }
 
