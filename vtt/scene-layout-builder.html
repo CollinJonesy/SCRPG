@@ -78,12 +78,16 @@
     color: rgba(255,255,255,.3); letter-spacing: 2px; text-transform: uppercase; z-index: 0;
   }
   .slb-status { font-family: var(--font-data); font-size: 12px; color: var(--green); min-width: 120px; }
-  /* Token cards inside a tile — real mini vertical tokens (portrait + name),
-     mirroring what the Player Display renders. */
-  .slb-tile-tokens {
+  /* Token stage inside a tile — mirrors the PD grouped role layout:
+     Players / Bystanders / Threats groups, each with its own column count. */
+  .slb-stage {
     flex: 1 1 auto; min-height: 0; overflow: hidden;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(22%, 1fr));
-    gap: 4px; padding: 2% 4%; align-content: start;
+    display: grid; gap: 2%; padding: 2% 4%; align-content: start;
+  }
+  .slb-side { min-width: 0; }
+  .slb-side-row {
+    display: grid; grid-template-columns: repeat(var(--slb-cap, 2), minmax(0, 1fr));
+    gap: 3px; align-content: start;
   }
   .slb-token-card {
     border: 2px solid #2454E8; min-width: 0; overflow: hidden;
@@ -108,6 +112,16 @@
     grid-column: 1 / -1; color: var(--text-lo); font-style: italic;
     font-family: var(--font-data); font-size: 10px; align-self: center; justify-self: center;
   }
+  .slb-cols-editor {
+    border: 2px solid var(--gutter); background: var(--ink-2);
+    padding: 6px 8px; color: var(--text-hi);
+  }
+  .slb-col-row {
+    display: flex; gap: 6px; align-items: center; margin: 2px 0;
+    font-family: var(--font-body); font-size: 12px;
+  }
+  .slb-col-row b { min-width: 18px; text-align: center; font-size: 13px; }
+  .slb-col-row .btn { padding: 0 8px; line-height: 1.4; }
   /* Edge resize zones: drag any edge (the header's side edges resize columns). */
   .slb-ez { position: absolute; z-index: 3; }
   .slb-ez-n { top: 0; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
@@ -131,6 +145,8 @@
     <div class="slb-left">
       <label class="field-label" style="margin:0;">Locations in this Scene</label>
       <div id="locList" class="slb-loc-list"></div>
+      <!-- Per-location token columns (Players / Bystanders / Threats) for the selected tile. -->
+      <div id="slbColsEditor" class="slb-cols-editor"></div>
       <!-- Placement mode toggle: bottom-left, under the location elements (per Collin). -->
       <div class="slb-toggle">
         <button id="modeSnap" type="button" onclick="setMode('snap')">Snap</button>
@@ -190,6 +206,7 @@ async function loadScene(slug) {
         locId: loc.id, name: loc.name,
         x: ((p.col - 1) / cols), y: ((p.row - 1) / rows),
         w: (p.colSpan / cols), h: (p.rowSpan / rows),
+        cols: (p.cols && typeof p.cols === 'object') ? Object.assign({}, p.cols) : undefined,
       });
     });
   }
@@ -212,7 +229,42 @@ function placedLocIds() { return new Set(boxes.map(b => b.locId)); }
 
 function render() {
   renderLocList();
+  renderLocCols();
   renderCanvas();
+}
+
+/* ---- Per-location token-column editor (selected tile): Players / Bystanders / Threats ---- */
+function renderLocCols() {
+  const el = document.getElementById('slbColsEditor');
+  if (!el) return;
+  const b = (selected != null) ? boxes[selected] : null;
+  if (!b) { el.innerHTML = '<div class="slb-hint">Select a tile to set its token columns (Players / Bystanders / Threats).</div>'; return; }
+  const caps = groupCapsFor(b);
+  const isDef = k => !(b.cols && b.cols[k]);
+  const labels = { allies: 'Players', bystanders: 'Bystanders', threats: 'Threats' };
+  el.innerHTML = `<label class="field-label" style="margin:2px 0 4px;">Token columns — ${esc(b.name)}</label>` +
+    ['allies', 'bystanders', 'threats'].map(k => `
+      <div class="slb-col-row">
+        <span style="flex:1">${labels[k]}</span>
+        <button type="button" class="btn btn-small btn-ghost" onclick="slbColStep('${k}',-1)">−</button>
+        <b>${caps[k]}</b>
+        <button type="button" class="btn btn-small btn-ghost" onclick="slbColStep('${k}',1)">+</button>
+        ${isDef(k) ? '<span class="slb-hint">(default)</span>' : `<button type="button" class="btn btn-small btn-ghost" onclick="slbColReset('${k}')">reset</button>`}
+      </div>`).join('');
+}
+function slbColStep(k, d) {
+  const b = (selected != null) ? boxes[selected] : null;
+  if (!b) return;
+  b.cols = b.cols || {};
+  b.cols[k] = Math.max(1, Math.min(10, (b.cols[k] || PD_DEFAULT_COLS[k]) + d));
+  render();
+}
+function slbColReset(k) {
+  const b = (selected != null) ? boxes[selected] : null;
+  if (!b || !b.cols) return;
+  delete b.cols[k];
+  if (!Object.keys(b.cols).length) delete b.cols;
+  render();
 }
 
 function renderLocList() {
@@ -246,20 +298,15 @@ function renderCanvas() {
     grid.appendChild(cell);
   }
   boxes.forEach((b, i) => {
-    // Token preview: real mini cards (portrait + name). ALL tokens show here —
-    // this is a GM tool, not the players' view, so no PC-present hiding rule.
+    // Token preview mirrors the PD grouped role layout: Players / Bystanders /
+    // Threats columns, extras wrap. ALL tokens show (GM tool, not the players'
+    // view). Column counts come from this location's per-group overrides
+    // (left panel) or the PD defaults (2 / 2 / 4).
     const visible = (((scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === b.locId)) || [])
       .slice().sort((a, b2) =>
         ((a.kind === 'hero') ? 0 : 1) - ((b2.kind === 'hero') ? 0 : 1)
         || String(a.name).localeCompare(String(b2.name)));
-    const cards = visible.slice(0, 12).map(t => {
-      const pk = t.kind === 'hero' ? 'hero' : t.kind === 'villain' ? 'villain' : 'minion';
-      return `<div class="slb-token-card ${esc(t.kind)}">
-        <div class="slb-token-art"><img src="/api/backgrounds/${encodeURIComponent('portrait-' + pk + '-' + (t.slug || ''))}" alt="" onerror="this.style.display='none'"></div>
-        <div class="slb-token-name">${esc(t.name)}</div>
-      </div>`;
-    }).join('')
-      + (visible.length > 12 ? `<div class="slb-token-card slb-token-more">+${visible.length - 12}</div>` : '');
+    const stage = slbStageHtml(visible, groupCapsFor(b), b.w * cw * 0.9);
     const tile = document.createElement('div');
     tile.className = 'slb-tile' + (selected === i ? ' selected' : '');
     tile.style.left = (b.x * 100) + '%';
@@ -276,7 +323,7 @@ function renderCanvas() {
     if (fitted < LEGIBILITY_MIN_PX) tile.classList.add('warn');
     tile.innerHTML = `
       <div class="slb-tile-header" style="font-size:${Math.min(fontPx, 40)}px;">${esc(b.name)}</div>
-      <div class="slb-tile-tokens">${cards || '<div class="slb-token-empty">No tokens in this location yet</div>'}</div>
+      <div class="slb-stage" style="grid-template-columns:repeat(${stageColsFor(visible, groupCapsFor(b))}, minmax(0,1fr))">${stage || '<div class="slb-token-empty">No tokens in this location yet</div>'}</div>
       <div class="slb-ez slb-ez-n" data-dir="n" title="Drag to resize"></div>
       <div class="slb-ez slb-ez-s" data-dir="s" title="Drag to resize"></div>
       <div class="slb-ez slb-ez-w" data-dir="w" title="Drag to resize columns"></div>
@@ -286,6 +333,43 @@ function renderCanvas() {
     attachDrag(tile, i);
     canvas.appendChild(tile);
   });
+}
+
+/* ---- PD-mirroring token stage: Players / Bystanders / Threats columns ---- */
+const PD_DEFAULT_COLS = { allies: 2, bystanders: 2, threats: 4 };
+function groupCapsFor(b) { return Object.assign({}, PD_DEFAULT_COLS, b.cols || {}); }
+function slbStageGroups(visible, caps) {
+  const isPlayer = t => t.kind === 'hero' && !t.npc;
+  const isThreat = t => t.kind === 'villain' || t.kind === 'minion' || t.kind === 'lieutenant';
+  return [
+    { toks: visible.filter(isPlayer), cap: caps.allies, cls: 'slb-g-ally' },
+    { toks: visible.filter(t => !isPlayer(t) && !isThreat(t)), cap: caps.bystanders, cls: 'slb-g-byst' },
+    { toks: visible.filter(isThreat), cap: caps.threats, cls: 'slb-g-threat' },
+  ].filter(g => g.toks.length);
+}
+function stageColsFor(visible, caps) {
+  return Math.max(1, slbStageGroups(visible, caps).reduce((s, g) => s + g.cap, 0));
+}
+function slbStageHtml(visible, caps, tileContentPx) {
+  const groups = slbStageGroups(visible, caps);
+  if (!groups.length) return '';
+  const card = (t, namePx) => {
+    const pk = t.kind === 'hero' ? 'hero' : t.kind === 'villain' ? 'villain' : 'minion';
+    return `<div class="slb-token-card ${esc(t.kind)}">
+      <div class="slb-token-art"><img src="/api/backgrounds/${encodeURIComponent('portrait-' + pk + '-' + (t.slug || ''))}" alt="" onerror="this.style.display='none'"></div>
+      <div class="slb-token-name" style="font-size:${namePx}px;">${esc(t.name)}</div>
+    </div>`;
+  };
+  return groups.map(g => {
+    // Name type scales with the cell width like fitHeroNamePlates does on PD.
+    const namePx = Math.max(6, Math.min(13, Math.round((tileContentPx / g.cap) * 0.2)));
+    const max = g.cap * 2;
+    const cards = g.toks.slice(0, max).map(t => card(t, namePx)).join('');
+    const more = g.toks.length > max ? `<div class="slb-token-card slb-token-more">+${g.toks.length - max}</div>` : '';
+    return `<div class="slb-side ${g.cls}" style="grid-column:span ${g.cap};--slb-cap:${g.cap}">
+      <div class="slb-side-row">${cards}${more}</div>
+    </div>`;
+  }).join('');
 }
 
 function addLocation(locId) {
@@ -390,7 +474,9 @@ function quantizedLayout() {
     const row = Math.max(1, Math.min(GRID_ROWS, Math.round(b.y * GRID_ROWS) + 1));
     const colSpan = Math.max(1, Math.min(GRID_COLS - col + 1, Math.round(b.w * GRID_COLS)));
     const rowSpan = Math.max(1, Math.min(GRID_ROWS - row + 1, Math.round(b.h * GRID_ROWS)));
-    return { location: b.locId, col, row, colSpan, rowSpan };
+    const p = { location: b.locId, col, row, colSpan, rowSpan };
+    if (b.cols && Object.keys(b.cols).length) p.cols = b.cols;
+    return p;
   });
   return { cols: GRID_COLS, rows: GRID_ROWS, placements };
 }

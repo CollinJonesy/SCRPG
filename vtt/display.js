@@ -217,7 +217,7 @@ function pdAllocateSpans(groups, budget) {
   }
   return present;
 }
-function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false) {
+function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false, colsOverride = null) {
   const a = allies || [];
   const n = neutrals || [];
   const e = enemies || [];
@@ -225,9 +225,14 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
   if (!all.length) return '<div class="mvc-stage" style="--mvc-cols:10"></div>';
 
   // Grouped role layout: each present group gets one column per token, capped
-  // (Players 2 / Bystanders 2 / Villains 4 per closed design). Extras WRAP inside
-  // the group. Row width = sum of present groups' spans (capped at 10 overall).
-  const caps = [PD_ALLY_CAP, PD_BYSTANDER_CAP, PD_THREAT_CAP];
+  // (Players 2 / Bystanders 2 / Villains 4 per closed design, overridable
+  // per-location by the Scene Builder). Extras WRAP inside the group. Row width
+  // = sum of present groups' spans (capped at 10 overall).
+  const caps = [
+    (colsOverride && colsOverride.allies) || PD_ALLY_CAP,
+    (colsOverride && colsOverride.bystanders) || PD_BYSTANDER_CAP,
+    (colsOverride && colsOverride.threats) || PD_THREAT_CAP,
+  ];
   const groups = [
     { tokens: a, cap: caps[0], label: 'ALLIES', cls: 'allies' },
     { tokens: n, cap: caps[1], label: 'NEUTRAL', cls: 'neutral' },
@@ -289,10 +294,21 @@ function sceneLayoutFor(scene, locs) {
     const row = clampInt(p.row, 1, rows, 1);
     const colSpan = clampInt(p.colSpan, 1, cols - col + 1, 1);
     const rowSpan = clampInt(p.rowSpan, 1, rows - row + 1, 1);
-    byLoc[p.location] = { col, row, colSpan, rowSpan };
+    byLoc[p.location] = { col, row, colSpan, rowSpan, groupCols: parseGroupCols(p.cols) };
   });
   const any = Object.keys(byLoc).length;
   return any ? { cols, rows, byLoc } : null;
+}
+/* Per-location token-column overrides (Scene Builder): { allies, bystanders, threats }.
+   Any missing/invalid group falls back to the PD global cap. */
+function parseGroupCols(c) {
+  if (!c || typeof c !== 'object') return null;
+  const out = {};
+  ['allies', 'bystanders', 'threats'].forEach(k => {
+    const n = Math.round(Number(c[k]));
+    if (isFinite(n)) out[k] = Math.max(1, Math.min(10, n));
+  });
+  return Object.keys(out).length ? out : null;
 }
 
 function fitNameSize(el, ctx, hi, loMin) {
@@ -448,14 +464,15 @@ function renderScene(scene) {
       enemies = [];
     }
 
-    // Authored layout: this location occupies its grid box (header spans the box).
+    // Authored layout: this location occupies its grid box (header spans the box),
+    // and may override the per-group token columns for this location.
     const pl = layoutInfo ? layoutInfo.byLoc[loc.id] : null;
     const blockStyle = pl
       ? ` style="grid-column:${pl.col} / span ${pl.colSpan};grid-row:${pl.row} / span ${pl.rowSpan};"`
       : '';
     return `<section class="location-block"${blockStyle}>
       <div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
-      ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars)}
+      ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars, pl ? pl.groupCols : null)}
     </section>`;
   }).join('')
     + (ko.length ? `<div class="mvc-ko"${layoutInfo ? ' style="grid-column:1 / -1;"' : ''}>Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');

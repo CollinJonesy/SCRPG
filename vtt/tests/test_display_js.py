@@ -141,6 +141,17 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('ids.has(p.location)', self.src)
         self.assertIn('byLoc[p.location]', self.src)
         self.assertIn('cols - col + 1', self.src)
+        # Per-location token-column overrides (Scene Builder): pdMvcStageHtml
+        # accepts colsOverride; placement.cols parses to group cols or null.
+        self.assertIn('function parseGroupCols', self.src)
+        self.assertIn('groupCols: parseGroupCols(p.cols)', self.src)
+        stage = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
+        self.assertIn('colsOverride = null', stage)
+        self.assertIn('(colsOverride && colsOverride.allies) || PD_ALLY_CAP', stage)
+        self.assertIn('(colsOverride && colsOverride.bystanders) || PD_BYSTANDER_CAP', stage)
+        self.assertIn('(colsOverride && colsOverride.threats) || PD_THREAT_CAP', stage)
+        render = self.src[self.src.index('function renderScene'):self.src.index('function pathDisplayOutcome')]
+        self.assertIn('pl ? pl.groupCols : null', render)
 
     def test_pd_portrait_art_is_square(self):
         self.assertIn('aspect-ratio: 1 / 1', self.html)
