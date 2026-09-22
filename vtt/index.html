@@ -19,6 +19,7 @@
     <button class="tab-btn" data-view="library" role="tab">Library</button>
     <button class="tab-btn" data-view="rules" role="tab">Rules</button>
     <button class="tab-btn" data-view="builder" role="tab">Build</button>
+    <button class="tab-btn" data-view="sheets" role="tab">Sheets</button>
   </nav>
   <div class="folder-status">
     <span id="folderLabel" class="folder-label">Connecting…</span>
@@ -171,6 +172,36 @@
   <div id="collectionEditorView" class="hidden"></div>
   <div id="issueEditorView" class="hidden"></div>
   <div id="sceneEditorView" class="hidden"></div>
+</main>
+
+<main id="sheetsView" class="view hidden" style="max-width:1100px;margin:0 auto;padding:16px;overflow-y:auto;">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px;">
+    <h2 style="font-family:var(--font-display);font-size:26px;color:var(--accent);">Player Sheets</h2>
+    <button class="btn btn-ghost btn-small" onclick="renderSheetsView(true)">↻ Refresh</button>
+  </div>
+
+  <div class="lib-panel" style="margin-bottom:16px;">
+    <h3 style="font-family:var(--font-display);font-size:20px;margin:0 0 8px;">Keys &amp; Links</h3>
+    <p class="empty-hint" style="margin:0 0 10px;">Each player opens their sheet with a secret link. Resetting a key instantly revokes the old link. Click a hero's notes to read what they've written.</p>
+    <div id="sheetKeysPanel"></div>
+  </div>
+
+  <div class="lib-panel" style="margin-bottom:16px;">
+    <h3 style="font-family:var(--font-display);font-size:20px;margin:0 0 8px;">Send an Alert</h3>
+    <div class="row" style="align-items:flex-start;">
+      <textarea id="alertText" style="flex:1;min-height:64px;" placeholder="Message to your players…"></textarea>
+      <div>
+        <select id="alertTarget" class="scene-difficulty-select"><option value="all">All players</option></select>
+        <button class="btn btn-accent" style="display:block;margin-top:8px;" onclick="sendAlert()">Send Alert</button>
+      </div>
+    </div>
+    <div id="alertListPanel" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="lib-panel">
+    <h3 style="font-family:var(--font-display);font-size:20px;margin:0 0 8px;">Change Feed <span class="empty-hint" style="font-family:var(--font-body);">(what players did on their sheets)</span></h3>
+    <div id="sheetActivityPanel" style="max-height:40vh;overflow-y:auto;"></div>
+  </div>
 </main>
 
 <div id="referenceModal" class="modal hidden">

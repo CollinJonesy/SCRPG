@@ -25,6 +25,9 @@ import json
 import re
 import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from datetime import datetime
+import secrets
+import time
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 
@@ -170,6 +173,7 @@ STATIC_FILES = {
     '/minion-builder.html': ('minion-builder.html', 'text/html; charset=utf-8'),
     '/environment-builder.html': ('environment-builder.html', 'text/html; charset=utf-8'),
     '/scene-layout-builder.html': ('scene-layout-builder.html', 'text/html; charset=utf-8'),
+    '/player-sheet.html': ('player-sheet.html', 'text/html; charset=utf-8'),
 }
 
 IMAGE_EXT_BY_CONTENT_TYPE = {
@@ -390,6 +394,199 @@ def put_csv(path: Path, canonical_headers, body: str):
                 out[h] = prev.get(h, '') or ''
         merged.append(out)
     _write_csv_raw(path, fieldnames, merged)
+
+
+# ---------------- Player Sheets (keys / notes / alerts / activity) ----------------
+#
+# Player digital character sheets live on a separate surface (player-sheet.html)
+# authenticated by a per-hero secret key. Player actions NEVER go through scene
+# PUTs (a second writer would clobber the GM console's full-replace saves) —
+# they go through dedicated endpoints here. See docs/PLAYER_SHEETS_PLAN.md.
+
+SHEET_ACTIVITY_MAX = 500
+
+
+def _load_json_file(path: Path, default):
+    if not path.exists():
+        return default
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+        return data
+    except Exception:
+        return default
+
+
+def _save_json_file(path: Path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+
+
+def generate_sheet_key() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def sheet_key_for(campaign: Path, hero: str) -> str:
+    keys = _load_json_file(campaign / 'sheet-keys.json', {})
+    return str(keys.get(hero) or '') if isinstance(keys, dict) else ''
+
+
+def sheet_key_valid(campaign: Path, hero: str, key: str) -> bool:
+    """Constant-shape check: a missing hero yields an empty stored key, so an
+    attacker-presented key can never match it; empty supplied keys fail too."""
+    if not hero or not key:
+        return False
+    return secrets.compare_digest(sheet_key_for(campaign, hero), str(key))
+
+
+def record_sheet_activity(campaign: Path, hero: str, action: str, detail: str = ''):
+    """Append a player-initiated action to the GM's Sheets change feed."""
+    path = campaign / 'sheet_activity.json'
+    data = _load_json_file(path, [])
+    if not isinstance(data, list):
+        data = []
+    data.append({
+        'ts': datetime.now().isoformat(timespec='seconds'),
+        'hero': hero,
+        'action': str(action or ''),
+        'detail': str(detail or ''),
+    })
+    if len(data) > SHEET_ACTIVITY_MAX:
+        data = data[-SHEET_ACTIVITY_MAX:]
+    _save_json_file(path, data)
+
+
+def sheet_notes_path(campaign: Path, hero: str) -> Path | None:
+    if not is_safe_slug(hero):
+        return None
+    return campaign / 'sheet_notes' / (hero + '.md')
+
+
+def current_issue_slug(campaign: Path) -> str:
+    """Issue that owns the active scene (sceneSlugs membership), else ''."""
+    active = _load_json_file(campaign / 'active_scene.json', {})
+    scene = str(active.get('slug') or '') if isinstance(active, dict) else ''
+    if not scene:
+        return ''
+    for f in sorted((campaign / 'issues').glob('*.json')):
+        try:
+            data = json.loads(f.read_text(encoding='utf-8'))
+        except Exception:
+            continue
+        if scene in (data.get('sceneSlugs') or []):
+            return f.stem
+    return ''
+
+
+def hero_point_store(campaign: Path) -> dict:
+    data = _load_json_file(campaign / 'hero_points.json', {})
+    return data if isinstance(data, dict) else {}
+
+
+def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
+    """Full read-only sheet payload for one hero — everything the player device
+    may see. Hiding rules mirror the Player Display: no villain health numbers,
+    no GM notes / twist text / challenge solutions."""
+    hero_path = campaign / 'players.csv'
+    row = next((r for r in _csv_rows(hero_path, HEROES_HEADERS)
+                if (r.get('Slug') or '').strip() == hero), None)
+    if row is None:
+        return None
+
+    # Abilities from the CSV ability layer (same source as the GM board).
+    abilities = [r for r in _csv_rows(campaign / 'abilities.csv', ABILITIES_HEADERS)
+                 if (r.get('Slug') or '').strip() == hero]
+
+    # Active scene + the hero's token → their location and its occupants.
+    scene = None
+    active = _load_json_file(campaign / 'active_scene.json', {})
+    scene_slug = str(active.get('slug') or '') if isinstance(active, dict) else ''
+    if scene_slug and is_safe_slug(scene_slug):
+        p = campaign / 'scenes' / (scene_slug + '.json')
+        if p.exists():
+            try:
+                scene = json.loads(p.read_text(encoding='utf-8'))
+            except Exception:
+                scene = None
+
+    my_token = None
+    location = None
+    occupants = []
+    if scene:
+        for t in scene.get('tokens') or []:
+            if t.get('slug') == hero or (t.get('kind') == 'hero' and (t.get('name') or '') == (row.get('Name') or '')):
+                my_token = t
+                break
+        if my_token:
+            loc_id = my_token.get('locationId')
+            location = next((l for l in scene.get('locations') or [] if l.get('id') == loc_id), None)
+            for t in scene.get('tokens') or []:
+                if t.get('locationId') != loc_id:
+                    continue
+                occ = {
+                    'kind': t.get('kind') or '',
+                    'slug': t.get('slug') or '',
+                    'name': t.get('name') or '',
+                    'currentDie': t.get('currentDie') or '',
+                }
+                if t.get('kind') == 'hero':
+                    occ['currentHealth'] = t.get('currentHealth')
+                    occ['maxHealth'] = t.get('maxHealth')
+                elif (t.get('kind') or '') in ('minion', 'lieutenant'):
+                    # Minion/Lt health shows on the PD; villain numbers never do.
+                    occ['currentHealth'] = t.get('currentHealth')
+                    occ['maxHealth'] = t.get('maxHealth')
+                occupants.append(occ)
+
+    issue = current_issue_slug(campaign)
+    hp_store = hero_point_store(campaign)
+    issue_hp = hp_store.get(issue, {}) if isinstance(hp_store.get(issue, {}), dict) else {}
+    my_hp = int(issue_hp.get(hero) or 0)
+    issue_total = sum(int(v) or 0 for v in issue_hp.values())
+
+    np = sheet_notes_path(campaign, hero)
+    notes = np.read_text(encoding='utf-8') if np and np.exists() else ''
+
+    # Alerts targeting this hero (or broadcast), newest last; the player client
+    # decides banner vs history from dismissed.
+    alerts = []
+    for a in _load_json_file(campaign / 'alerts.json', []) or []:
+        if not isinstance(a, dict):
+            continue
+        targets = a.get('targets') or 'all'
+        if targets != 'all' and hero not in targets:
+            continue
+        dismissed = a.get('dismissed') or []
+        alerts.append({
+            'id': a.get('id'),
+            'ts': a.get('ts'),
+            'text': a.get('text') or '',
+            'dismissed': hero in dismissed if isinstance(dismissed, list) else bool(dismissed),
+        })
+
+    return {
+        'hero': hero,
+        'row': row,
+        'abilities': abilities,
+        'scene': {
+            'slug': scene_slug,
+            'name': (scene or {}).get('name') or '',
+            'round': (scene or {}).get('round') or 1,
+        },
+        'location': {'id': (location or {}).get('id'), 'name': (location or {}).get('name')},
+        'occupants': occupants,
+        'myToken': {
+            'currentHealth': (my_token or {}).get('currentHealth'),
+            'maxHealth': (my_token or {}).get('maxHealth'),
+            'currentDie': (my_token or {}).get('currentDie'),
+        },
+        'heroPoints': {
+            'issue': issue,
+            'mine': my_hp,
+            'issueTotal': issue_total,
+        },
+        'notes': notes,
+        'alerts': alerts,
+    }
 
 
 def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None = None) -> dict:
@@ -1185,6 +1382,42 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                         data = {}
                 return self._send_text(json.dumps(data), 200, 'application/json')
 
+            if path == '/api/sheet-keys':
+                # GM only (LAN console): the whole {heroSlug: key} map.
+                return self._send_text(json.dumps(_load_json_file(campaign / 'sheet-keys.json', {})),
+                                       200, 'application/json')
+
+            if path == '/api/player-sheet':
+                # Player-device read path, key-gated. ?hero=<slug>&key=<token>
+                q = urlparse(self.path).query
+                params = dict(p.split('=', 1) for p in q.split('&') if '=' in p)
+                hero = unquote(params.get('hero', ''))
+                key = unquote(params.get('key', ''))
+                if not sheet_key_valid(campaign, hero, key):
+                    return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
+                payload = player_sheet_payload(campaign, hero)
+                if payload is None:
+                    return self._send_text(json.dumps({'error': 'hero not found'}), 404, 'application/json')
+                return self._send_text(json.dumps(payload), 200, 'application/json')
+
+            if path == '/api/sheet-activity':
+                data = _load_json_file(campaign / 'sheet_activity.json', [])
+                return self._send_text(json.dumps(data if isinstance(data, list) else []),
+                                       200, 'application/json')
+
+            if path == '/api/alerts':
+                return self._send_text(json.dumps(_load_json_file(campaign / 'alerts.json', [])),
+                                       200, 'application/json')
+
+            if path.startswith('/api/sheet-notes/'):
+                # GM read of a player's notes (player saves go through POST
+                # /api/player-notes, which validates the hero's key).
+                slug = path.rsplit('/', 1)[-1]
+                np = sheet_notes_path(campaign, slug)
+                if not np:
+                    return self._send_text('invalid slug', 400)
+                return self._send_text(np.read_text(encoding='utf-8') if np.exists() else '')
+
             if path == '/api/rules':
                 items = []
                 for f, slug in iter_rule_files():
@@ -1264,6 +1497,98 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                         data.pop(issue, None)
                 p.write_text(json.dumps(data, indent=2), encoding='utf-8')
                 return self._send_text(json.dumps(data), 200, 'application/json')
+            if path == '/api/sheet-keys':
+                # GM only: {hero, op: 'generate'|'clear'} — generate also acts
+                # as reset (regenerating revokes the old link).
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                hero = str(payload.get('hero') or '').strip()
+                if not is_safe_slug(hero):
+                    return self._send_text(json.dumps({'error': 'hero required'}), 400, 'application/json')
+                p = campaign / 'sheet-keys.json'
+                keys = _load_json_file(p, {})
+                if not isinstance(keys, dict):
+                    keys = {}
+                op = payload.get('op') or 'generate'
+                if op == 'clear':
+                    keys.pop(hero, None)
+                else:
+                    was_reset = hero in keys
+                    keys[hero] = generate_sheet_key()
+                    record_sheet_activity(campaign, hero,
+                                          'Sheet key ' + ('reset' if was_reset else 'issued'),
+                                          'via GM Sheets menu')
+                _save_json_file(p, keys)
+                return self._send_text(json.dumps({'hero': hero, 'key': keys.get(hero) or ''}),
+                                       200, 'application/json')
+            if path == '/api/player-notes':
+                # Player-device save; key-gated. Body: {hero, key, text}
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                hero = str(payload.get('hero') or '').strip()
+                key = str(payload.get('key') or '')
+                if not sheet_key_valid(campaign, hero, key):
+                    return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
+                np = sheet_notes_path(campaign, hero)
+                if not np:
+                    return self._send_text(json.dumps({'error': 'invalid slug'}), 400, 'application/json')
+                text = str(payload.get('text') or '')
+                existed = np.exists()
+                np.parent.mkdir(parents=True, exist_ok=True)
+                np.write_text(text, encoding='utf-8')
+                record_sheet_activity(campaign, hero, 'Notes updated',
+                                      'edited' if existed else 'created')
+                return self._send_text(json.dumps({'ok': True}), 200, 'application/json')
+            if path == '/api/alerts':
+                # GM compose/delete; player dismiss (key-gated).
+                # {op:'compose', targets:'all'|[slugs], text} |
+                # {op:'dismiss', hero, key, id} | {op:'delete', id}
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                p = campaign / 'alerts.json'
+                alerts = _load_json_file(p, [])
+                if not isinstance(alerts, list):
+                    alerts = []
+                op = payload.get('op') or 'compose'
+                if op == 'compose':
+                    text = str(payload.get('text') or '').strip()
+                    if not text:
+                        return self._send_text(json.dumps({'error': 'text required'}), 400, 'application/json')
+                    targets = payload.get('targets') or 'all'
+                    if targets != 'all':
+                        if not isinstance(targets, list) or not targets:
+                            return self._send_text(json.dumps({'error': 'bad targets'}), 400, 'application/json')
+                        targets = [str(t) for t in targets]
+                    alerts.append({
+                        'id': secrets.token_hex(8),
+                        'ts': datetime.now().isoformat(timespec='seconds'),
+                        'targets': targets,
+                        'text': text,
+                        'dismissed': [],
+                    })
+                elif op == 'dismiss':
+                    hero = str(payload.get('hero') or '').strip()
+                    if not sheet_key_valid(campaign, hero, str(payload.get('key') or '')):
+                        return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
+                    aid = str(payload.get('id') or '')
+                    for a in alerts:
+                        if isinstance(a, dict) and str(a.get('id') or '') == aid:
+                            dis = a.setdefault('dismissed', [])
+                            if isinstance(dis, list) and hero not in dis:
+                                dis.append(hero)
+                elif op == 'delete':
+                    aid = str(payload.get('id') or '')
+                    alerts = [a for a in alerts if not (isinstance(a, dict) and str(a.get('id') or '') == aid)]
+                else:
+                    return self._send_text(json.dumps({'error': 'bad op'}), 400, 'application/json')
+                _save_json_file(p, alerts)
+                return self._send_text(json.dumps(alerts), 200, 'application/json')
             if path == '/api/builder/hero':
                 try:
                     payload = json.loads(self._read_body_text() or '{}')
