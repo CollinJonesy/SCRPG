@@ -260,19 +260,31 @@ function statusRowHtml(p) {
   }).join('');
 }
 
+function currentBandLetter(p) {
+  const hp = healthBand(p.myToken && p.myToken.currentHealth, p.myToken && p.myToken.maxHealth);
+  const cur = (p.myToken && p.myToken.maxHealth) ? worseBand(hp, trackerColor(p)) : 'green';
+  return bandLetter(cur);
+}
+
 function abilitiesHtml(p) {
   const filter = (window.__abilFilter || 'all');
   const all = abilitiesSorted(p.abilities);
   let shown;
   if (filter === 'all') {
     shown = all;
+  } else if (filter === 'status') {
+    const zoneNow = currentBandLetter(p) === 'g' ? 'Green' : currentBandLetter(p) === 'y' ? 'Yellow' : 'Red';
+    shown = all.filter(a => (a.Zone || 'Green') === zoneNow);
   } else {
     // Mode view: that mode's picked powers + the always-available switch abilities.
     shown = all.filter(a => String(a.Mode || '').trim() === filter || !String(a.Mode || '').trim());
   }
   const modes = modesOf(p.abilities);
-  const buttons = [`<button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>`]
-    .concat(modes.map(m => `<button class="btn ${filter === m ? 'primary' : ''}" onclick="setAbilFilter('${esc(m)}')">Mode: ${esc(m)}</button>`));
+  const modeLabel = m => String(m).replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' Mode';
+  const buttons = [
+    `<button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>`,
+    `<button class="btn ${filter === 'status' ? 'primary' : ''}" onclick="setAbilFilter('status')">Status</button>`,
+  ].concat(modes.map(m => `<button class="btn ${filter === m ? 'primary' : ''}" onclick="setAbilFilter('${esc(m)}')">${esc(modeLabel(m))}</button>`));
   const rows = shown.map(a => `
     <div class="abil z-${esc(a.Zone || 'Green')}">
       <div class="a-head"><span class="a-name">${esc(a.DisplayName || a.Name)}</span><span class="a-zone">${esc(a.Zone || 'Green')}${a.Mode ? ' · ' + esc(a.Mode) : ''}</span></div>
