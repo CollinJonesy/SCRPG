@@ -147,9 +147,10 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('groupCols: parseGroupCols(p.cols)', self.src)
         stage = self.src[self.src.index('function pdMvcStageHtml'):self.src.index('function sortNeutralTokens')]
         self.assertIn('colsOverride = null', stage)
-        self.assertIn('(colsOverride && colsOverride.allies) || PD_ALLY_CAP', stage)
-        self.assertIn('(colsOverride && colsOverride.bystanders) || PD_BYSTANDER_CAP', stage)
-        self.assertIn('(colsOverride && colsOverride.threats) || PD_THREAT_CAP', stage)
+        self.assertIn('budget = null', stage)
+        self.assertIn('const capFor', stage)  # 0 is a valid override — never fallback on falsy
+        self.assertIn("typeof v === 'number'", stage)
+        self.assertIn('g.cap > 0', stage)
         render = self.src[self.src.index('function renderScene'):self.src.index('function pathDisplayOutcome')]
         self.assertIn('pl ? pl.groupCols : null', render)
         # Width-derived token budget: the location's floor share becomes its

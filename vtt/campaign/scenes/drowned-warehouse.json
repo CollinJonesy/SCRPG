@@ -1,5 +1,5 @@
 {
-  "name": "Drowned Warehouse",
+  "name": "Angler Warehouse",
   "difficulty": "Moderate",
   "sceneType": "Action",
   "tracker": {
@@ -18,16 +18,21 @@
   "locations": [
     {
       "id": "loc-jk4pvnp2",
-      "name": "Main Location"
+      "name": "Prefab & Inventory/Supply Area"
     },
     {
       "id": "loc-i7o4s5xx",
-      "name": "New Location",
+      "name": "Fleet & Heavy Equipment Staging",
+      "locationSlug": ""
+    },
+    {
+      "id": "loc-qnq3lxlx",
+      "name": "Administrative & Crew Facilities",
       "locationSlug": ""
     }
   ],
   "background": "drowned-warehouse-bg",
-  "environment": null,
+  "environment": "the-drowned-angler-territory",
   "challenges": [
     {
       "id": "chal-sqnic0b2",
@@ -57,7 +62,7 @@
       "outcome": "",
       "impactScale": "",
       "solution": "",
-      "hidden": true
+      "hidden": false
     }
   ],
   "tokens": [],

@@ -263,14 +263,17 @@ function renderLocCols() {
         <button type="button" class="btn btn-small btn-ghost" onclick="slbColStep('${k}',-1)">−</button>
         <b>${caps[k]}</b>
         <button type="button" class="btn btn-small btn-ghost" onclick="slbColStep('${k}',1)">+</button>
-        ${isDef(k) ? '<span class="slb-hint">(default)</span>' : `<button type="button" class="btn btn-small btn-ghost" onclick="slbColReset('${k}')">reset</button>`}
+        ${caps[k] === 0 ? '<span class="slb-hint">(removed)</span>' : isDef(k) ? '<span class="slb-hint">(default)</span>' : `<button type="button" class="btn btn-small btn-ghost" onclick="slbColReset('${k}')">reset</button>`}
       </div>`).join('');
 }
 function slbColStep(k, d) {
   const b = (selected != null) ? boxes[selected] : null;
   if (!b) return;
   b.cols = b.cols || {};
-  b.cols[k] = Math.max(1, Math.min(10, (b.cols[k] || PD_DEFAULT_COLS[k]) + d));
+  // 0 removes the group from this location's stage makeup entirely. (Never
+  // `|| default` on the current value — 0 is valid and falsy.)
+  const cur = (typeof b.cols[k] === 'number') ? b.cols[k] : PD_DEFAULT_COLS[k];
+  b.cols[k] = Math.max(0, Math.min(10, cur + d));
   render();
 }
 function slbColReset(k) {
@@ -360,7 +363,7 @@ function slbStageGroups(visible, caps) {
     { toks: visible.filter(isPlayer), cap: caps.allies, cls: 'slb-g-ally' },
     { toks: visible.filter(t => !isPlayer(t) && !isThreat(t)), cap: caps.bystanders, cls: 'slb-g-byst' },
     { toks: visible.filter(isThreat), cap: caps.threats, cls: 'slb-g-threat' },
-  ].filter(g => g.toks.length);
+  ].filter(g => g.toks.length && g.cap > 0); // cap 0 = group removed from this location
 }
 /* Mirrors pdAllocateSpans in display.js — keep the two in sync. Splits a column
    budget across groups proportionally (each ≥1, sum = budget). */

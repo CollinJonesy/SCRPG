@@ -226,18 +226,20 @@ function pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars = false
 
   // Grouped role layout: each present group gets one column per token, capped
   // (Players 2 / Bystanders 2 / Villains 4 per closed design, overridable
-  // per-location by the Scene Builder). Extras WRAP inside the group. Row width
-  // = sum of present groups' spans (capped at 10 overall).
-  const caps = [
-    (colsOverride && colsOverride.allies) || PD_ALLY_CAP,
-    (colsOverride && colsOverride.bystanders) || PD_BYSTANDER_CAP,
-    (colsOverride && colsOverride.threats) || PD_THREAT_CAP,
-  ];
+  // per-location by the Scene Builder — an override of 0 REMOVES the group).
+  // Extras WRAP inside the group. Row width = sum of present groups' spans.
+  const capFor = (k, dflt) => {
+    if (!colsOverride) return dflt;
+    const v = colsOverride[k];
+    // 0 is a valid override (group removed) — never fall back on falsy.
+    return (typeof v === 'number' && isFinite(v)) ? v : dflt;
+  };
+  const caps = [capFor('allies', PD_ALLY_CAP), capFor('bystanders', PD_BYSTANDER_CAP), capFor('threats', PD_THREAT_CAP)];
   const groups = [
     { tokens: a, cap: caps[0], label: 'ALLIES', cls: 'allies' },
     { tokens: n, cap: caps[1], label: 'NEUTRAL', cls: 'neutral' },
     { tokens: e, cap: caps[2], label: 'ENEMIES', cls: 'enemies' },
-  ].filter(g => g.tokens.length);
+  ].filter(g => g.tokens.length && g.cap > 0);
   groups.forEach(g => { g.span = Math.min(g.cap, g.tokens.length); });
   // Width-derived budget (Scene Builder authored layout): the location's share
   // of the floor (its colSpan scaled into the 10-column stage budget) is
@@ -306,13 +308,14 @@ function sceneLayoutFor(scene, locs) {
   return any ? { cols, rows, byLoc } : null;
 }
 /* Per-location token-column overrides (Scene Builder): { allies, bystanders, threats }.
-   Any missing/invalid group falls back to the PD global cap. */
+   0 REMOVES the group from that location's stage; missing/invalid groups fall
+   back to the PD global cap. Range 0..10. */
 function parseGroupCols(c) {
   if (!c || typeof c !== 'object') return null;
   const out = {};
   ['allies', 'bystanders', 'threats'].forEach(k => {
     const n = Math.round(Number(c[k]));
-    if (isFinite(n)) out[k] = Math.max(1, Math.min(10, n));
+    if (isFinite(n)) out[k] = Math.max(0, Math.min(10, n));
   });
   return Object.keys(out).length ? out : null;
 }
