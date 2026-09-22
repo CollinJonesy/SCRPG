@@ -3273,7 +3273,7 @@ function renderTokens() {
 function hpIssueSlug() {
   const sceneSlug = (state.scene && (state.scene.__slug || state.scene.slug)) || state.activeSlug;
   if (!sceneSlug) return null;
-  const issue = findIssueForScene(sceneSlug);
+  const issue = parentIssueForScene(sceneSlug);
   return issue ? issue.slug : null;
 }
 

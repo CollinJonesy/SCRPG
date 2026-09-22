@@ -16,6 +16,15 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('issueFieldFor(dataKind)', body)
         self.assertNotIn('issueFieldFor(kind)', body)
 
+    def test_hero_points_issue_lookup_uses_real_function(self):
+        """Regression: hpIssueSlug must call parentIssueForScene — a phantom
+        name here throws inside renderToken and blanks the whole board."""
+        start = self.src.index('function hpIssueSlug')
+        end = self.src.index('function hpFor')
+        body = self.src[start:end]
+        self.assertIn('parentIssueForScene(', body)
+        self.assertNotIn('findIssueForScene(', body)
+
     def test_add_row_listener_is_wired(self):
         self.assertIn("getElementById('addRowBtn').addEventListener('click'", self.src)
         self.assertIn('function addRow(kind)', self.src)
