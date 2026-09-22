@@ -70,7 +70,7 @@ class TestDisplayJsContracts(unittest.TestCase):
     def test_pd_groups_by_role_not_affiliation(self):
         """renderScene groups: PCs→Allies, Bystander NPCs→Bystanders, everything else→Threats."""
         scene = self.src[self.src.index('function renderScene(scene)'):]
-        body = scene[scene.index("const row = document.getElementById('locationsRow');"):scene.index('return `<section class="location-block">')]
+        body = scene[scene.index("const row = document.getElementById('locationsRow');"):scene.index('return `<section class="location-block"') + len('return `<section class="location-block"')]
         self.assertIn('let allies = sortAllyTokens(pcsHere);', body)
         self.assertIn('let neutrals = sortNeutralTokens(here.filter(t => !isPcHeroToken(t) && isNonCombatToken(t)));', body)
         self.assertIn('let enemies = sortEnemyTokens(here.filter(t => !isPcHeroToken(t) && !isNonCombatToken(t)));', body)
