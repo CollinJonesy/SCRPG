@@ -1237,7 +1237,7 @@ function heroAbilitiesForToken(t) {
   // Slug guard: only abilities actually chosen for this hero during Hero Builder.
   // Modular mode gate: abilities with a `Mode` value are only usable while that
   // mode is active on the token. Powerless mode: no abilities at all (principle
-  // abilities are not in the abilities.csv layer). Blank Mode = always available.
+  // abilities ARE in the abilities.csv layer as Green rows). Blank Mode = always available.
   const mode = heroCurrentMode(t);
   const curMode = mode ? (mode.slug || '') : '';
   const powerless = !!(mode && mode.powerless);
