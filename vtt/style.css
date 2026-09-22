@@ -1532,3 +1532,24 @@ table.rules-table td { border: 1px solid #C9C3AF; padding: 4px 8px; }
    layout height — modular heroes must not stretch their row and gap siblings). */
 .mode-badge { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 0; background: rgba(180,83,9,.88); border: none; border-top: 1px solid #b45309; color: #ffd9b0; margin: 0; text-align: center; }
 .mvc-art { position: relative; }
+
+/* ---- Hero Points + token Principles + Twist Decision Matrix ---- */
+.hp-row { display: flex; align-items: center; gap: 3px; margin: 4px 0; }
+.hp-label { font-family: var(--font-data); font-size: 10px; color: var(--text-hi); margin-right: 2px; }
+.hp-dot { font-size: 11px; color: #444; line-height: 1; }
+.hp-dot.filled { color: #f5c518; }
+.hp-dot.capped.filled { color: #ff9f1a; text-shadow: 0 0 4px #ff9f1a; }
+.hp-btn { background: transparent; border: 1px solid #555; color: var(--text-hi); border-radius: 3px; font-size: 10px; line-height: 1; padding: 1px 5px; cursor: pointer; }
+.hp-btn:hover { background: #333; }
+.token-principles { margin: 6px 0 2px; border-top: 1px solid #333; padding-top: 4px; }
+.token-principles-label { font-family: var(--font-data); font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #999; }
+.token-principle { margin: 2px 0; }
+.token-principle-name { font-family: var(--font-body); font-size: 12px; color: var(--text-hi); cursor: pointer; }
+.token-principle-name:hover { color: #fff; }
+.token-principle-detail { font-family: var(--font-body); font-size: 11px; color: var(--text-hi); background: var(--ink); border: 1px solid #333; border-radius: 4px; padding: 5px 7px; margin: 3px 0 5px; line-height: 1.35; }
+.twist-matrix { width: 100%; border-collapse: collapse; font-family: var(--font-body); font-size: 11px; color: var(--text-hi); }
+.twist-matrix th, .twist-matrix td { border: 1px solid #333; padding: 4px 6px; text-align: left; vertical-align: top; }
+.twist-matrix th { font-family: var(--font-data); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; background: var(--ink); }
+.twist-matrix td:first-child { white-space: nowrap; font-family: var(--font-data); }
+.twist-matrix-notes { font-family: var(--font-body); font-size: 11px; color: var(--text-hi); line-height: 1.4; margin-top: 8px; }
+.twist-matrix-notes p { margin: 0 0 6px; }

@@ -48,6 +48,8 @@
             <option>Action</option><option>Social</option><option>Montage</option>
           </select>
           <span id="boardSceneDifficulty" class="token-type-chip villain"></span>
+          <button id="heroPointAllBtn" type="button" class="btn btn-small btn-ghost" onclick="awardHeroPointAll(1, 'Principle used in an Overcome')" title="A hero used a Principle in an Overcome action — every hero earns 1 Hero Point (max 5/issue, SCRPG p.31)">+1 HP All</button>
+          <button id="heroPointResetBtn" type="button" class="btn btn-small btn-ghost" onclick="resetHeroPointsForIssue()" title="Clear this Issue's Hero Point counters (use when starting a new Issue)">Reset HP</button>
           <button id="nextSceneBtn" type="button" class="btn btn-small btn-accent" onclick="nextSceneInIssue()" title="Load the next scene in this Issue's order" disabled>Next Scene →</button>
           <button id="recalibrateLayoutBtn" type="button" class="btn btn-small btn-ghost" onclick="recalibrateSceneLayout()" title="Re-fit the Player Display location boxes to current token occupancy (persists to the scene)">Recalibrate Layout</button>
         </div>
@@ -82,6 +84,8 @@
 
     <div class="board-main-grid">
       <aside class="challenges-sidebar" id="sceneNotesSidebar">
+        <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Twist Decision Matrix <span style="float:right;font-size:10px;">−</span></h3>
+        <div id="twistMatrixPanel" class="collapsible-content notes-panel"></div>
         <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Scene Notes <span style="float:right;font-size:10px;">−</span></h3>
         <div id="sceneNotesPanel" class="collapsible-content notes-panel"></div>
       </aside>

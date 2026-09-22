@@ -253,6 +253,42 @@ class TestActiveSceneAndRevealedRoll(ServerTestCase):
         self.assertEqual(json.loads(data)['tokenName'], 'Test')
 
 
+class TestHeroPointsApi(ServerTestCase):
+    def test_hero_points_round_trip_and_cap(self):
+        status, _ = self.request('POST', '/api/hero-points', body=json.dumps({'issue': 'iss-1', 'hero': 'lumen', 'delta': 1}).encode('utf-8'))
+        self.assertEqual(status, 200)
+        status, data = self.request('GET', '/api/hero-points')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(data), {'iss-1': {'lumen': 1}})
+
+        # Earn past the RAW cap of 5 — server clamps.
+        for _ in range(6):
+            self.request('POST', '/api/hero-points', body=json.dumps({'issue': 'iss-1', 'hero': 'lumen', 'delta': 1}).encode('utf-8'))
+        _, data = self.request('GET', '/api/hero-points')
+        self.assertEqual(json.loads(data)['iss-1']['lumen'], 5)
+
+        # Counter can go back down, and an issue reset clears everything.
+        self.request('POST', '/api/hero-points', body=json.dumps({'issue': 'iss-1', 'hero': 'lumen', 'delta': -2}).encode('utf-8'))
+        _, data = self.request('GET', '/api/hero-points')
+        self.assertEqual(json.loads(data)['iss-1']['lumen'], 3)
+        status, _ = self.request('POST', '/api/hero-points', body=json.dumps({'issue': 'iss-1', 'reset': True}).encode('utf-8'))
+        self.assertEqual(status, 200)
+        _, data = self.request('GET', '/api/hero-points')
+        self.assertEqual(json.loads(data), {})
+
+    def test_hero_points_scoped_per_issue(self):
+        for iss in ('iss-1', 'iss-2'):
+            self.request('POST', '/api/hero-points', body=json.dumps({'issue': iss, 'hero': 'lumen', 'delta': 1}).encode('utf-8'))
+        _, data = self.request('GET', '/api/hero-points')
+        parsed = json.loads(data)
+        self.assertEqual(parsed['iss-1']['lumen'], 1)
+        self.assertEqual(parsed['iss-2']['lumen'], 1)
+
+    def test_hero_points_missing_issue_rejected(self):
+        status, _ = self.request('POST', '/api/hero-points', body=json.dumps({'hero': 'lumen', 'delta': 1}).encode('utf-8'))
+        self.assertEqual(status, 400)
+
+
 class TestSceneNotesApi(ServerTestCase):
     def _make_scene(self, slug, name):
         scenes = self.campaign / 'scenes'

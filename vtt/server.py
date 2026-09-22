@@ -1172,6 +1172,19 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                             notes[md.name] = ''
                 return self._send_text(json.dumps({'name': name, 'notes': notes}), 200, 'application/json')
 
+            if path == '/api/hero-points':
+                # Hero Points: issue-scoped earn-only counters, max 5 per hero
+                # per issue (SCRPG p.31). Stored in campaign/hero_points.json as
+                # {issueSlug: {heroSlug: count}}.
+                p = campaign / 'hero_points.json'
+                data = {}
+                if p.exists():
+                    try:
+                        data = json.loads(p.read_text(encoding='utf-8'))
+                    except Exception:
+                        data = {}
+                return self._send_text(json.dumps(data), 200, 'application/json')
+
             if path == '/api/rules':
                 items = []
                 for f, slug in iter_rule_files():
@@ -1210,6 +1223,47 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
 
         def do_POST(self):
             path = unquote(urlparse(self.path).path)
+            if path == '/api/hero-points':
+                # Body: {issue, hero, delta} -> clamp 0..5 and save; or
+                # {issue, reset: true} -> clear that issue's counters.
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                issue = str(payload.get('issue') or '').strip()
+                if not issue or '/' in issue or '\\' in issue:
+                    return self._send_text(json.dumps({'error': 'issue required'}), 400, 'application/json')
+                p = campaign / 'hero_points.json'
+                data = {}
+                if p.exists():
+                    try:
+                        data = json.loads(p.read_text(encoding='utf-8'))
+                    except Exception:
+                        data = {}
+                if not isinstance(data, dict):
+                    data = {}
+                if payload.get('reset'):
+                    data.pop(issue, None)
+                else:
+                    hero = str(payload.get('hero') or '').strip()
+                    if not hero:
+                        return self._send_text(json.dumps({'error': 'hero required'}), 400, 'application/json')
+                    issue_data = data.setdefault(issue, {})
+                    cur = int(issue_data.get(hero) or 0)
+                    try:
+                        delta = int(payload.get('delta') or 0)
+                    except Exception:
+                        delta = 0
+                    # RAW: each hero may gain a maximum of 5 hero points per issue.
+                    new = max(0, min(5, cur + delta))
+                    if new == 0:
+                        issue_data.pop(hero, None)
+                    else:
+                        issue_data[hero] = new
+                    if not issue_data:
+                        data.pop(issue, None)
+                p.write_text(json.dumps(data, indent=2), encoding='utf-8')
+                return self._send_text(json.dumps(data), 200, 'application/json')
             if path == '/api/builder/hero':
                 try:
                     payload = json.loads(self._read_body_text() or '{}')

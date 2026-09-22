@@ -373,6 +373,7 @@ const state = {
   collectionsList: [],
   activeSlug: null,     // slug of scene currently loaded on the Board
   scene: null,          // the loaded scene object (definition + live state combined)
+  heroPoints: {},       // {issueSlug: {heroSlug: count}} — issue-scoped, max 5 per hero (SCRPG p.31)
   editingSlug: null,    // slug currently open in the Scene Editor (may differ from activeSlug)
   turnMarks: {},        // tokenId -> round order; memory only, not saved
 };
@@ -2924,8 +2925,32 @@ async function renderBoard() {
   renderLocationsBoard();
   renderChallengesPanel();
   renderActivityLog();
+  renderTwistMatrixPanel();
+  fetchHeroPoints().then(renderTokens);
   renderSceneNotesPanel();
   loadSceneRoster().then(() => refreshSpawnOptions());
+}
+
+/* ---------------- Twist Decision Matrix (sidebar quick reference) ---------------- */
+
+function renderTwistMatrixPanel() {
+  const panel = document.getElementById('twistMatrixPanel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <table class="twist-matrix">
+      <thead><tr><th>Overcome roll</th><th>GM picks</th><th>Ask</th></tr></thead>
+      <tbody>
+        <tr><td><b>1–3</b></td><td>Player chooses: <b>fail</b> <i>or</i> <b>succeed with a Major Twist</b></td><td>Hero's Principle <b>Major</b> question</td></tr>
+        <tr><td><b>4–7</b></td><td><b>Succeed with a Minor Twist</b></td><td>Hero's Principle <b>Minor</b> question</td></tr>
+        <tr><td><b>8–11</b></td><td>Success — no twist</td><td>—</td></tr>
+        <tr><td><b>12+</b></td><td><b>Succeeds beyond expectations</b> — bonus side effect; may remove a prior minor twist, or ≈ +2 bonus / heal Min die. No twist.</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="twist-matrix-notes">
+      <p><b>Twist source, in order:</b> ① acting hero's own Principle question (see ▸ on their token) · ② this scene Environment's twist for the current tracker color · ③ generic Twist Library.</p>
+      <p><b>Hero Points:</b> whenever ANY hero uses a Principle in an Overcome — success or not — <b>every hero earns 1 HP</b> (max 5/Issue). Meaningful social scene: all heroes +1 HP, once per scene. Convert to exclusive bonuses at Issue end.</p>
+      <p><b>Villains/minions:</b> villains never take Major Twists (they fail instead); a minion succeeding with a minor twist knocks itself out; a Lieutenant steps down (house rule: minion save = outright defeat).</p>
+    </div>`;
 }
 
 async function renderSceneNotesPanel() {
@@ -2971,7 +2996,11 @@ async function renderSceneNotesPanel() {
 function toggleCollapsible(el) {
   const parent = el.closest('.challenges-sidebar');
   if (!parent) return;
-  const content = parent.querySelector('#challengesPanel, #activityLogContent, #sceneNotesPanel, .collapsible-content');
+  // With multiple collapsible panels in one sidebar, toggle the content
+  // immediately after THIS heading — not the first panel in the container.
+  const content = el.nextElementSibling && el.nextElementSibling.classList.contains('collapsible-content')
+    ? el.nextElementSibling
+    : parent.querySelector('#challengesPanel, #activityLogContent, #sceneNotesPanel, .collapsible-content');
   if (!content) return;
   const isHidden = content.style.display === 'none';
   content.style.display = isHidden ? 'block' : 'none';
@@ -3238,6 +3267,90 @@ function renderTokens() {
   if (koEl) koEl.textContent = ko.length ? ('Out: ' + ko.map(t => t.name).join(', ')) : '';
 }
 
+/* ---------------- Hero Points (issue-scoped, earn-only, max 5 — SCRPG p.31) ---------------- */
+
+function hpIssueSlug() {
+  const sceneSlug = (state.scene && (state.scene.__slug || state.scene.slug)) || state.activeSlug;
+  if (!sceneSlug) return null;
+  const issue = findIssueForScene(sceneSlug);
+  return issue ? issue.slug : null;
+}
+
+function hpFor(heroSlug) {
+  const issue = hpIssueSlug();
+  if (!issue) return 0;
+  return Number((state.heroPoints[issue] || {})[heroSlug]) || 0;
+}
+
+async function fetchHeroPoints() {
+  try {
+    const res = await fetch('/api/hero-points');
+    if (res.ok) state.heroPoints = await res.json() || {};
+  } catch (e) { console.error('hero points fetch failed', e); }
+}
+
+function renderHeroPointsHtml(t) {
+  const count = hpFor(t.slug);
+  const capped = count >= 5;
+  const dots = [1, 2, 3, 4, 5].map(i =>
+    `<span class="hp-dot${i <= count ? ' filled' : ''}${capped ? ' capped' : ''}" title="${i <= count ? 'Earned' : 'Empty'}">●</span>`).join('');
+  return `<div class="hp-row" onclick="event.stopPropagation()" title="Hero Points — earned by using a Principle in an Overcome action or a meaningful social scene; max 5 per Issue (RAW p.31)">
+      <span class="hp-label">HP</span>${dots}
+      <button class="hp-btn" title="+1 Hero Point (whole team earns whenever any hero uses a Principle in an Overcome)" onclick="event.stopPropagation();adjustHeroPoint('${t.slug}',1)">+</button>
+      <button class="hp-btn" title="Remove a wrongly-marked Hero Point" onclick="event.stopPropagation();adjustHeroPoint('${t.slug}',-1)">−</button>
+    </div>`;
+}
+
+async function adjustHeroPoint(heroSlug, delta) {
+  const issue = hpIssueSlug();
+  if (!issue) { toast('Load a scene that belongs to an Issue first — Hero Points are tracked per Issue.'); return; }
+  try {
+    const res = await fetch('/api/hero-points', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issue, hero: heroSlug, delta })
+    });
+    if (!res.ok) { toast('Hero Point update failed.'); return; }
+    state.heroPoints = await res.json() || {};
+    renderTokens();
+  } catch (e) { toast('Hero Point update failed.'); console.error(e); }
+}
+
+async function awardHeroPointAll(delta, reason) {
+  const issue = hpIssueSlug();
+  if (!issue) { toast('Load a scene that belongs to an Issue first — Hero Points are tracked per Issue.'); return; }
+  // RAW p.31: whenever ANY hero uses a Principle in an Overcome (success or
+  // not), EACH hero on the team earns one hero point. Social scenes: 1 each.
+  const heroes = state.heroes.filter(h => String(h.Active ?? '').toLowerCase() !== 'false');
+  if (!heroes.length) { toast('No heroes in the Library.'); return; }
+  try {
+    for (const h of heroes) {
+      const res = await fetch('/api/hero-points', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issue, hero: h.Slug, delta })
+      });
+      if (res.ok) state.heroPoints = await res.json() || {};
+    }
+    renderTokens();
+    toast(reason ? `${reason} — all heroes +1 HP` : 'All heroes +1 HP');
+  } catch (e) { toast('Hero Point update failed.'); console.error(e); }
+}
+
+async function resetHeroPointsForIssue() {
+  const issue = hpIssueSlug();
+  if (!issue) { toast('Load a scene that belongs to an Issue first.'); return; }
+  if (!confirm(`Clear all Hero Point counters for this Issue?\n(At Issue end, trade them for Hero Point bonuses first — RAW p.31.)`)) return;
+  try {
+    const res = await fetch('/api/hero-points', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issue, reset: true })
+    });
+    if (!res.ok) { toast('Hero Point reset failed.'); return; }
+    state.heroPoints = await res.json() || {};
+    renderTokens();
+    toast('Hero Points cleared for this Issue.');
+  } catch (e) { toast('Hero Point reset failed.'); console.error(e); }
+}
+
 function renderToken(t, small) {
   const card = document.createElement('div');
   card.className = `token mvc-card ${t.kind}${small ? ' small' : ''}${t.npc ? ' npc' : ''}`;
@@ -3270,6 +3383,7 @@ function renderToken(t, small) {
   content.className = 'token-content';
   content.style.display = 'block'; // default expanded
   if (t.kind === 'hero' || t.kind === 'villain') content.innerHTML += renderHealthBlock(t, heroRow);
+  if (t.kind === 'hero') content.innerHTML += renderHeroPointsHtml(t);
   if ((t.kind === 'minion' || t.kind === 'lieutenant') && !isNonCombatNpc(t)) content.innerHTML += renderDieBlock(t);
   if (tokenShowsBhd(t)) content.innerHTML += bhdRowHtml(t, state.scene, true);
   if (t.kind === 'hero') {
@@ -3277,6 +3391,7 @@ function renderToken(t, small) {
     if (modeHtml) content.innerHTML += modeHtml;
   }
   content.innerHTML += boardAbilityListHtml(t);
+  if (t.kind === 'hero') content.innerHTML += renderHeroPrinciplesHtml(t);
   content.innerHTML += boardBasicActionsHtml(t);
 
   card.innerHTML = body;
@@ -4075,6 +4190,46 @@ function updatePrincipleField(idx, n, field, value) {
 /* ---------------- Board: Twist Picker (hero's Principles first, generic library as fallback) ---------------- */
 
 let twistFilterSeverity = 'All';
+
+/* ---------------- Principles on hero tokens ---------------- */
+
+// Expanded principle-detail state persists across re-renders (keyed token:n).
+const expandedPrincipleTokens = new Set();
+
+function toggleTokenPrinciple(tokenId, n) {
+  const key = tokenId + ':' + n;
+  if (expandedPrincipleTokens.has(key)) expandedPrincipleTokens.delete(key);
+  else expandedPrincipleTokens.add(key);
+  renderTokens();
+}
+
+function renderHeroPrinciplesHtml(t) {
+  const hero = state.heroes.find(h => h.Slug === t.slug);
+  if (!hero) return '';
+  const rows = [1, 2].map(n => {
+    const name = hero['Principle' + n + 'Name'];
+    if (!name) return '';
+    const key = t.id + ':' + n;
+    const open = expandedPrincipleTokens.has(key);
+    let inner = '';
+    if (open) {
+      const minor = hero['Principle' + n + 'MinorTwist'];
+      const major = hero['Principle' + n + 'MajorTwist'];
+      const miss = '<span style="color:var(--red);">not on file — check the physical sheet</span>';
+      inner = `<div class="token-principle-detail">
+          <div><b>Minor Twist:</b> ${minor ? escHtml(minor) : miss}</div>
+          <div><b>Major Twist:</b> ${major ? escHtml(major) : miss}</div>
+          <div style="margin-top:4px;color:#999;font-size:10px;">Minor band = ask the Minor question · 1–3 band = ask the Major question (or fail)</div>
+        </div>`;
+    }
+    return `<div class="token-principle">
+        <span class="token-principle-name" onclick="event.stopPropagation();toggleTokenPrinciple('${t.id}',${n})" title="Principle ${n} — click to ${open ? 'hide' : 'show'} twist questions">${open ? '▾' : '▸'} ${escHtml(name)}</span>
+        ${inner}
+      </div>`;
+  }).filter(Boolean).join('');
+  if (!rows) return '';
+  return `<div class="token-principles" onclick="event.stopPropagation()"><div class="token-principles-label">Principles</div>${rows}</div>`;
+}
 
 function openTwistPicker(tokenId) {
   const t = findTok(tokenId);
