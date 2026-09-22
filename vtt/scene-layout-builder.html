@@ -181,11 +181,24 @@ let boxes = [];
 function esc(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 async function init() {
-  const res = await fetch('/api/scenes');
+  const [res, issRes] = await Promise.all([fetch('/api/scenes'), fetch('/api/issues').catch(() => null)]);
   const items = await res.json();
+  let issues = [];
+  try { issues = issRes ? await issRes.json() : []; } catch (e) { issues = []; }
+  // Order scenes by Issue order: each Issue's sceneSlugs sequence (in issue-list
+  // order), then scenes attached to no issue — not the server's filename sort.
+  const issueOf = {};
+  (issues || []).forEach(iss => (iss.sceneSlugs || []).forEach(s => { if (!issueOf[s]) issueOf[s] = iss.name || iss.slug; }));
+  const seen = new Set();
+  const ordered = [];
+  (issues || []).forEach(iss => (iss.sceneSlugs || []).forEach(s => {
+    const meta = items.find(x => x.slug === s);
+    if (meta && !seen.has(s)) { seen.add(s); ordered.push(meta); }
+  }));
+  items.forEach(x => { if (!seen.has(x.slug)) { seen.add(x.slug); ordered.push(x); } });
   const sel = document.getElementById('sceneSelect');
   sel.innerHTML = '<option value="">— pick a scene —</option>' +
-    items.map(s => `<option value="${esc(s.slug)}" ${s.slug === sceneSlug ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+    ordered.map(s => `<option value="${esc(s.slug)}" ${s.slug === sceneSlug ? 'selected' : ''}>${issueOf[s.slug] ? esc(issueOf[s.slug]) + ' — ' : ''}${esc(s.name)}</option>`).join('');
   setMode(mode);
   if (sceneSlug) await loadScene(sceneSlug);
 }
