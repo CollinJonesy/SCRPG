@@ -166,7 +166,7 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn(">${modeBadge}</div>", card)
         self.assertNotIn("${modeBadge}${bhdRowHtml", card)
         for blob in (self.html, with_css()):
-            badge = blob[blob.index('.mode-badge {'):blob.index('.mode-badge {') + 400]
+            badge = blob[blob.index('.mode-badge {'):blob.index('.mode-badge {') + 700]
             self.assertIn('position: absolute', badge)
             self.assertIn('bottom: 0', badge)
             self.assertIn('margin: 0', badge)
