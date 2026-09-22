@@ -1528,4 +1528,7 @@ table.rules-table td { border: 1px solid #C9C3AF; padding: 4px 8px; }
 .mode-power-chip { font-size: 11px; padding: 2px 7px; border: 1px solid rgba(255,255,255,.35); border-radius: 9px; }
 .mode-power-chip b { font-weight: 700; }
 .board-act-locked { opacity: .45; cursor: not-allowed; }
-.mode-badge { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 9px; background: rgba(180,83,9,.25); border: 1px solid #b45309; color: #ffd9b0; margin-top: 2px; }
+/* Player Display: mode badge overlays the portrait bottom edge (absolute, no
+   layout height — modular heroes must not stretch their row and gap siblings). */
+.mode-badge { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 0; background: rgba(180,83,9,.88); border: none; border-top: 1px solid #b45309; color: #ffd9b0; margin: 0; text-align: center; }
+.mvc-art { position: relative; }

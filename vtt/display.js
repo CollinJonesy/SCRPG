@@ -718,10 +718,12 @@ function renderFighterCard(t, scene, hideHealthBars = false) {
   const bar = meter
     ? `<div class="health-bar-track"><div class="health-bar-fill ${meter.band}" style="width:${meter.pct}%"></div></div>`
     : '';
+  // Mode badge overlays the portrait's bottom edge (absolute, no layout height)
+  // so modular heroes don't stretch their row and leave gaps in sibling cards.
   return `<div class="mvc-card ${t.kind}">
-    <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'"></div>
+    <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'">${modeBadge}</div>
     ${bar}
-    <div class="mvc-plate">${escHtml(t.name)}</div>${modeBadge}${bhdRowHtml(t, scene)}
+    <div class="mvc-plate">${escHtml(t.name)}</div>${bhdRowHtml(t, scene)}
   </div>`;
 }
 

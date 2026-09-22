@@ -158,6 +158,19 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('pl.colSpan * 10 / layoutInfo.cols', render)
         self.assertIn('if (budget) pdAllocateSpans(groups, budget)', self.src)
 
+    def test_pd_mode_badge_overlays_portrait(self):
+        """Modular hero mode badge rides the portrait's bottom edge (absolute) so
+        it adds no layout height — siblings in the row keep no gaps."""
+        card = self.src[self.src.index('function renderFighterCard'):self.src.index('/* ---- Modular hero modes')]
+        # badge is inside .mvc-art (after the img), not stacked after the plate
+        self.assertIn(">${modeBadge}</div>", card)
+        self.assertNotIn("${modeBadge}${bhdRowHtml", card)
+        for blob in (self.html, with_css()):
+            badge = blob[blob.index('.mode-badge {'):blob.index('.mode-badge {') + 400]
+            self.assertIn('position: absolute', badge)
+            self.assertIn('bottom: 0', badge)
+            self.assertIn('margin: 0', badge)
+
     def test_pd_portrait_art_is_square(self):
         self.assertIn('aspect-ratio: 1 / 1', self.html)
         art_block = self.html[self.html.index('.mvc-art {'):self.html.index('.mvc-art img')]
