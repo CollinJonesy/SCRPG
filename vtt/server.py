@@ -92,7 +92,7 @@ ENVIRONMENTS_HEADERS = [
     'MinionSlugs', 'LieutenantSlugs',
 ]
 
-LOCATIONS_HEADERS = ['Slug', 'Name', 'EnvironmentSlug']
+LOCATIONS_HEADERS = ['Slug', 'Name', 'EnvironmentSlug', 'Active']
 TWISTS_HEADERS = ['Slug', 'Name', 'EffectType', 'Severity', 'Formula', 'Description']
 
 # Generic Twist Library seed data — Creating Twists, pages 200-203. Written into

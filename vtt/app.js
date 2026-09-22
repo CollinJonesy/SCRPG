@@ -103,7 +103,7 @@ const ENVIRONMENTS_HEADERS = [
   'RedMajorTwist','RedMajorTwistDescription',
   'MinionSlugs','LieutenantSlugs',
 ];
-const LOCATIONS_HEADERS = ['Slug','Name','EnvironmentSlug'];
+const LOCATIONS_HEADERS = ['Slug','Name','EnvironmentSlug','Active'];
 const TWISTS_HEADERS = ['Slug','Name','EffectType','Severity','Formula','Description'];
 const ABILITIES_HEADERS = ['Slug','Zone','Name','DisplayName','Type','GameText','RollType','DieSource','EffectDieHint','Mode'];
 const TWIST_EFFECT_TYPES = [
@@ -742,7 +742,7 @@ function renderLibraryTable(kind) {
           const villain = (state.villains || []).find(v => v.Slug === owner);
           const actor = hero || villain;
           if (!actor || !isActiveFlag(actor.Active)) return false;
-        } else if (['heroes', 'villains', 'minions', 'npcs', 'environments'].includes(dataKind) && !isActiveFlag(row.Active)) {
+        } else if (['heroes', 'villains', 'minions', 'npcs', 'environments', 'locations'].includes(dataKind) && !isActiveFlag(row.Active)) {
           return false;
         }
       }
@@ -774,6 +774,8 @@ function renderLibraryTable(kind) {
     theadCols = ['Name','Active','Trait1','Die','Trait2','Die','Trait3','Die','Twists','Minions','Lieutenants','Locations','Issues',''];
   } else if (dataKind === 'twists') {
     theadCols = ['Name','Effect Type','Severity','Formula','Description',''];
+  } else if (dataKind === 'locations') {
+    theadCols = ['Name','Slug','Environment','Active','Issues',''];
   } else {
     theadCols = ['Slug','Zone','Name','Display Name','Type','Game Text','Roll Type','Die Source','Effect Die Hint',''];
     const dl = document.getElementById('heroSlugsList');
@@ -859,6 +861,14 @@ function renderLibraryTable(kind) {
       html += `<td class="assign-cell wrap-col">${envSlugNameList(row.MinionSlugs, state.minions)}</td>`;
       html += `<td class="assign-cell wrap-col">${envSlugNameList(row.LieutenantSlugs, state.minions)}</td>`;
       html += `<td class="assign-cell wrap-col">${envLocationNames(row.Slug)}</td>`;
+    } else if (dataKind === 'locations') {
+      html += tdText(dataKind, idx, 'Name', row.Name, 'name-field');
+      html += tdText(dataKind, idx, 'Slug', row.Slug);
+      html += `<td><select onchange="onCellChange('${dataKind}',${idx},'EnvironmentSlug',this.value)">
+        <option value="">— none —</option>
+        ${(state.environments || []).map(e => `<option value="${escAttr(e.Slug)}" ${row.EnvironmentSlug === e.Slug ? 'selected' : ''}>${escHtml(e.Name)}</option>`).join('')}
+      </select></td>`;
+      html += tdCheckbox(dataKind, idx, 'Active', row.Active === '' || row.Active == null ? 'true' : row.Active);
     } else if (dataKind === 'twists') {
       html += tdText(dataKind, idx, 'Name', row.Name, 'name-field');
       html += `<td><select onchange="onCellChange('${dataKind}',${idx},'EffectType',this.value)">
@@ -976,7 +986,7 @@ function addRow(kind) {
   const row = {}; headers.forEach(h => row[h] = '');
   row.Name = 'New Entry';
   row.Slug = uniqueLibSlug(dataKind, 'new-entry', null);
-  if (dataKind === 'heroes' || dataKind === 'villains' || dataKind === 'minions' || dataKind === 'npcs' || dataKind === 'environments') row.Active = 'true';
+  if (dataKind === 'heroes' || dataKind === 'villains' || dataKind === 'minions' || dataKind === 'npcs' || dataKind === 'environments' || dataKind === 'locations') row.Active = 'true';
   if (dataKind === 'minions') row.Type = 'Minion';
   if (dataKind === 'npcs') row.Type = 'Bystander';
   row.Origin = 'custom';
@@ -2672,6 +2682,7 @@ function renderLocationsEditor() {
         <option value="">custom</option>
         ${(state.locations||[]).map(l => `<option value="${escAttr(l.Slug)}" ${loc.locationSlug===l.Slug?'selected':''}>${escHtml(l.Name)}</option>`).join('')}
       </select>
+      <button class="btn btn-small btn-ghost" type="button" onclick="saveLocationToLibrary(${idx})" title="Save this location to the Location Library (locations.csv) so it can be reused on Environments and other scenes">Save to Library</button>
       <button class="btn btn-small btn-danger" onclick="removeLocation(${idx})">Delete</button>
     </div>`).join('');
 }
@@ -2683,6 +2694,27 @@ function addLocationFromCatalog() {
   state.scene.locations.push({ id: uid('loc'), name: row.Name, locationSlug: row.Slug });
   saveSceneDebounced();
   renderLocationsEditor();
+}
+/* Save a scene's location into the Location Library (locations.csv) so custom
+   locations persist beyond this scene and can be linked to Environments,
+   reused on other scenes, and picked in the Environment Builder. */
+function saveLocationToLibrary(idx) {
+  const loc = (state.scene.locations || [])[idx];
+  if (!loc || !(loc.name || '').trim()) { toast('Name the location first, then save it.'); return; }
+  const slug = loc.locationSlug || uniqueLibSlug('locations', slugify(loc.name), null);
+  const existing = (state.locations || []).find(l => l.Slug === slug);
+  if (existing) {
+    existing.Name = loc.name;
+  } else {
+    // Default the library row's Environment to the scene's environment — the
+    // Environment Builder links locations via EnvironmentSlug.
+    state.locations.push({ Slug: slug, Name: loc.name, EnvironmentSlug: state.scene.environment || '', Active: 'true' });
+  }
+  loc.locationSlug = slug;
+  saveLibraryDebounced('locations');
+  saveSceneDebounced();
+  renderLocationsEditor();
+  toast('Saved "' + loc.name + '" to the Location Library.');
 }
 function updateLocationField(idx, field, value) {
   state.scene.locations[idx][field] = value;
@@ -3918,7 +3950,7 @@ function inlineMd(s) {
 function switchLibTab(kind) {
   currentLibTab = kind;
   document.querySelectorAll('.lib-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.lib === kind));
-  ['heroes','villains','minions','npcs','environments','issues-scenes','twists','abilities'].forEach(k => {
+  ['heroes','villains','minions','npcs','environments','locations','issues-scenes','twists','abilities'].forEach(k => {
     const panel = document.getElementById(k + 'Panel');
     if (panel) panel.classList.toggle('hidden', k !== kind);
   });

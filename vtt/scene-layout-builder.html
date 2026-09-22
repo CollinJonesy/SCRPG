@@ -270,10 +270,12 @@ function slbColStep(k, d) {
   const b = (selected != null) ? boxes[selected] : null;
   if (!b) return;
   b.cols = b.cols || {};
-  // 0 removes the group from this location's stage makeup entirely. (Never
-  // `|| default` on the current value — 0 is valid and falsy.)
+  // 0 removes the group from this location's stage makeup entirely — but NEVER
+  // for Players (allies): a location without a PC shows nothing on the PD, so
+  // Players has a floor of 1.
   const cur = (typeof b.cols[k] === 'number') ? b.cols[k] : PD_DEFAULT_COLS[k];
-  b.cols[k] = Math.max(0, Math.min(10, cur + d));
+  const min = k === 'allies' ? 1 : 0;
+  b.cols[k] = Math.max(min, Math.min(10, cur + d));
   render();
 }
 function slbColReset(k) {

@@ -308,14 +308,15 @@ function sceneLayoutFor(scene, locs) {
   return any ? { cols, rows, byLoc } : null;
 }
 /* Per-location token-column overrides (Scene Builder): { allies, bystanders, threats }.
-   0 REMOVES the group from that location's stage; missing/invalid groups fall
-   back to the PD global cap. Range 0..10. */
+   0 REMOVES Bystanders/Threats from that location's stage; allies (Players) has a
+   floor of 1 — a location without a PC shows nothing on the PD, so Players can
+   never be removed. Missing/invalid groups fall back to the PD global cap. */
 function parseGroupCols(c) {
   if (!c || typeof c !== 'object') return null;
   const out = {};
   ['allies', 'bystanders', 'threats'].forEach(k => {
     const n = Math.round(Number(c[k]));
-    if (isFinite(n)) out[k] = Math.max(0, Math.min(10, n));
+    if (isFinite(n)) out[k] = Math.max(k === 'allies' ? 1 : 0, Math.min(10, n));
   });
   return Object.keys(out).length ? out : null;
 }
