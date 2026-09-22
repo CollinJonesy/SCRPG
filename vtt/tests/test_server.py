@@ -216,6 +216,30 @@ class TestActiveSceneAndRevealedRoll(ServerTestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(data)['slug'], 'some-scene')
 
+    def test_scene_layout_round_trip(self):
+        """Per-scene location layout survives a PUT → GET cycle untouched."""
+        layout = {
+            'cols': 6, 'rows': 4,
+            'placements': [
+                {'location': 'loc-lobby', 'col': 1, 'row': 1, 'colSpan': 4, 'rowSpan': 4},
+                {'location': 'loc-vault', 'col': 5, 'row': 1, 'colSpan': 2, 'rowSpan': 2},
+            ],
+        }
+        body = json.dumps({'name': 'Bank Job', 'layout': layout}).encode('utf-8')
+        status, _ = self.request('PUT', '/api/scenes/bank-job', body=body)
+        self.assertEqual(status, 200)
+        status, data = self.request('GET', '/api/scenes/bank-job')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(data).get('layout'), layout)
+
+    def test_scene_layout_absent_stays_absent(self):
+        body = json.dumps({'name': 'No Layout'}).encode('utf-8')
+        status, _ = self.request('PUT', '/api/scenes/plain', body=body)
+        self.assertEqual(status, 200)
+        status, data = self.request('GET', '/api/scenes/plain')
+        self.assertEqual(status, 200)
+        self.assertNotIn('layout', json.loads(data))
+
     def test_revealed_roll_round_trip(self):
         status, _ = self.request('PUT', '/api/revealed-roll', body=b'{"tokenName": "Test", "min": 1}')
         self.assertEqual(status, 200)

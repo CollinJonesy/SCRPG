@@ -262,8 +262,37 @@ function sceneVisualSig(scene) {
   return JSON.stringify({
     name: scene.name, difficulty: scene.difficulty, sceneType: scene.sceneType, tracker: scene.tracker,
     locations: scene.locations, tokens: scene.tokens, mods: scene.mods,
-    environment: scene.environment, challenges: scene.challenges, background: scene.background
+    environment: scene.environment, challenges: scene.challenges, background: scene.background,
+    layout: scene.layout
   });
+}
+
+/* ---- Per-scene location layout (Scene Builder authored). ----
+   scene.layout = { cols, rows, placements: [{ location, col, row, colSpan, rowSpan }] }.
+   Absent/invalid layout → legacy single vertical stack (null). Placement boxes are
+   clamped into the grid; unknown/duplicate locations are ignored. */
+function clampInt(v, lo, hi, dflt) {
+  const n = Math.round(Number(v));
+  if (!isFinite(n)) return dflt;
+  return Math.max(lo, Math.min(hi, n));
+}
+function sceneLayoutFor(scene, locs) {
+  const raw = scene && scene.layout && Array.isArray(scene.layout.placements) ? scene.layout.placements : null;
+  if (!raw || !raw.length) return null;
+  const ids = new Set((locs || []).map(l => l.id));
+  const cols = clampInt(scene.layout.cols, 1, 12, 6);
+  const rows = clampInt(scene.layout.rows, 1, 12, 6);
+  const byLoc = {};
+  raw.forEach(p => {
+    if (!p || !ids.has(p.location) || byLoc[p.location]) return;
+    const col = clampInt(p.col, 1, cols, 1);
+    const row = clampInt(p.row, 1, rows, 1);
+    const colSpan = clampInt(p.colSpan, 1, cols - col + 1, 1);
+    const rowSpan = clampInt(p.rowSpan, 1, rows - row + 1, 1);
+    byLoc[p.location] = { col, row, colSpan, rowSpan };
+  });
+  const any = Object.keys(byLoc).length;
+  return any ? { cols, rows, byLoc } : null;
 }
 
 function fitNameSize(el, ctx, hi, loMin) {
@@ -391,6 +420,16 @@ function renderScene(scene) {
 
   const row = document.getElementById('locationsRow');
   const locs = scene.locations || [];
+  // Per-scene layout (Scene Builder authored): grid placement, or legacy stack.
+  const layoutInfo = sceneLayoutFor(scene, locs);
+  row.classList.toggle('layout-grid', !!layoutInfo);
+  if (layoutInfo) {
+    row.style.gridTemplateColumns = `repeat(${layoutInfo.cols}, minmax(0, 1fr))`;
+    row.style.gridTemplateRows = `repeat(${layoutInfo.rows}, minmax(0, 1fr))`;
+  } else {
+    row.style.gridTemplateColumns = '';
+    row.style.gridTemplateRows = '';
+  }
   const ko = scene.tokens.filter(t => t.ko);
   const at = (locId) => scene.tokens.filter(t => !t.ko && (t.locationId || '') === (locId || ''));
   row.innerHTML = locs.map(loc => {
@@ -409,11 +448,17 @@ function renderScene(scene) {
       enemies = [];
     }
 
-    return `<section class="location-block">
+    // Authored layout: this location occupies its grid box (header spans the box).
+    const pl = layoutInfo ? layoutInfo.byLoc[loc.id] : null;
+    const blockStyle = pl
+      ? ` style="grid-column:${pl.col} / span ${pl.colSpan};grid-row:${pl.row} / span ${pl.rowSpan};"`
+      : '';
+    return `<section class="location-block"${blockStyle}>
       <div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
       ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars)}
     </section>`;
-  }).join('') + (ko.length ? `<div class="mvc-ko">Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');
+  }).join('')
+    + (ko.length ? `<div class="mvc-ko"${layoutInfo ? ' style="grid-column:1 / -1;"' : ''}>Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');
 
   const chalEl = document.getElementById('displayChallenges');
   const visible = scene.challenges || [];

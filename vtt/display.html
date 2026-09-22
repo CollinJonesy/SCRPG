@@ -74,9 +74,22 @@
     min-height: 0;
     gap: 1vh;
     overflow: hidden;
-    /* Locations stack vertically (one below the other), as designed. */
+    /* Legacy: locations stack vertically (one below the other), as designed. */
     display: flex;
     flex-direction: column;
+  }
+  /* Authored per-scene layout: locations occupy grid boxes (col/row + spans). */
+  .locations-row.layout-grid {
+    display: grid;
+  }
+  .locations-row.layout-grid .location-block {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .locations-row.layout-grid .location-block .mvc-stage {
+    flex: 1 1 auto;
+    min-height: 0;
   }
   .location-block { margin: 0; }
   .location-header {

@@ -125,6 +125,23 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertNotIn('id="displayChallenges"', self.html[idx_locations:])
         self.assertIn('#displayChallenges:empty { display: none; }', self.html)
 
+    def test_pd_scene_layout_grid_rendering(self):
+        """Per-scene layout: grid placement, clamped boxes, KO row spans full width, legacy stack default."""
+        self.assertIn('function sceneLayoutFor', self.src)
+        self.assertIn('function clampInt', self.src)
+        render = self.src[self.src.index('function renderScene'):self.src.index('function pathDisplayOutcome')]
+        self.assertIn("row.classList.toggle('layout-grid'", render)
+        self.assertIn('sceneLayoutFor(scene, locs)', render)
+        self.assertIn('grid-column:${pl.col} / span ${pl.colSpan}', render)
+        self.assertIn('grid-row:${pl.row} / span ${pl.rowSpan}', render)
+        self.assertIn("grid-column:1 / -1", render)  # KO row spans all columns in grid mode
+        self.assertIn('layout: scene.layout', self.src)  # layout change must re-render
+        self.assertIn('.locations-row.layout-grid', self.html)
+        # Validation: unknown/duplicate locations ignored, boxes clamped into the grid.
+        self.assertIn('ids.has(p.location)', self.src)
+        self.assertIn('byLoc[p.location]', self.src)
+        self.assertIn('cols - col + 1', self.src)
+
     def test_pd_portrait_art_is_square(self):
         self.assertIn('aspect-ratio: 1 / 1', self.html)
         art_block = self.html[self.html.index('.mvc-art {'):self.html.index('.mvc-art img')]
