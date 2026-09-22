@@ -22,8 +22,12 @@
 
 * { box-sizing: border-box; }
 
-/* Sheets menu: display-font headings in dark ink on the light page */
-#sheetsView h2, #sheetsView h3 { color: var(--text-ink, #14171F); letter-spacing: .5px; }
+/* Sheets menu: panels are beige paper on a dark page — ink text inside,
+   white title outside */
+#sheetsView { color: var(--text-ink, #14171F); }
+#sheetsView h2 { color: var(--text-hi, #F5F2E8); }
+#sheetsView h3 { color: var(--text-ink, #14171F); letter-spacing: .5px; }
+#sheetsView .empty-hint { color: #5a5344; }
 #sheetsView table { width: 100%; border-collapse: collapse; }
 #sheetsView th, #sheetsView td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--paper-dim, #E4DFCF); }
 

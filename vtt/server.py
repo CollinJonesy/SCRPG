@@ -1703,6 +1703,21 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
         def do_DELETE(self):
             path = unquote(urlparse(self.path).path)
 
+            if path == '/api/sheet-activity':
+                # Testing helper: remove one change-feed entry by index.
+                q = urlparse(self.path).query
+                params = dict(p.split('=', 1) for p in q.split('&') if '=' in p)
+                try:
+                    idx = int(params.get('index', '-1'))
+                except ValueError:
+                    idx = -1
+                p = campaign / 'sheet_activity.json'
+                data = _load_json_file(p, [])
+                if isinstance(data, list) and 0 <= idx < len(data):
+                    data.pop(idx)
+                    _save_json_file(p, data)
+                return self._send_text('ok')
+
             if path.startswith('/api/scenes/'):
                 slug = path.rsplit('/', 1)[-1]
                 p = scenes_dir / (slug + '.json')

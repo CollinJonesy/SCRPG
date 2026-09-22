@@ -4912,10 +4912,12 @@ async function renderSheetsView() {
 
   // Change feed (player-initiated only, newest first)
   const actPanel = document.getElementById('sheetActivityPanel');
-  const heroName = slug => { const h = heroes.find(x => x.Slug.trim() === slug); return h ? (h.Name || slug) : slug; };
-  actPanel.innerHTML = (activity || []).slice().reverse().map(e => `
+  const heroName = slug => { const h = heroes.find(x => (x.Slug || '').trim() === slug); return h ? (h.Name || slug) : slug; };
+  const acts = (activity || []);
+  actPanel.innerHTML = acts.map((e, i) => `
     <div class="alert-hist"><b>${escAttr(heroName(e.hero || ''))}</b> — ${escAttr(e.action || '')}${e.detail ? ' <span class="empty-hint">(' + escAttr(e.detail) + ')</span>' : ''}
-      <span class="empty-hint" style="float:right;font-size:11px;">${escAttr(e.ts || '')}</span></div>`).join('')
+      <span class="empty-hint" style="float:right;font-size:11px;">${escAttr(e.ts || '')}</span>
+      <a href="#" onclick="deleteSheetActivity(${acts.length - 1 - i});return false;" style="color:#8a2b2b;font-size:11px;margin-left:8px;">Delete</a></div>`).join('')
     || '<span class="empty-hint">Nothing yet. Player actions on their sheets will appear here.</span>';
 }
 
@@ -4967,6 +4969,12 @@ async function sendAlert() {
 
 async function deleteAlert(id) {
   await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'delete', id }) });
+  renderSheetsView();
+}
+
+// Testing helper — removes one change-feed entry (server: DELETE /api/sheet-activity?index=N)
+async function deleteSheetActivity(index) {
+  await fetch('/api/sheet-activity?index=' + index, { method: 'DELETE' });
   renderSheetsView();
 }
 
