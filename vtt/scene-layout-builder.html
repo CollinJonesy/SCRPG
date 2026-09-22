@@ -246,13 +246,12 @@ function renderCanvas() {
     grid.appendChild(cell);
   }
   boxes.forEach((b, i) => {
-    // Token preview: real mini cards (portrait + name), mirroring what the PD
-    // shows — hidden entirely until a PC hero is present (same PD rule).
-    const all = ((scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === b.locId)) || [];
-    const hasPc = all.some(t => t.kind === 'hero' && !t.npc);
-    const visible = hasPc ? all.slice().sort((a, b2) =>
-      ((a.kind === 'hero') ? 0 : 1) - ((b2.kind === 'hero') ? 0 : 1)
-      || String(a.name).localeCompare(String(b2.name))) : [];
+    // Token preview: real mini cards (portrait + name). ALL tokens show here —
+    // this is a GM tool, not the players' view, so no PC-present hiding rule.
+    const visible = (((scene.tokens || []).filter(t => !t.ko && (t.locationId || '') === b.locId)) || [])
+      .slice().sort((a, b2) =>
+        ((a.kind === 'hero') ? 0 : 1) - ((b2.kind === 'hero') ? 0 : 1)
+        || String(a.name).localeCompare(String(b2.name)));
     const cards = visible.slice(0, 12).map(t => {
       const pk = t.kind === 'hero' ? 'hero' : t.kind === 'villain' ? 'villain' : 'minion';
       return `<div class="slb-token-card ${esc(t.kind)}">
@@ -277,7 +276,7 @@ function renderCanvas() {
     if (fitted < LEGIBILITY_MIN_PX) tile.classList.add('warn');
     tile.innerHTML = `
       <div class="slb-tile-header" style="font-size:${Math.min(fontPx, 40)}px;">${esc(b.name)}</div>
-      <div class="slb-tile-tokens">${cards || '<div class="slb-token-empty">No PC tokens in this location yet</div>'}</div>
+      <div class="slb-tile-tokens">${cards || '<div class="slb-token-empty">No tokens in this location yet</div>'}</div>
       <div class="slb-ez slb-ez-n" data-dir="n" title="Drag to resize"></div>
       <div class="slb-ez slb-ez-s" data-dir="s" title="Drag to resize"></div>
       <div class="slb-ez slb-ez-w" data-dir="w" title="Drag to resize columns"></div>
