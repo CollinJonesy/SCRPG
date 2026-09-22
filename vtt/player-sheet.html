@@ -303,12 +303,11 @@ function modeButtonLabel(m) {
   return (name || String(m.slug)) + (/mode$/i.test(name) ? '' : ' Mode');
 }
 
-async function switchToMode(slug) {
-  // Foundation for player-driven Mode switching (full Switch-ability flow is Phase 2).
-  try {
-    await fetch('/api/player-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hero: HERO, key: KEY, mode: slug }) });
-  } catch (e) { /* still flip the local filter; the poll will reconcile */ }
+function switchToMode(slug) {
+  // VIEW-ONLY: clicking a mode filter shows that mode's abilities. Switching
+  // the hero's actual mode is only allowed through an ability that grants it
+  // (Switch / Quick Switch / Emergency Switch — built in Phase 2 on top of
+  // /api/player-mode, which stays server-gated for that flow).
   window.__abilFilter = 'mode:' + slug;
   renderSheet(lastPayload);
 }
