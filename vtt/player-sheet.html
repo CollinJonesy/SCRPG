@@ -27,28 +27,40 @@
   .id-head { display: flex; gap: 14px; align-items: flex-start; }
   .portrait { width: 110px; height: 110px; border-radius: 12px; border: 3px solid var(--hero);
               background: var(--panel-2) center/cover no-repeat; flex: 0 0 auto; }
-  .id-name { font-size: 34px; line-height: 1; }
-  .id-alias { font-size: 15px; color: var(--gold); margin-top: 2px; }
-  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line);
-          background: var(--panel-2); font-size: 12px; margin: 4px 6px 0 0; }
-  .pill.hp { border-color: var(--gold); color: var(--gold); font-weight: 600; }
-  .health-bar { height: 12px; border-radius: 6px; background: #0d0d16; overflow: hidden; margin-top: 10px; border: 1px solid var(--line); }
+  .id-name { font-size: 30px; line-height: 1.05; }
+  .id-alias { font-size: 16px; color: var(--gold); }
+  .id-player { font-size: 13px; color: var(--text-lo); }
+  .id-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .health-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .health-bar { flex: 1; height: 12px; border-radius: 6px; background: #0d0d16; overflow: hidden; border: 1px solid var(--line); }
   .health-fill { height: 100%; transition: width .3s; }
   .health-fill.green { background: var(--green); } .health-fill.yellow { background: var(--yellow); }
   .health-fill.red { background: var(--red); } .health-fill.out { background: #555; }
+  .health-nums { font-size: 12.5px; color: var(--text-lo); white-space: nowrap; }
+
+  /* scene tracker + status dice */
+  .track-status { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .tracker { display: flex; gap: 4px; align-items: center; }
+  .tracker .star { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); background: #0d0d16; opacity: .45; }
+  .tracker .star.green { background: var(--green); } .tracker .star.yellow { background: var(--yellow); }
+  .tracker .star.red { background: var(--red); }
+  .tracker .star.here { opacity: 1; outline: 2px solid #fff; outline-offset: 1px; }
+  .track-label { font-size: 11px; color: var(--text-lo); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+  .status-row { display: flex; gap: 8px; }
+  .status-cell { width: 72px; text-align: center; background: var(--panel-2);
+                 border: 1px solid var(--line); border-radius: 8px; padding: 6px; position: relative; }
+  .status-cell .die { font-family: var(--font-display); font-size: 20px; }
+  .status-cell .die.g { color: var(--green); } .status-cell .die.y { color: var(--yellow); }
+  .status-cell .die.r { color: var(--red); } .status-cell .die.o { color: #777; }
+  .status-cell.masked::after { content: ''; position: absolute; inset: 0; border-radius: 8px;
+                               background: rgba(0,0,0,.3); }
+  .status-cell.current { border-width: 2px; border-color: var(--gold); }
 
   /* dice grids */
   .pq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
   .pq { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
         display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .pq .die { font-family: var(--font-display); font-size: 20px; color: var(--gold); }
-  .status-row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .status-cell { flex: 1; min-width: 90px; text-align: center; background: var(--panel-2);
-                 border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
-  .status-cell .die { font-family: var(--font-display); font-size: 22px; }
-  .status-cell.current { border-width: 2px; }
-  .status-cell.g.current { border-color: var(--green); } .status-cell.y.current { border-color: var(--yellow); }
-  .status-cell.r.current { border-color: var(--red); }
 
   /* abilities */
   .abil-filter { margin-bottom: 8px; }
@@ -75,6 +87,7 @@
               border: 2px solid var(--line); border-radius: 10px; padding: 8px; text-align: center; }
   .occ-card.hero { border-color: var(--hero); } .occ-card.villain { border-color: var(--villain); }
   .occ-card.minion { border-color: var(--minion); } .occ-card.lieutenant { border-color: var(--lieutenant); }
+  .occ-card.npc { border-color: #7a7a8a; }
   .occ-card .o-art { width: 100%; aspect-ratio: 1/1; border-radius: 8px; background: #0d0d16 center/cover no-repeat; }
   .occ-card .o-name { margin-top: 6px; font-weight: 600; font-size: 13px; }
   .occ-card .o-die { color: var(--gold); font-family: var(--font-display); }
@@ -130,66 +143,143 @@ function esc(s) {
 
 function dieNum(d) { const n = parseInt(String(d || '').replace(/\D/g, ''), 10); return isNaN(n) ? 0 : n; }
 
+// Health band from current/max health: green >50%, yellow 11-50%, red 1-10%, out at 0.
 function healthBand(cur, max) {
   const c = Number(cur), m = Number(max);
   if (!isFinite(c) || !isFinite(m) || m <= 0) return 'green';
-  const pct = c / m * 100;
   if (c <= 0) return 'out';
+  const pct = c / m * 100;
   if (pct > 50) return 'green';
   if (pct >= 11) return 'yellow';
   if (pct >= 1) return 'red';
   return 'out';
 }
 
-function bandFromDie(die) {
-  const n = dieNum(die);
-  if (n >= 10) return 'g'; if (n >= 6) return 'y'; if (n >= 4) return 'r'; return 'g';
+const BAND_ORDER = { green: 0, yellow: 1, red: 2, out: 3 };
+function worseBand(a, b) { return (BAND_ORDER[a] ?? 0) >= (BAND_ORDER[b] ?? 0) ? a : b; }
+function bandLetter(b) { return b === 'green' ? 'g' : b === 'yellow' ? 'y' : b === 'red' ? 'r' : 'o'; }
+
+function portraitUrl(kind, slug) {
+  const pk = kind === 'hero' ? 'hero' : kind === 'villain' ? 'villain' : 'minion';
+  return '/api/backgrounds/portrait-' + pk + '-' + encodeURIComponent(slug);
 }
 
-function portraitUrl(slug) { return '/api/backgrounds/portrait-hero-' + encodeURIComponent(slug); }
-function bgOk(url) {
-  return new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
+// Effective group for sorting occupants. 0 villains, 1 lieutenants, 2 minions,
+// 3 bystanders, 4 players (self is excluded before this runs).
+function occGroup(t) {
+  const k = t.kind || '';
+  if (k === 'villain') return 0;
+  if (k === 'lieutenant' || (k === 'npc' && t.npcType === 'Lieutenant')) return 1;
+  if (k === 'minion' || (k === 'npc' && t.npcType === 'Minion')) return 2;
+  if (k === 'npc' && t.npcType === 'Bystander') return 3;
+  return 4;
+}
+const OCC_GROUP_CLASS = { 0: 'villain', 1: 'lieutenant', 2: 'minion', 3: 'npc', 4: 'hero' };
+
+function sortedOccupants(list) {
+  return (list || [])
+    .filter(t => t.slug !== HERO)
+    .map(t => ({ t, g: occGroup(t), name: String(t.name || '') }))
+    .sort((a, b) => a.g - b.g || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
-async function fetchSheet() {
-  const r = await fetch(`/api/player-sheet?hero=${encodeURIComponent(HERO)}&key=${encodeURIComponent(KEY)}`);
-  if (r.status === 403) return { error: 'invalid' };
-  if (r.status === 404) return { error: 'notfound' };
-  return r.json();
+function fetchSheet() {
+  return fetch(`/api/player-sheet?hero=${encodeURIComponent(HERO)}&key=${encodeURIComponent(KEY)}`)
+    .then(r => r.json().then(j => ({ status: r.status, body: j })));
 }
 
-function pqGrid(row, prefix, count) {
+// ---- sorting helpers (highest die first, alphabetical on ties) ----
+function pqSorted(row, prefix, count) {
   const out = [];
   for (let i = 1; i <= count; i++) {
     const name = row[prefix + i] || '';
     if (!name) continue;
-    const die = row[prefix + 'Die' + i] || '';
-    const label = row[prefix + i + 'DisplayName'] || name;
-    out.push(`<div class="pq"><span>${esc(label)}</span><span class="die">${esc(die)}</span></div>`);
+    out.push({ name: String(row[prefix + i + 'DisplayName'] || name), die: row[prefix + 'Die' + i] || '' });
   }
-  return out.join('') || '<span class="muted">None recorded.</span>';
+  out.sort((a, b) => dieNum(b.die) - dieNum(a.die) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  return out;
+}
+
+const ZONE_ORDER = { Green: 0, Yellow: 1, Red: 2, Out: 3 };
+function isPrincipleAbility(a) { return /^principle\b/i.test(String(a.Name || '')); }
+function abilitiesSorted(list) {
+  return (list || []).slice().sort((a, b) => {
+    const za = ZONE_ORDER[a.Zone || 'Green'] ?? 9, zb = ZONE_ORDER[b.Zone || 'Green'] ?? 9;
+    if (za !== zb) return za - zb;
+    if (za === 0) { // principles sink to the bottom of Green
+      const pa = isPrincipleAbility(a) ? 1 : 0, pb = isPrincipleAbility(b) ? 1 : 0;
+      if (pa !== pb) return pa - pb;
+    }
+    const na = String(a.DisplayName || a.Name || ''), nb = String(b.DisplayName || b.Name || '');
+    return na.localeCompare(nb, undefined, { sensitivity: 'base' });
+  });
+}
+
+function modesOf(list) {
+  const modes = new Set();
+  (list || []).forEach(a => { const m = String(a.Mode || '').trim(); if (m) modes.add(m); });
+  return [...modes].sort();
+}
+
+// ---- section renderers ----
+function pqGridHtml(row, prefix, count) {
+  const items = pqSorted(row, prefix, count);
+  return items.map(it => `<div class="pq"><span>${esc(it.name)}</span><span class="die">${esc(it.die)}</span></div>`).join('')
+    || '<span class="muted">None recorded.</span>';
+}
+
+function trackerColor(p) {
+  const tr = p.tracker;
+  if (!tr || !tr.stars || !tr.stars.length) return 'green';
+  const pos = Math.max(0, Math.min(tr.stars.length - 1, Number(tr.position) || 0));
+  return tr.stars[pos] || 'green';
+}
+
+function trackerHtml(p) {
+  const tr = (p.tracker && p.tracker.stars) ? p.tracker : null;
+  if (!tr || !tr.stars || !tr.stars.length) return '<span class="muted" style="font-size:12px;">No scene tracker.</span>';
+  const pos = Math.max(0, Math.min(tr.stars.length - 1, Number(tr.position) || 0));
+  const stars = tr.stars.map((c, i) => `<span class="star ${esc(c)} ${i === pos ? 'here' : ''}"></span>`).join('');
+  return `<div class="tracker"><span class="track-label">Scene Tracker</span>${stars}</div>`;
+}
+
+function statusRowHtml(p) {
+  const row = p.row || {};
+  const hp = healthBand(p.myToken && p.myToken.currentHealth, p.myToken && p.myToken.maxHealth);
+  const trColor = trackerColor(p);
+  // Hero status = the worse of personal health band and the scene tracker color (RAW).
+  const cur = (p.myToken && p.myToken.maxHealth) ? worseBand(hp, trColor) : 'green';
+  const curL = bandLetter(cur);
+  return ['g', 'y', 'r'].map(l => {
+    const key = l === 'g' ? 'GreenStatusDie' : l === 'y' ? 'YellowStatusDie' : 'RedStatusDie';
+    const dieVal = l === curL ? (p.myToken && p.myToken.currentDie) || row[key] || '—' : (row[key] || '—');
+    return `<div class="status-cell ${l === curL ? 'current' : 'masked'}">
+      <div class="muted" style="font-size:11px;">${l === 'g' ? 'Green' : l === 'y' ? 'Yellow' : 'Red'}</div>
+      <div class="die ${l}">${esc(dieVal)}</div>
+    </div>`;
+  }).join('');
 }
 
 function abilitiesHtml(p) {
-  const zoneNow = bandFromDie(p.myToken && p.myToken.currentDie);
   const filter = (window.__abilFilter || 'all');
-  const shown = p.abilities.filter(a => filter === 'all' || (a.Zone || 'Green') === filter ||
-                                        (filter === 'band' && (a.Zone || 'Green') === zoneNow));
+  const all = abilitiesSorted(p.abilities);
+  let shown;
+  if (filter === 'all') {
+    shown = all;
+  } else {
+    // Mode view: that mode's picked powers + the always-available switch abilities.
+    shown = all.filter(a => String(a.Mode || '').trim() === filter || !String(a.Mode || '').trim());
+  }
+  const modes = modesOf(p.abilities);
+  const buttons = [`<button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>`]
+    .concat(modes.map(m => `<button class="btn ${filter === m ? 'primary' : ''}" onclick="setAbilFilter('${esc(m)}')">Mode: ${esc(m)}</button>`));
   const rows = shown.map(a => `
     <div class="abil z-${esc(a.Zone || 'Green')}">
-      <div class="a-head"><span class="a-name">${esc(a.DisplayName || a.Name)}</span><span class="a-zone">${esc(a.Zone || 'Green')}</span></div>
+      <div class="a-head"><span class="a-name">${esc(a.DisplayName || a.Name)}</span><span class="a-zone">${esc(a.Zone || 'Green')}${a.Mode ? ' · ' + esc(a.Mode) : ''}</span></div>
       <div class="a-text">${esc(a.GameText || '')}</div>
       <div class="a-meta">${[a.Type, a.RollType, a.DieSource ? 'Source: ' + a.DieSource : '', a.EffectDieHint ? 'Effect: ' + a.EffectDieHint : ''].filter(Boolean).map(esc).join(' · ')}</div>
     </div>`).join('');
-  return `
-    <div class="abil-filter row">
-      <button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>
-      <button class="btn ${filter === 'band' ? 'primary' : ''}" onclick="setAbilFilter('band')">Current Status (${zoneNow === 'g' ? 'Green' : zoneNow === 'y' ? 'Yellow' : 'Red'})</button>
-      <button class="btn ${filter === 'Green' ? 'primary' : ''}" onclick="setAbilFilter('Green')">Green</button>
-      <button class="btn ${filter === 'Yellow' ? 'primary' : ''}" onclick="setAbilFilter('Yellow')">Yellow</button>
-      <button class="btn ${filter === 'Red' ? 'primary' : ''}" onclick="setAbilFilter('Red')">Red</button>
-    </div>
-    ${rows || '<span class="muted">No abilities in this view.</span>'}`;
+  return `<div class="abil-filter row">${buttons.join('')}</div>${rows || '<span class="muted">No abilities in this view.</span>'}`;
 }
 
 function setAbilFilter(f) { window.__abilFilter = f; renderSheet(lastPayload); }
@@ -211,25 +301,21 @@ function principlesHtml(row) {
 
 function occupantsHtml(p) {
   if (!p.location || !p.location.name) return '<span class="muted">You are not on the board yet. The GM will place you when the scene starts.</span>';
-  const cards = (p.occupants || []).map(t => {
-    const kind = t.kind || '';
+  const cards = sortedOccupants(p.occupants).map(({ t, g }) => {
     let hpLine = '';
-    if (kind !== 'villain' && t.currentHealth != null && t.maxHealth) {
-      const band = healthBand(t.currentHealth, t.maxHealth);
+    if (t.kind !== 'villain' && t.currentHealth != null && t.maxHealth) {
       hpLine = `<div class="o-hp">Health ${t.currentHealth}/${t.maxHealth}</div>`;
-    } else if (kind === 'villain') {
+    } else if (t.kind === 'villain') {
       hpLine = '<div class="o-hp">Health ???</div>';
     }
-    return `<div class="occ-card ${esc(kind)}">
-      <div class="o-art" style="background-image:url('${esc(portraitUrl(t.slug))}')"></div>
+    return `<div class="occ-card ${OCC_GROUP_CLASS[g]}">
+      <div class="o-art" style="background-image:url('${esc(portraitUrl(t.kind, t.slug))}')"></div>
       <div class="o-name">${esc(t.name)}</div>
       <div class="o-die">${esc(t.currentDie || '')}</div>
       ${hpLine}
     </div>`;
   }).join('');
-  return `<div class="loc-name">${esc(p.location.name)}</div>
-    <p class="muted" style="text-align:center;margin:4px 0 10px;">Scene: ${esc(p.scene.name)} — Round ${esc(p.scene.round)}</p>
-    <div class="occ">${cards || '<span class="muted">Nobody else here.</span>'}</div>`;
+  return `<div class="loc-name">${esc(p.location.name)}</div><div class="occ">${cards || '<span class="muted">Nobody else here.</span>'}</div>`;
 }
 
 function alertsHtml(p) {
@@ -239,11 +325,11 @@ function alertsHtml(p) {
     <div class="alert-banner">
       <div>📩 ${esc(a.text)}</div>
       <div class="a-ts">From the GM · ${esc(a.ts || '')}</div>
-      <button class="btn" onclick="dismissAlert('${esc(a.id)}')">Got it</button>
+      <button class="btn" onclick="dismissAlert('${esc(a.id)}')">Dismiss</button>
     </div>`).join('');
   const history = hist.length ? `<div style="margin-top:6px;"><h3 style="font-size:16px;color:var(--text-lo);">Alert history</h3>` +
     hist.map(a => `<div class="alert-hist">${esc(a.text)}<div class="a-ts">${esc(a.ts || '')}</div></div>`).join('') + '</div>' : '';
-  return banners + history || '<span class="muted">No alerts.</span>';
+  return banners + history;
 }
 
 function hpDots(n) {
@@ -258,36 +344,35 @@ function renderSheet(p) {
   const prevNotes = prevTa && notesDirty ? prevTa.value : null;
   const band = healthBand(p.myToken && p.myToken.currentHealth, p.myToken && p.myToken.maxHealth);
   const hp = p.heroPoints || {};
+  const curHP = p.myToken && p.myToken.currentHealth != null ? p.myToken.currentHealth : null;
+  const maxHP = p.myToken && p.myToken.maxHealth != null ? p.myToken.maxHealth : (Number(row.MaxHealth) || null);
+  const hpPct = curHP != null && maxHP ? Math.max(0, Math.min(100, curHP / maxHP * 100)) : 0;
   document.getElementById('sheet').innerHTML = `
     <div class="card">
       <div class="id-head">
-        <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl(HERO))}')"></div>
+        <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl('hero', HERO))}')"></div>
         <div style="flex:1;">
-          <h1 class="id-name">${esc(row.Name || '')}</h1>
-          <div class="id-alias">${esc(row.Alias || '')}</div>
-          <div>
-            <span class="pill">${esc(row.Player || '')}</span>
-            <span class="pill hp">Hero Points: ${hp.mine || 0} / 5</span>
-            <span class="pill">Issue total: ${hp.issueTotal || 0}</span>
+          <div class="id-row">
+            <h1 class="id-name">${esc(row.Name || '')}</h1>
+            <span class="id-alias">${esc(row.Alias || '')}</span>
+            <span class="id-player">${esc(row.Player || '')}</span>
           </div>
-          <div class="health-bar"><div class="health-fill ${band}" style="width:${p.myToken && p.myToken.maxHealth ? Math.max(0, Math.min(100, p.myToken.currentHealth / p.myToken.maxHealth * 100)) : 0}%"></div></div>
+          <div class="health-row">
+            <div class="health-bar"><div class="health-fill ${band}" style="width:${hpPct}%"></div></div>
+            <span class="health-nums">Current Health ${curHP != null ? curHP : '—'} / Maximum Health ${maxHP != null ? maxHP : '—'}</span>
+          </div>
+          <div class="track-status">
+            ${trackerHtml(p)}
+            <div class="status-row">${statusRowHtml(p)}</div>
+          </div>
         </div>
       </div>
     </div>
 
     <div id="alertsBox">${alertsHtml(p)}</div>
 
-    <div class="card"><h2>Powers</h2><div class="pq-grid">${pqGrid(row, 'Power', 6)}</div></div>
-    <div class="card"><h2>Qualities</h2><div class="pq-grid">${pqGrid(row, 'Quality', 6)}</div></div>
-    <div class="card"><h2>Status</h2>
-      <div class="status-row">
-        ${[['GreenStatusDie', 'g', 'Green'], ['YellowStatusDie', 'y', 'Yellow'], ['RedStatusDie', 'r', 'Red']].map(([k, z, label]) => `
-          <div class="status-cell ${z} ${('gyr'.indexOf(z) === 'gyr'.indexOf(bandFromDie(p.myToken && p.myToken.currentDie)) && (p.myToken && p.myToken.currentDie)) ? 'current' : ''}">
-            <div class="muted" style="font-size:12px;">${label}</div><div class="die">${esc(row[k] || '—')}</div>
-          </div>`).join('')}
-      </div>
-      <p class="hint-reminders">Your current status die is the worse of your health band and the scene tracker. Out of combat, your Green status die applies.</p>
-    </div>
+    <div class="card"><h2>Powers</h2><div class="pq-grid">${pqGridHtml(row, 'Power', 6)}</div></div>
+    <div class="card"><h2>Qualities</h2><div class="pq-grid">${pqGridHtml(row, 'Quality', 6)}</div></div>
 
     <div class="card"><h2>Abilities</h2><div id="abilList">${abilitiesHtml(p)}</div></div>
 
@@ -301,14 +386,13 @@ function renderSheet(p) {
     <div class="card"><h2>Location</h2><div id="locBox">${occupantsHtml(p)}</div></div>
 
     <div class="card"><h2>Notes</h2>
-      <textarea id="notesArea" placeholder="Your private-notepad... the GM can see this too.">${esc(p.notes || '')}</textarea>
+      <textarea id="notesArea" placeholder="Type Session Notes, Personal Notes, or Reminders Here...">${esc(p.notes || '')}</textarea>
       <div class="row" style="margin-top:8px;">
         <button class="btn primary" id="notesSaveBtn" onclick="saveNotes()">Save Notes</button>
         <span class="save-status" id="notesStatus"></span>
       </div>
     </div>
   `;
-  // avoid clobbering the textarea while the player is typing
   const ta = document.getElementById('notesArea');
   if (prevNotes !== null) ta.value = prevNotes;
   ta.addEventListener('input', () => { notesDirty = true; });
@@ -334,17 +418,18 @@ async function saveNotes() {
 async function dismissAlert(id) {
   await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ op: 'dismiss', hero: HERO, key: KEY, id }) });
-  const p = await fetchSheet();
-  if (!p.error) { lastPayload = p; renderSheet(p); }
+  const r = await fetchSheet();
+  if (r.status === 200) { lastPayload = r.body; renderSheet(r.body); }
 }
 
 async function tick() {
-  const p = await fetchSheet();
-  if (p.error === 'invalid') {
+  const r = await fetchSheet();
+  const p = r.body || {};
+  if (r.status === 403) {
     document.getElementById('gate').innerHTML = '<h1>Hero Sheet</h1><p>This link is not valid (or was reset by the GM). Ask for a fresh link.</p>';
     return;
   }
-  if (p.error === 'notfound') {
+  if (r.status === 404) {
     document.getElementById('gate').innerHTML = '<h1>Hero Sheet</h1><p>Hero not found in the campaign.</p>';
     return;
   }

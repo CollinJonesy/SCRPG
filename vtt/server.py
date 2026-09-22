@@ -482,6 +482,16 @@ def hero_point_store(campaign: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def npc_type_for(campaign: Path, slug: str) -> str:
+    """NPC sheet Type (Bystander/Minion/Lieutenant/Hero) from npcs.csv."""
+    if not slug:
+        return ''
+    for r in _csv_rows(campaign / 'npcs.csv', NPCS_HEADERS):
+        if (r.get('Slug') or '').strip() == slug:
+            return (r.get('Type') or '').strip()
+    return ''
+
+
 def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
     """Full read-only sheet payload for one hero — everything the player device
     may see. Hiding rules mirror the Player Display: no villain health numbers,
@@ -535,6 +545,13 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
                     # Minion/Lt health shows on the PD; villain numbers never do.
                     occ['currentHealth'] = t.get('currentHealth')
                     occ['maxHealth'] = t.get('maxHealth')
+                elif (t.get('kind') or '') == 'npc':
+                    # NPC sheet type (Bystander/Minion/Lieutenant/Hero) drives the
+                    # player sheet's occupant sorting.
+                    occ['npcType'] = npc_type_for(campaign, occ['slug'])
+                    if occ['npcType'] in ('Minion', 'Lieutenant'):
+                        occ['currentHealth'] = t.get('currentHealth')
+                        occ['maxHealth'] = t.get('maxHealth')
                 occupants.append(occ)
 
     issue = current_issue_slug(campaign)
@@ -572,6 +589,7 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
             'name': (scene or {}).get('name') or '',
             'round': (scene or {}).get('round') or 1,
         },
+        'tracker': (scene or {}).get('tracker') or None,
         'location': {'id': (location or {}).get('id'), 'name': (location or {}).get('name')},
         'occupants': occupants,
         'myToken': {

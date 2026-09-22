@@ -187,5 +187,43 @@ class TestHeroPointsScope(ServerTestCase):
         self.assertEqual(data[-1]['action'], 'act')
 
 
+class TestSheetPayloadSceneData(ServerTestCase):
+    def test_tracker_and_npc_types_in_payload(self):
+        seed_hero(self.campaign)
+        # NPC bystander + villain in the hero's location
+        seed_scene(self.campaign, tokens=[
+            {'id': 't1', 'kind': 'hero', 'slug': 'test-hero', 'name': 'Test Hero',
+             'locationId': 'loc1', 'currentHealth': 20, 'maxHealth': 30},
+            {'id': 't2', 'kind': 'villain', 'slug': 'bad-guy', 'name': 'Bad Guy',
+             'locationId': 'loc1', 'currentHealth': 7, 'maxHealth': 40},
+            {'id': 't3', 'kind': 'npc', 'slug': 'clerk', 'name': 'Clerk',
+             'locationId': 'loc1', 'currentDie': ''},
+        ])
+        npc_rows = [{h: '' for h in srv.NPCS_HEADERS} | {'Slug': 'clerk', 'Name': 'Clerk', 'Type': 'Bystander'}]
+        srv._write_csv(self.campaign / 'npcs.csv', srv.NPCS_HEADERS, npc_rows)
+        scene = srv.default_scene('Scene One')
+        scene['tracker'] = {'stars': ['green'] * 2 + ['yellow'] * 4 + ['red'] * 2, 'position': 3}
+        scene['locations'] = [{'id': 'loc1', 'name': 'Bank Lobby', 'background': None}]
+        scene['tokens'] = [
+            {'id': 't1', 'kind': 'hero', 'slug': 'test-hero', 'name': 'Test Hero',
+             'locationId': 'loc1', 'currentHealth': 20, 'maxHealth': 30},
+            {'id': 't2', 'kind': 'villain', 'slug': 'bad-guy', 'name': 'Bad Guy',
+             'locationId': 'loc1', 'currentHealth': 7, 'maxHealth': 40},
+            {'id': 't3', 'kind': 'npc', 'slug': 'clerk', 'name': 'Clerk', 'locationId': 'loc1'},
+        ]
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        srv._save_json_file(self.campaign / 'sheet-keys.json', {'test-hero': 'k123'})
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        payload = json.loads(data)
+        self.assertEqual(payload['tracker']['position'], 3)
+        occ = {o['slug']: o for o in payload['occupants']}
+        self.assertEqual(occ['clerk']['npcType'], 'Bystander')
+        self.assertNotIn('currentHealth', occ['clerk'])  # bystanders have no health block
+        self.assertEqual(occ['clerk']['currentHealth'] if 'currentHealth' in occ['clerk'] else None, None)
+
+    def test_npc_type_lookup(self):
+        self.assertEqual(srv.npc_type_for(self.campaign, 'nobody'), '')
+
+
 if __name__ == '__main__':
     unittest.main()
