@@ -160,6 +160,13 @@
   .save-status { font-size: 12px; color: var(--text-lo); margin-left: 8px; }
   @media (max-width: 560px) { .id-head { flex-direction: column; } .portrait { width: 84px; height: 84px; } }
 
+  /* staged location moves (Phase 3) */
+  .pending-move { background: #2a2410; border: 1px solid var(--gold); color: var(--gold);
+                  border-radius: 8px; padding: 7px 10px; font-size: 13px; margin-top: 4px; }
+  .move-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  .move-row select { flex: 1; min-width: 0; background: #0d0d16; color: var(--text);
+                     border: 1px solid var(--line); border-radius: 6px; padding: 7px; font-size: 13px; }
+
   /* actions */
   .abil .a-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
   .btn.small { padding: 4px 10px; font-size: 12.5px; }
@@ -673,7 +680,8 @@ function renderSheet(p) {
         </div>
         <div class="card">
           <h2 class="collapsible-head" onclick="toggleLocationCard()">Location <span class="chev" id="locChev">${locOpen ? '▾' : '▸'}</span></h2>
-          <div id="locBox" style="display:${locOpen ? 'block' : 'none'};">${occupantsHtml(p)}</div>
+          ${movePendingHtml(p)}
+          <div id="locBox" style="display:${locOpen ? 'block' : 'none'};">${occupantsHtml(p)}${moveUiHtml(p)}</div>
         </div>
       </div>
     </div>
@@ -746,11 +754,22 @@ function basicActionsHtml(p) {
 
 function openBasicAction(t) { openActionStaged([t], null); }
 
+// Target options for one basic action. Same-location is enforced server-side
+// too; the sheet filters to what the server would accept: no NPC Bystanders
+// (bystanders cannot make or receive targeted Actions — matching the GM board;
+// Overcome's "save" is free-text instead), no KO'd tokens, and no self on
+// Attack (self-Defend/self-Boost are legal; Recover only reaches heroes and
+// villains, which the server enforces).
 function targetOptionsFor(p, type) {
-  // Same-location rule is enforced server-side too; the sheet only offers
-  // tokens in the hero's location. Overcome types get a free-text target.
-  return (p.occupants || []).map(t =>
-    `<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.kind)})</option>`).join('');
+  let list = (p.occupants || [])
+    .filter(t => !t.ko)
+    .filter(t => !(t.kind === 'npc' && t.npcType === 'Bystander'));
+  if (type === 'Attack') {
+    list = list.filter(t => !(t.kind === 'hero' && t.slug === HERO));
+  } else if (type === 'Recover') {
+    list = list.filter(t => t.kind === 'hero' || t.kind === 'villain');
+  }
+  return list.map(t => `<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.kind)})</option>`).join('');
 }
 
 function modSpendHtml(p, idx, ignorePenalties) {
@@ -948,6 +967,72 @@ function modTwistHtml(p, idx) {
     <label>Which principle's twist</label><select id="aysTwistPrinciple_${idx}">${opts.join('')}</select></div>`;
 }
 
+// ---- Staged location moves (Phase 3) ----
+// Every move to a DIFFERENT location stages for GM approval (reveal gating);
+// only the approval moves the token and reveals the location. The pending
+// banner renders OUTSIDE the collapsible so it is visible while collapsed.
+function movePendingHtml(p) {
+  if (!p.pendingMove) return '';
+  return `<div class="pending-move">🚚 Move to ${esc(p.pendingMove.to)} — waiting for GM approval</div>`;
+}
+
+function moveUiHtml(p) {
+  if (!p.myToken || !p.myToken.id) return '';
+  if (p.pendingMove) return '';  // one pending move per hero while it waits
+  const others = (p.sceneLocations || []).filter(l =>
+    l.id && l.id !== (p.location || {}).id && l.name);
+  if (!others.length) return '';
+  return `<div class="move-row">
+    <select id="moveSel">${others.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select>
+    <button class="btn small primary" onclick="openMoveStaged()">Request Move</button>
+  </div>
+  <div class="fineprint" style="margin-top:4px;">The GM must approve a move before your new location is revealed.</div>`;
+}
+
+function openMoveStaged() {
+  const sel = document.getElementById('moveSel');
+  if (!sel || !sel.value) return;
+  const p = lastPayload;
+  if (!p) return;
+  const toName = ((p.sceneLocations || []).find(l => l.id === sel.value) || {}).name || 'that location';
+  aysState = { moveRequest: true, toLocationId: sel.value };
+  showAys('Are You Sure? — Request Move', `
+    <div class="bd-row"><b>Move from ${esc((p.location || {}).name || 'Unplaced')} to ${esc(toName)}</b>
+      <div class="fineprint">This creates a request in the GM's queue. Nothing moves — and the new location
+      is not revealed — until the GM approves it.</div>
+    </div>
+    <div id="aysOutcome"></div>
+    <div class="foot">
+      <button class="btn" onclick="closeAys()">Cancel</button>
+      <button class="btn primary" id="aysConfirmBtn" onclick="confirmMoveRequest()">Confirm — Request Move</button>
+    </div>`);
+}
+
+async function confirmMoveRequest() {
+  if (!aysState || !aysState.moveRequest || aysInFlight) return;
+  aysInFlight = true;
+  const btn = document.getElementById('aysConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  const out = document.getElementById('aysOutcome');
+  try {
+    const r = await fetch('/api/player-move', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hero: HERO, key: KEY, toLocationId: aysState.toLocationId }) });
+    const j = await r.json();
+    if (!r.ok) {
+      out.innerHTML = `<div class="outcome err"><b>Not requested:</b> ${esc(j.error || ('HTTP ' + r.status))}</div>`;
+    } else {
+      out.innerHTML = `<div class="outcome">✅ Move requested — waiting for GM approval.</div>`;
+      setTimeout(closeAys, 900);
+      const fr = await fetchSheet();
+      if (fr.status === 200) { lastSheetJson = JSON.stringify(fr.body); lastPayload = fr.body; renderSheet(fr.body); }
+    }
+  } catch (e) {
+    out.innerHTML = `<div class="outcome err">Request failed — try again.</div>`;
+  }
+  aysInFlight = false;
+}
+
 function openEmergencySwitchStaged(p, ability) {
   aysState = { emergency: true, ability };
   showAys('Are You Sure? — Emergency Switch', `
@@ -1124,6 +1209,9 @@ async function tick() {
   // the DOM would close it every 3s. Data catches up on the next tick.
   const sel = document.querySelector('.abil-filter select');
   if (sel && document.activeElement === sel) return;
+  // Same guard for the move-request dropdown (Location card).
+  const moveSel = document.getElementById('moveSel');
+  if (moveSel && document.activeElement === moveSel) return;
   const r = await fetchSheet();
   const p = r.body || {};
   if (r.status === 403) {

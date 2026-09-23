@@ -533,6 +533,143 @@ def record_sheet_activity(campaign: Path, hero: str, action: str, detail: str = 
         _save_json_file(path, data)
 
 
+# ---- Pending location moves (Phase 3): staged for GM approval ----
+#
+# Player-sheet "Request Move" creates an entry here; the GM approves or denies
+# it from the Sheets menu (or the Board sidebar prompt) and ONLY the approval
+# mutates the scene JSON — the reveal-gating decision in
+# docs/PLAYER_SHEETS_PLAN.md. Stored as a campaign JSON file, NOT inside the
+# scene: the GM Console's full-replace scene saves come from browser memory
+# (the known GM-poll caveat) and would silently wipe a queue entry stored in
+# the scene. Same dedicated-file pattern as hero_points.json / sheet-keys.json.
+PENDING_MOVES_MAX = 100
+
+
+def pending_moves_store(campaign: Path) -> list:
+    data = _load_json_file(campaign / 'pending_moves.json', [])
+    if not isinstance(data, list):
+        return []
+    return [m for m in data if isinstance(m, dict)]
+
+
+def save_pending_moves(campaign: Path, moves: list):
+    if len(moves) > PENDING_MOVES_MAX:
+        moves = moves[-PENDING_MOVES_MAX:]
+    _save_json_file(campaign / 'pending_moves.json', moves)
+
+
+def apply_player_move_request(campaign: Path, hero: str, payload: dict) -> tuple:
+    """Stage a location move for GM approval (key already checked by the route).
+    EVERY sheet-initiated move to a different location stages — the plan's
+    reveal gating has no empty/unowned exception; same-location and unknown
+    destinations are refused. Scene JSON is NOT touched here. A new request
+    replaces the hero's existing pending one (newest intent wins)."""
+    with STATE_LOCK:
+        row = hero_csv_row(campaign, hero)
+        if row is None:
+            return 404, {'error': 'hero not found'}
+        scene, _spath = load_active_scene(campaign)
+        if scene is None:
+            return 400, {'error': 'no active scene'}
+        active = _load_json_file(campaign / 'active_scene.json', {})
+        scene_slug = str(active.get('slug') or '') if isinstance(active, dict) else ''
+        tok = next((t for t in scene.get('tokens') or []
+                    if t.get('kind') == 'hero' and (t.get('slug') or '').strip() == hero), None)
+        if tok is None:
+            return 400, {'error': 'hero not on board'}
+        if tok.get('ko'):
+            return 400, {'error': 'hero is out'}
+        if hero_mode_for(campaign, hero, tok).get('immobile'):
+            return 400, {'error': 'your current mode prevents movement'}
+        to_id = str(payload.get('toLocationId') or '').strip()
+        to_loc = next((l for l in scene.get('locations') or [] if l.get('id') == to_id), None)
+        if to_loc is None:
+            return 400, {'error': 'unknown location'}
+        cur_id = tok.get('locationId')
+        if cur_id == to_id:
+            return 400, {'error': 'you are already in that location'}
+        cur_loc = next((l for l in scene.get('locations') or [] if l.get('id') == cur_id), None)
+        entry = {
+            'id': 'pmove-' + secrets.token_hex(4),
+            'ts': datetime.now().isoformat(timespec='seconds'),
+            'hero': hero,
+            'sceneSlug': scene_slug,
+            'from': {'id': cur_id, 'name': (cur_loc or {}).get('name') or ''},
+            'to': {'id': to_id, 'name': (to_loc or {}).get('name') or ''},
+        }
+        moves = [m for m in pending_moves_store(campaign) if m.get('hero') != hero]
+        moves.append(entry)
+        save_pending_moves(campaign, moves)
+        record_sheet_activity(campaign, hero, 'Location move requested',
+                              (entry['from']['name'] or 'Unplaced') + ' → ' + entry['to']['name']
+                              + ' (awaiting GM approval)')
+        return 200, {'ok': True, 'pending': entry}
+
+
+def resolve_pending_move(campaign: Path, move_id: str, decision: str) -> tuple:
+    """GM approve/deny of a staged location move. Approval mutates the token's
+    locationId in the ACTIVE scene and logs the board Activity Log 'Move' entry
+    (same shape as the GM board's moveToken) inside the same critical section
+    that removes the queue entry. A stale request (its scene no longer active)
+    is refused and kept for manual denial; a dead token or destination is
+    dropped from the queue automatically. Denial never touches scene JSON."""
+    if decision not in ('approve', 'deny'):
+        return 400, {'error': 'op must be approve or deny'}
+    with STATE_LOCK:
+        moves = pending_moves_store(campaign)
+        entry = next((m for m in moves if m.get('id') == move_id), None)
+        if entry is None:
+            return 400, {'error': 'no such pending move'}
+        hero = str(entry.get('hero') or '')
+        feed_from = (entry.get('from') or {}).get('name') or 'Unplaced'
+        feed_to = (entry.get('to') or {}).get('name') or '?'
+        feed_pair = feed_from + ' → ' + feed_to
+
+        def drop_entry():
+            save_pending_moves(campaign, [m for m in moves if m.get('id') != move_id])
+
+        # Deny always resolves — it never touches scene JSON, so staleness does
+        # not matter (an approve after a scene change is what needs refusal).
+        if decision == 'deny':
+            drop_entry()
+            record_sheet_activity(campaign, hero, 'Location move denied', feed_pair)
+            return 200, {'ok': True, 'decision': 'deny'}
+        active = _load_json_file(campaign / 'active_scene.json', {})
+        scene_slug = str(active.get('slug') or '') if isinstance(active, dict) else ''
+        if scene_slug != entry.get('sceneSlug'):
+            return 409, {'error': 'move request is stale — its scene is no longer active; deny it manually'}
+        scene, spath = load_active_scene(campaign)
+        if scene is None:
+            return 400, {'error': 'no active scene'}
+        tok = next((t for t in scene.get('tokens') or []
+                    if t.get('kind') == 'hero' and (t.get('slug') or '').strip() == hero), None)
+        if tok is None:
+            drop_entry()
+            return 400, {'error': 'hero token no longer on the board — request dropped'}
+        to_loc = next((l for l in scene.get('locations') or []
+                       if l.get('id') == (entry.get('to') or {}).get('id')), None)
+        if to_loc is None:
+            drop_entry()
+            return 400, {'error': 'destination no longer exists — request dropped'}
+        if decision == 'approve':
+            tok['locationId'] = entry['to']['id']
+            log_scene_activity(scene, actor_ref(tok), 'Move', {'name': feed_to},
+                               str(tok.get('name')) + ' moved from ' + feed_from + ' to ' + feed_to
+                               + ' (approved from their sheet)',
+                               {'from': feed_from, 'to': feed_to,
+                                'fromId': (entry.get('from') or {}).get('id'),
+                                'toId': entry['to']['id'],
+                                'approvedFromSheet': True},
+                               counts_as_turn=False)
+            _atomic_write_text(spath, json.dumps(scene, indent=2))
+            feed_action = 'Location move approved'
+        else:
+            feed_action = 'Location move denied'
+        drop_entry()
+        record_sheet_activity(campaign, hero, feed_action, feed_pair)
+        return 200, {'ok': True, 'decision': decision}
+
+
 def sheet_notes_path(campaign: Path, hero: str) -> Path | None:
     if not is_safe_slug(hero):
         return None
@@ -693,6 +830,7 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
                     'slug': t.get('slug') or '',
                     'name': t.get('name') or '',
                     'currentDie': die_label(t.get('currentDie')),
+                    'ko': bool(t.get('ko')),
                 }
                 if t.get('kind') == 'hero':
                     occ['currentHealth'] = t.get('currentHealth')
@@ -749,6 +887,16 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
         'modes': hero_modes_md(campaign, hero),
         'currentMode': str((my_token or {}).get('currentMode') or 'default'),
         'location': {'id': (location or {}).get('id'), 'name': (location or {}).get('name')},
+        # Location names are already public (the PD shows the floor); occupants
+        # of OTHER locations are never sent. Feeds the sheet's move-request UI.
+        'sceneLocations': [{'id': l.get('id'), 'name': l.get('name')}
+                           for l in (scene or {}).get('locations') or []],
+        'pendingMove': next(({'id': m.get('id'), 'ts': m.get('ts'),
+                              'to': (m.get('to') or {}).get('name') or '',
+                              'toId': (m.get('to') or {}).get('id') or ''}
+                             for m in pending_moves_store(campaign)
+                             if m.get('hero') == hero and m.get('sceneSlug') == scene_slug),
+                            None),
         'occupants': occupants,
         'myToken': {
             'id': (my_token or {}).get('id') or '',
@@ -1339,6 +1487,14 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
             return 400, {'error': atype + ' needs a valid target'}
         if target.get('id') == tok.get('id') and atype == 'Attack':
             return 400, {'error': 'you cannot attack yourself'}
+        if (target.get('kind') == 'npc'
+                and npc_type_for(campaign, str(target.get('slug') or '')) == 'Bystander'):
+            # Bystanders cannot make or receive targeted Actions (the GM board's
+            # target dropdowns exclude them the same way). Overcome "saves" a
+            # bystander off the board via its free-text target instead. This
+            # split may be restructured later as non-hero/villain token roles
+            # are clarified.
+            return 400, {'error': 'bystanders cannot be targeted by ' + atype}
         if (target.get('locationId') or '') != (tok.get('locationId') or ''):
             return 400, {'error': 'target must be in your location'}
         if target.get('ko'):
@@ -1481,6 +1637,11 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
     record_sheet_activity(campaign, str(tok.get('slug') or ''),
                           ability_name if ability_name else atype, result)
     outcome['result'] = result
+    # Hiding rule: the player device sees what the action DID (damage dealt) but
+    # never a villain's remaining health number — the "(Health N)" tail of the
+    # GM-facing result string stays in the scene Activity Log / change feed only.
+    if outcome.get('target', {}).get('kind') == 'villain':
+        outcome['result'] = re.sub(r'\s*\(Health \d+\)\s*$', '', outcome['result'])
     return 200, outcome
 
 
@@ -2352,6 +2513,11 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 return self._send_text(json.dumps(data if isinstance(data, list) else []),
                                        200, 'application/json')
 
+            if path == '/api/pending-moves':
+                # GM queue of staged location moves (Sheets menu + Board prompt).
+                return self._send_text(json.dumps(pending_moves_store(campaign)),
+                                       200, 'application/json')
+
             if path == '/api/alerts':
                 return self._send_text(json.dumps(_load_json_file(campaign / 'alerts.json', [])),
                                        200, 'application/json')
@@ -2530,6 +2696,32 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                                   if str(m.get('slug') or '').strip() == mode), mode)
                 record_sheet_activity(campaign, hero, 'Mode changed', '→ ' + mode_name)
                 return self._send_text(json.dumps({'ok': True, 'currentMode': mode}), 200, 'application/json')
+            if path == '/api/player-move':
+                # Phase 3: player requests a location move; STAGED for GM
+                # approval — nothing moves until the GM approves. Key-gated;
+                # the scene JSON is never touched by this endpoint.
+                # Body: {hero, key, toLocationId}
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                hero = str(payload.get('hero') or '').strip()
+                if not is_safe_slug(hero):
+                    return self._send_text(json.dumps({'error': 'hero required'}), 400, 'application/json')
+                if not sheet_key_valid(campaign, hero, str(payload.get('key') or '')):
+                    return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
+                status, resp = apply_player_move_request(campaign, hero, payload)
+                return self._send_text(json.dumps(resp), status, 'application/json')
+            if path == '/api/pending-moves':
+                # GM approve/deny of a staged location move.
+                # Body: {op: 'approve'|'deny', id}
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                status, resp = resolve_pending_move(campaign, str(payload.get('id') or ''),
+                                                    str(payload.get('op') or ''))
+                return self._send_text(json.dumps(resp), status, 'application/json')
             if path == '/api/player-action':
                 # Player-driven actions (Phase 2): Defend / Recover / Boost /
                 # Hinder / Attack / Overcome / ability use with self or targeted

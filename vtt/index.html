@@ -45,6 +45,10 @@
       <div>
         <h2 id="boardSceneName" class="board-scene-name"></h2>
         <div class="board-scene-meta">
+          <div id="staleSceneWarn" class="hidden" style="display:none;flex-basis:100%;background:#2a2410;border:1px solid var(--gold, #ffd76a);color:var(--gold, #ffd76a);border-radius:8px;padding:6px 10px;font-size:13px;">
+            ⚠ Scene changed elsewhere (player action or another device) — refresh the Board before saving, or your next save may overwrite those changes.
+            <button class="btn btn-small btn-accent" style="margin-left:8px;" onclick="reloadBoardFromWarn()">Reload Board</button>
+          </div>
           <select id="boardSceneType" class="scene-difficulty-select" onchange="updateSceneField('sceneType', this.value)">
             <option>Action</option><option>Social</option><option>Montage</option>
           </select>
@@ -92,6 +96,10 @@
       </aside>
       <div id="locationsRow" class="locations-row"></div>
       <div class="board-sidebar-stack">
+        <aside class="challenges-sidebar" id="boardMovesPanel" style="display:none;">
+          <h3 class="sidebar-heading" style="cursor:default;color:var(--gold, #ffd76a);">🚚 Move Requests</h3>
+          <div id="boardMovesContent" class="collapsible-content"></div>
+        </aside>
         <aside class="challenges-sidebar">
           <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Challenges <span style="float:right;font-size:10px;">−</span></h3>
           <div id="challengesPanel" class="collapsible-content"></div>
@@ -178,6 +186,12 @@
   <div class="row" style="justify-content:space-between;margin-bottom:12px;">
     <h2 style="font-family:var(--font-display);font-size:26px;color:var(--text-hi, #F5F2E8);">Player Sheets</h2>
     <button class="btn btn-ghost btn-small" onclick="renderSheetsView(true)">↻ Refresh</button>
+  </div>
+
+  <div class="lib-panel" style="margin-bottom:16px;">
+    <h3 style="font-family:var(--font-display);font-size:20px;margin:0 0 8px;">Location Move Approvals</h3>
+    <p class="empty-hint" style="margin:0 0 10px;">Moves a player requested from their sheet. Nothing moves — and the new location is not revealed — until you approve it.</p>
+    <div id="sheetMovesPanel"></div>
   </div>
 
   <div class="lib-panel" style="margin-bottom:16px;">

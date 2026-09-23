@@ -1,4 +1,5 @@
 """Static checks on app.js that unittest can run without a browser."""
+import re
 import unittest
 from pathlib import Path
 
@@ -239,6 +240,96 @@ class TestAppJsContracts(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestPhase3MoveQueueContracts(unittest.TestCase):
+    """Static wiring checks for the staged location-move queue (Phase 3)."""
+
+    def setUp(self):
+        self.src = APP.read_text(encoding='utf-8')
+
+    def test_sheets_view_fetches_and_renders_the_move_queue(self):
+        self.assertIn("fetch('/api/pending-moves')", self.src)
+        start = self.src.index('async function renderSheetsView')
+        end = self.src.index('async function generateSheetKey')
+        body = self.src[start:end]
+        self.assertIn("getElementById('sheetMovesPanel')", body)
+        self.assertIn('moveQueueRowHtml(', body)
+
+    def test_move_decision_posts_to_pending_moves(self):
+        start = self.src.index('async function sheetMoveDecision')
+        end = self.src.index('let __boardMovesSig')
+        body = self.src[start:end]
+        self.assertIn("'/api/pending-moves'", body)
+        self.assertIn("op, id", body)
+
+    def test_board_prompt_panel_is_wired(self):
+        self.assertIn("getElementById('boardMovesPanel')", self.src)
+        self.assertIn("getElementById('boardMovesContent')", self.src)
+        self.assertIn('function renderBoardMoves(moves)', self.src)
+        self.assertIn('maybeRenderBoardMoves();', self.src)
+
+    def test_sse_hook_never_auto_reloads_the_board(self):
+        """The standing caveat: an SSE event must never reload over the GM's
+        session. Only the user-clicked banner button may refresh the board."""
+        start = self.src.index('function onGmDataChanged')
+        end = self.src.index('let __gmSceneSig')
+        body = self.src[start:end]
+        self.assertIn('connectGmEvents', self.src)
+        self.assertNotIn('refreshBoardFromServer', body)
+        self.assertNotIn('location.reload', body)
+        self.assertIn('checkStaleBoardScene', body)
+
+    def test_stale_warning_uses_own_save_baseline(self):
+        # every GM scene write/fetch updates the fingerprint baseline, so the
+        # banner only fires for EXTERNAL changes
+        self.assertIn('gmSceneBaseline(payload);', self.src)  # apiSaveScene
+        self.assertIn('gmSceneBaseline(fresh);', self.src)    # refreshBoardFromServer
+        self.assertIn('gmSceneBaseline(state.scene);', self.src)  # init + loaders
+        start = self.src.index('function gmSceneBaseline')
+        end = self.src.index('async function checkStaleBoardScene')
+        body = self.src[start:end]
+        self.assertIn("warn.style.display = 'none'", body)
+
+
+class TestPhase3PlayerSheetMoveContracts(unittest.TestCase):
+    """Static wiring checks on the player sheet's inline JS (Phase 3)."""
+
+    def setUp(self):
+        html = (Path(__file__).resolve().parent.parent / 'player-sheet.html').read_text(encoding='utf-8')
+        blocks = re.findall(r'<script>([\s\S]*?)</script>', html)
+        self.src = '\n'.join(blocks)
+
+    def test_move_ui_and_pending_banner_render_in_the_location_card(self):
+        self.assertIn('function movePendingHtml(p)', self.src)
+        self.assertIn('function moveUiHtml(p)', self.src)
+        self.assertIn('${movePendingHtml(p)}', self.src)
+        self.assertIn('${occupantsHtml(p)}${moveUiHtml(p)}', self.src)
+
+    def test_move_request_is_staged_and_key_gated(self):
+        self.assertIn('function openMoveStaged()', self.src)
+        self.assertIn("aysState = { moveRequest: true", self.src)
+        self.assertIn("fetch('/api/player-move'", self.src)
+        start = self.src.index('async function confirmMoveRequest')
+        end = self.src.index('function openEmergencySwitchStaged')
+        body = self.src[start:end]
+        self.assertIn('toLocationId', body)
+        self.assertIn("hero: HERO, key: KEY", body)
+
+    def test_poll_pauses_while_the_move_select_has_focus(self):
+        start = self.src.index('async function tick()')
+        end = self.src.index('// --- Live updates')
+        body = self.src[start:end]
+        self.assertIn("getElementById('moveSel')", body)
+        self.assertIn('document.activeElement === moveSel', body)
+
+    def test_target_options_filter_bystanders_ko_and_self_attack(self):
+        start = self.src.index('function targetOptionsFor')
+        end = self.src.index('function modSpendHtml')
+        body = self.src[start:end]
+        self.assertIn("t.npcType === 'Bystander'", body)
+        self.assertIn('!t.ko', body)
+        self.assertIn("type === 'Attack'", body)
 
 
 class TestModularHeroModes(unittest.TestCase):

@@ -809,5 +809,238 @@ class TestPlayerMode(ServerTestCase):
         self.assertEqual(status, 400)
 
 
+class TestStagedLocationMoves(ServerTestCase):
+    """Phase 3: player-sheet location moves stage for GM approval (reveal
+    gating). ALL cross-location moves stage; same-location is refused; the
+    scene JSON is only mutated on approval."""
+
+    def seed_move_scene(self):
+        seed_hero(self.campaign)
+        seed_scene(self.campaign, tokens=[
+            {'id': 't1', 'kind': 'hero', 'slug': 'test-hero', 'name': 'Test Hero',
+             'locationId': 'loc1', 'currentHealth': 20, 'maxHealth': 30},
+        ])
+        srv._save_json_file(self.campaign / 'sheet-keys.json', {'test-hero': 'k123'})
+
+    def move(self, body, raw_status=False):
+        status, data = self.request('POST', '/api/player-move', json.dumps(body))
+        parsed = json.loads(data)
+        return (status, parsed) if raw_status else parsed
+
+    def test_bad_key_403(self):
+        self.seed_move_scene()
+        status, _ = self.request('POST', '/api/player-move',
+                                 json.dumps({'hero': 'test-hero', 'key': 'WRONG', 'toLocationId': 'loc2'}))
+        self.assertEqual(status, 403)
+
+    def test_same_location_and_unknown_location_refused(self):
+        self.seed_move_scene()
+        parsed = self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'loc1'})
+        self.assertIn('already in that location', parsed['error'])
+        parsed = self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'nope'})
+        self.assertIn('unknown location', parsed['error'])
+
+    def test_ko_hero_cannot_request(self):
+        self.seed_move_scene()
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['tokens'][0]['ko'] = True
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'loc2'})
+        self.assertIn('out', parsed['error'])
+
+    def test_request_stages_without_touching_scene(self):
+        self.seed_move_scene()
+        before = (self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8')
+        status, parsed = self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'loc2'}, raw_status=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(parsed['pending']['to']['name'], 'The Vault')
+        self.assertEqual(parsed['pending']['from']['name'], 'Bank Lobby')
+        self.assertEqual(before, (self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        store = srv.pending_moves_store(self.campaign)
+        self.assertEqual(len(store), 1)
+        self.assertEqual(store[0]['hero'], 'test-hero')
+        self.assertEqual(store[0]['sceneSlug'], 'sc-1')
+        feed = srv._load_json_file(self.campaign / 'sheet_activity.json', [])
+        self.assertIn('Location move requested', [e['action'] for e in feed])
+        # sheet payload shows the pending state + the location name list
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        p = json.loads(data)
+        self.assertEqual(p['pendingMove']['to'], 'The Vault')
+        self.assertEqual(p['pendingMove']['toId'], 'loc2')
+        self.assertEqual(p['location']['name'], 'Bank Lobby')  # not moved yet
+        self.assertEqual([l['name'] for l in p['sceneLocations']], ['Bank Lobby', 'The Vault'])
+        # names only — no occupants of other locations leak
+        self.assertTrue(all(set(l.keys()) == {'id', 'name'} for l in p['sceneLocations']))
+
+    def test_duplicate_request_replaces(self):
+        self.seed_move_scene()
+        self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'loc2'})
+        status, parsed = self.move({'hero': 'test-hero', 'key': 'k123',
+                                    'toLocationId': 'loc1'}, raw_status=True)
+        # already in loc1 → the replace attempt first hits same-location refusal
+        self.assertEqual(status, 400)
+        self.assertIn('already in that location', parsed['error'])
+        store = srv.pending_moves_store(self.campaign)
+        self.assertEqual(len(store), 1)  # original request still pending
+        self.assertEqual(store[0]['to']['id'], 'loc2')
+
+    def test_approve_moves_token_and_logs(self):
+        self.seed_move_scene()
+        parsed = self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'loc2'})
+        mid = parsed['pending']['id']
+        version_before = srv.state_version()
+        status, resp = self.request('POST', '/api/pending-moves',
+                                    json.dumps({'op': 'approve', 'id': mid}))
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(resp)['decision'], 'approve')
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        tok = next(t for t in scene['tokens'] if t['slug'] == 'test-hero')
+        self.assertEqual(tok['locationId'], 'loc2')
+        # Activity Log entry in the board moveToken shape, no turn consumed
+        move_entries = [e for e in scene['activityLog'] if e['action'] == 'Move']
+        self.assertEqual(len(move_entries), 1)
+        self.assertEqual(move_entries[0]['details']['from'], 'Bank Lobby')
+        self.assertEqual(move_entries[0]['details']['to'], 'The Vault')
+        self.assertEqual(move_entries[0]['details']['approvedFromSheet'], True)
+        self.assertFalse(move_entries[0]['details']['countsAsTurn'])
+        self.assertNotIn('turnNumber', tok)
+        # queue drained + change feed has BOTH request and approval
+        self.assertEqual(srv.pending_moves_store(self.campaign), [])
+        feed = srv._load_json_file(self.campaign / 'sheet_activity.json', [])
+        actions = [e['action'] for e in feed]
+        self.assertIn('Location move requested', actions)
+        self.assertIn('Location move approved', actions)
+        self.assertLess(actions.index('Location move requested'),
+                        actions.index('Location move approved'))
+        # the atomic scene write bumps the SSE version
+        self.assertGreater(srv.state_version(), version_before)
+        # sheet payload: reveal + pending state cleared
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        p = json.loads(data)
+        self.assertEqual(p['location']['name'], 'The Vault')
+        self.assertIsNone(p['pendingMove'])
+
+    def test_deny_leaves_token_alone(self):
+        self.seed_move_scene()
+        parsed = self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'loc2'})
+        mid = parsed['pending']['id']
+        status, _ = self.request('POST', '/api/pending-moves', json.dumps({'op': 'deny', 'id': mid}))
+        self.assertEqual(status, 200)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        tok = next(t for t in scene['tokens'] if t['slug'] == 'test-hero')
+        self.assertEqual(tok['locationId'], 'loc1')
+        self.assertEqual(srv.pending_moves_store(self.campaign), [])
+        feed = srv._load_json_file(self.campaign / 'sheet_activity.json', [])
+        self.assertIn('Location move denied', [e['action'] for e in feed])
+        self.assertNotIn('Move', [e['action'] for e in
+                                  json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8')).get('activityLog') or []])
+
+    def test_stale_scene_and_unknown_id(self):
+        self.seed_move_scene()
+        parsed = self.move({'hero': 'test-hero', 'key': 'k123', 'toLocationId': 'loc2'})
+        mid = parsed['pending']['id']
+        status, _ = self.request('POST', '/api/pending-moves', json.dumps({'op': 'approve', 'id': 'ghost'}))
+        self.assertEqual(status, 400)
+        # scene changed under the request → refused, entry kept for manual deny
+        (self.campaign / 'active_scene.json').write_text(json.dumps({'slug': 'sc-2'}), encoding='utf-8')
+        status, data = self.request('POST', '/api/pending-moves', json.dumps({'op': 'approve', 'id': mid}))
+        self.assertEqual(status, 409)
+        self.assertIn('stale', json.loads(data)['error'])
+        self.assertEqual(len(srv.pending_moves_store(self.campaign)), 1)
+        status, _ = self.request('POST', '/api/pending-moves', json.dumps({'op': 'deny', 'id': mid}))
+        self.assertEqual(status, 200)
+        self.assertEqual(srv.pending_moves_store(self.campaign), [])
+
+    def test_no_such_op(self):
+        status, _ = self.request('POST', '/api/pending-moves', json.dumps({'op': 'nonsense', 'id': 'x'}))
+        self.assertEqual(status, 400)
+
+
+class TestAttackTargetingPolish(ServerTestCase):
+    """Phase 3 item 2: bystanders are non-targets; villain remaining health is
+    never in the player-visible outcome text."""
+
+    def seed_polish_scene(self):
+        seed_hero(self.campaign)
+        seed_scene(self.campaign, tokens=[
+            {'id': 't1', 'kind': 'hero', 'slug': 'test-hero', 'name': 'Test Hero',
+             'locationId': 'loc1', 'currentHealth': 20, 'maxHealth': 30},
+            {'id': 't2', 'kind': 'villain', 'slug': 'bad-guy', 'name': 'Bad Guy',
+             'locationId': 'loc1', 'currentHealth': 40, 'maxHealth': 40},
+            {'id': 't3', 'kind': 'npc', 'slug': 'clerk', 'name': 'Clerk',
+             'locationId': 'loc1'},
+        ])
+        npc_rows = [{h: '' for h in srv.NPCS_HEADERS} | {'Slug': 'clerk', 'Name': 'Clerk', 'Type': 'Bystander'}]
+        srv._write_csv(self.campaign / 'npcs.csv', srv.NPCS_HEADERS, npc_rows)
+        srv._save_json_file(self.campaign / 'sheet-keys.json', {'test-hero': 'k123'})
+
+    def act(self, body):
+        status, data = self.request('POST', '/api/player-action', json.dumps(body))
+        return status, json.loads(data)
+
+    def base(self, **kw):
+        body = {'hero': 'test-hero', 'key': 'k123'}
+        body.update(kw)
+        return body
+
+    def test_bystanders_cannot_be_targeted(self):
+        self.seed_polish_scene()
+        for atype in ('Attack', 'Defend', 'Boost', 'Hinder'):
+            _, parsed = self.act(self.base(actions=[
+                {'type': atype, 'targetId': 't3',
+                 'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+            self.assertIn('bystanders cannot be targeted', parsed['error'], atype)
+        # the sheet payload marks the bystander so the client can filter too
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        p = json.loads(data)
+        occ = {o['slug']: o for o in p['occupants']}
+        self.assertEqual(occ['clerk']['npcType'], 'Bystander')
+        # villain still targetable
+        status, parsed = self.act(self.base(actions=[
+            {'type': 'Attack', 'targetId': 't2',
+             'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        self.assertEqual(status, 200)
+
+    def test_villain_health_never_in_player_outcome(self):
+        self.seed_polish_scene()
+        status, parsed = self.act(self.base(abilityName='Haymaker', actions=[
+            {'type': 'Attack', 'targetId': 't2',
+             'roll': {'manual': {'min': 2, 'mid': 5, 'max': 9, 'effect': 6}}}]))
+        self.assertEqual(status, 200)
+        result = parsed['outcomes'][0]['result']
+        self.assertIn('6 damage to Bad Guy', result)  # damage dealt IS shown
+        self.assertNotIn('Health', result)            # remaining health is NOT
+        self.assertNotIn('34', result)
+        # the GM-facing scene Activity Log keeps the full string
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertIn('(Health 34)', scene['activityLog'][-1]['result'])
+
+    def test_digital_roll_with_spent_mods(self):
+        self.seed_polish_scene()
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['mods'] = [{'id': 'mb', 'kind': 'boost', 'value': 2,
+                          'creatorId': 't1', 'targetId': 't1', 'uses': 1}]
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        status, parsed = self.act(self.base(actions=[
+            {'type': 'Attack', 'targetId': 't2', 'spendMods': ['mb'],
+             'roll': {'power': 'Strength', 'quality': 'Fitness'}}]))
+        self.assertEqual(status, 200, parsed)
+        roll = parsed['outcomes'][0]['roll']
+        self.assertGreaterEqual(roll['effect'], 1)
+        self.assertEqual(parsed['outcomes'][0]['dmg'], roll['effect'] + 2)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertTrue(next(m for m in scene['mods'] if m['id'] == 'mb')['consumed'])
+
+    def test_ko_target_refused(self):
+        self.seed_polish_scene()
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['tokens'][1]['ko'] = True
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        _, parsed = self.act(self.base(actions=[
+            {'type': 'Attack', 'targetId': 't2',
+             'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        self.assertIn('target is out', parsed['error'])
+
+
 if __name__ == '__main__':
     unittest.main()

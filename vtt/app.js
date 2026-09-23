@@ -312,6 +312,9 @@ async function apiSaveScene(slug, scene) {
   const payload = JSON.parse(JSON.stringify(scene));
   (payload.tokens || []).forEach(t => { delete t.turnNumber; });
   await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(payload, null, 2) });
+  // This console just wrote the scene — update the stale-warning baseline so
+  // its own save never fires the external-change banner.
+  gmSceneBaseline(payload);
 }
 async function apiDeleteScene(slug) {
   await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'DELETE' });
@@ -2311,6 +2314,7 @@ function ensureSceneChallenges(scene) {
 async function editScene(slug) {
   state.editingSlug = slug;
   state.scene = ensureSceneChallenges(await apiGetScene(slug));
+  gmSceneBaseline(state.scene);
   if (state.scene) state.scene.__slug = slug;
   document.getElementById('libraryListView').classList.add('hidden');
   document.getElementById('collectionEditorView').classList.add('hidden');
@@ -2329,6 +2333,7 @@ async function loadSceneToBoard(slug) {
   state.activeSlug = slug;
   state.turnMarks = {};
   state.scene = ensureSceneChallenges(await apiGetScene(slug));
+  gmSceneBaseline(state.scene);
   if (state.scene) {
     state.scene.__slug = slug;
     (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
@@ -3138,6 +3143,7 @@ window.loadSceneBySlug = async function(slug) {
     if (sceneData) {
       await apiSetActiveScene(slug);
       state.scene = sceneData;
+      gmSceneBaseline(sceneData);
       renderBoard();
       toast(`Loaded scene: ${sceneData.name}`);
     }
@@ -4037,9 +4043,11 @@ async function refreshBoardFromServer() {
       fresh.__slug = state.activeSlug;
       (fresh.tokens || []).forEach(t => { delete t.turnNumber; });
       state.scene = fresh;
+      gmSceneBaseline(fresh);
     }
   }
   renderBoard();
+  maybeRenderBoardMoves();
 }
 
 /* ============================================================
@@ -4951,8 +4959,11 @@ async function init() {
       state.scene.__slug = active.slug;
       (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
     }
+    gmSceneBaseline(state.scene);
   }
   renderBoard();
+  connectGmEvents();
+  maybeRenderBoardMoves();
 
   // TV Mode toggle (defaults ON, updates the Player Display link)
   const tvToggle = document.getElementById('tvModeToggle');
@@ -4975,16 +4986,31 @@ document.addEventListener('DOMContentLoaded', init);
 
 // ---------------- Sheets menu (player digital character sheets, Phase 1) ----------------
 
-async function renderSheetsView() {
-  const [heroesCsv, keys, activity, alerts] = await Promise.all([
+let __sheetsSig = '';  // last-rendered Sheets data signature (SSE diff gate)
+
+async function renderSheetsView(force) {
+  const [heroesCsv, keys, activity, alerts, moves] = await Promise.all([
     fetch('/api/csv/heroes').then(r => r.text()),
     fetch('/api/sheet-keys').then(r => r.json()),
     fetch('/api/sheet-activity').then(r => r.json()),
     fetch('/api/alerts').then(r => r.json()),
+    fetch('/api/pending-moves').then(r => r.json()).catch(() => []),
   ]);
+  // SSE-driven refreshes call this constantly; skip all DOM writes when the
+  // data is unchanged (protects the alert draft and the target dropdown).
+  const sig = JSON.stringify([keys, activity, alerts, moves]);
+  if (!force && sig === __sheetsSig) return;
+  __sheetsSig = sig;
   const heroes = (Papa.parse(heroesCsv, { header: true, skipEmptyLines: true }).data || [])
     .filter(h => (h.Slug || '').trim() && String(h.Active || '').trim().toLowerCase() !== 'no');
   window.__sheetsHeroes = heroes;
+
+  // Location move approvals (Phase 3) — ink palette inside .lib-panel.
+  const movesPanel = document.getElementById('sheetMovesPanel');
+  if (movesPanel) {
+    movesPanel.innerHTML = (moves || []).map(m => moveQueueRowHtml(m, heroes)).join('')
+      || '<span class="empty-hint">No pending move requests.</span>';
+  }
 
   // Keys & Links table
   const keysPanel = document.getElementById('sheetKeysPanel');
@@ -5101,4 +5127,138 @@ async function viewSheetNotes(slug) {
 function heroNameFromSlug(slug) {
   const h = (window.__sheetsHeroes || []).find(x => (x.Slug || '').trim() === slug);
   return h ? h.Name : slug;
+}
+
+// ---- Staged location moves (Phase 3) -----------------------------------
+// Player-sheet "Request Move" stages an entry in pending_moves.json; only GM
+// approval mutates the scene and reveals the location (reveal gating). The
+// queue renders in TWO places: the Sheets menu panel and a prompt block in
+// the Board's right sidebar (Collin: "prompted inside my GM Screen"). SSE
+// (/api/events) refreshes whichever surface is visible; every refresh is
+// diff-gated so idle events never stomp the DOM.
+function moveQueueRowHtml(m, heroes) {
+  const hero = (heroes || []).find(h => (h.Slug || '').trim() === m.hero);
+  const heroName = hero ? (hero.Name || m.hero) : m.hero;
+  const from = ((m.from || {}).name) || 'Unplaced';
+  const to = ((m.to || {}).name) || '?';
+  return `<div class="alert-hist">
+    <b>${escHtml(heroName)}</b> requests a move: ${escHtml(from)} → <b>${escHtml(to)}</b>
+    <span class="empty-hint" style="float:right;font-size:11px;">${escHtml(m.ts || '')}</span>
+    <div style="margin-top:6px;">
+      <button class="btn btn-small btn-accent" onclick="sheetMoveDecision('${escAttr(m.id)}','approve')">Approve</button>
+      <button class="btn btn-small btn-danger" onclick="sheetMoveDecision('${escAttr(m.id)}','deny')">Deny</button>
+    </div>
+  </div>`;
+}
+
+async function fetchPendingMoves() {
+  try {
+    const r = await fetch('/api/pending-moves');
+    return r.ok ? await r.json() : [];
+  } catch (e) { return []; }
+}
+
+async function sheetMoveDecision(id, op) {
+  const r = await fetch('/api/pending-moves', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op, id }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { toast(j.error || 'Move decision failed.'); return; }
+  toast(op === 'approve' ? 'Move approved.' : 'Move denied.');
+  __sheetsSig = '';  // force the Sheets menu to re-render
+  const sheetsEl = document.getElementById('sheetsView');
+  if (sheetsEl && !sheetsEl.classList.contains('hidden')) renderSheetsView();
+  maybeRenderBoardMoves();
+}
+
+let __boardMovesSig = '';
+let __seenMoveIds = new Set();
+let __boardMovesFirst = true;
+async function maybeRenderBoardMoves() {
+  const moves = await fetchPendingMoves();
+  renderBoardMoves(moves);
+}
+function renderBoardMoves(moves) {
+  const panel = document.getElementById('boardMovesPanel');
+  const box = document.getElementById('boardMovesContent');
+  if (!panel || !box) return;
+  const pending = Array.isArray(moves) ? moves : [];
+  const sig = JSON.stringify(pending);
+  const changed = sig !== __boardMovesSig;
+  __boardMovesSig = sig;
+  if (!__boardMovesFirst && changed) {
+    // Prompt only for NEW arrivals, not for re-renders of the same queue.
+    pending.forEach(m => {
+      if (!__seenMoveIds.has(m.id)) {
+        __seenMoveIds.add(m.id);
+        const hero = (state.heroes || []).find(h => (h.Slug || '').trim() === m.hero);
+        toast((hero ? (hero.Name || m.hero) : m.hero) + ' requests a move to ' + (((m.to || {}).name) || '?'));
+      }
+    });
+  }
+  pending.forEach(m => __seenMoveIds.add(m.id));
+  if (!changed && !__boardMovesFirst) { panel.style.display = pending.length ? '' : 'none'; return; }
+  __boardMovesFirst = false;
+  panel.style.display = pending.length ? '' : 'none';
+  box.innerHTML = pending.map(m => moveQueueRowHtml(m, state.heroes)).join('')
+    || '<span class="empty-hint">No pending move requests.</span>';
+}
+
+// ---- SSE: live Sheets + Board prompt + stale-scene warning --------------
+// The GM Console deliberately does NOT poll the scene (the standing caveat);
+// this hook never auto-reloads — it only refreshes the Sheets menu data,
+// refreshes the move-queue prompt, and shows a banner telling Collin the
+// scene changed elsewhere so he refreshes before saving.
+let __gmSseTimer = null;
+function connectGmEvents() {
+  try {
+    const es = new EventSource('/api/events');
+    es.onmessage = () => {
+      if (__gmSseTimer) return;
+      __gmSseTimer = setTimeout(() => { __gmSseTimer = null; onGmDataChanged(); }, 200);
+    };
+  } catch (e) { /* no EventSource — manual refresh still works */ }
+}
+function onGmDataChanged() {
+  const sheetsEl = document.getElementById('sheetsView');
+  const boardEl = document.getElementById('boardView');
+  if (sheetsEl && !sheetsEl.classList.contains('hidden')) {
+    const ta = document.getElementById('alertText');
+    // skip while an alert draft exists — the panels re-render on next event
+    if (!(ta && (document.activeElement === ta || ta.value.trim()))) renderSheetsView();
+  }
+  if (boardEl && !boardEl.classList.contains('hidden')) {
+    maybeRenderBoardMoves();
+    checkStaleBoardScene();
+  }
+}
+
+// Stale-scene warning: fingerprint the server scene and compare against the
+// baseline of what THIS console last fetched or saved. The GM's own saves
+// update the baseline, so the banner only fires for EXTERNAL changes
+// (player action, another device). Never auto-reloads.
+let __gmSceneSig = '';
+function gmSceneFingerprint(obj) {
+  const c = JSON.parse(JSON.stringify(obj || {}));
+  (c.tokens || []).forEach(t => { delete t.turnNumber; });
+  delete c.__slug;
+  return JSON.stringify(c);
+}
+function gmSceneBaseline(scene) {
+  __gmSceneSig = gmSceneFingerprint(scene);
+  const warn = document.getElementById('staleSceneWarn');
+  if (warn) warn.style.display = 'none';
+}
+async function checkStaleBoardScene() {
+  const warn = document.getElementById('staleSceneWarn');
+  if (!warn || !state.activeSlug || !state.scene) { if (warn) warn.style.display = 'none'; return; }
+  try {
+    const fresh = await apiGetScene(state.activeSlug);
+    if (!fresh) { warn.style.display = 'none'; return; }
+    warn.style.display = gmSceneFingerprint(fresh) === __gmSceneSig ? 'none' : 'block';
+  } catch (e) { warn.style.display = 'none'; }
+}
+function reloadBoardFromWarn() {
+  const warn = document.getElementById('staleSceneWarn');
+  if (warn) warn.style.display = 'none';
+  refreshBoardFromServer();
 }
