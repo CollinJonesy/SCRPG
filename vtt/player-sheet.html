@@ -397,15 +397,25 @@ function abilitiesHtml(p) {
   const all = abilitiesSorted(p.abilities);
   const shown = abilitiesForFilter(p, filter, all);
   const curMode = String(p.currentMode || 'default');
-  const options = [
-    `<option value="all" ${filter === 'all' ? 'selected' : ''}>All</option>`,
-    `<option value="status" ${filter === 'status' ? 'selected' : ''}>Status</option>`,
-  ];
+  let filterUi;
   if (isModular) {
+    // Modular heroes: mode filters as one dropdown (with All/Status included).
+    const options = [
+      `<option value="all" ${filter === 'all' ? 'selected' : ''}>All</option>`,
+      `<option value="status" ${filter === 'status' ? 'selected' : ''}>Status</option>`,
+    ];
     for (const m of p.modes) {
       const slug = String(m.slug || '');
       options.push(`<option value="mode:${esc(slug)}" ${filter === 'mode:' + slug ? 'selected' : ''}>${esc(modeButtonLabel(m))}</option>`);
     }
+    filterUi = `<div class="abil-filter row"><label class="muted" style="font-size:12px;">Filter:</label>
+        <select class="scene-difficulty-select" onchange="setAbilFilter(this.value)">${options.join('')}</select>
+      </div>`;
+  } else {
+    filterUi = `<div class="abil-filter row">
+        <button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>
+        <button class="btn ${filter === 'status' ? 'primary' : ''}" onclick="setAbilFilter('status')">Status</button>
+      </div>`;
   }
   const rows = shown.map(a => `
     <div class="abil z-${esc(a.Zone || 'Green')}">
@@ -413,9 +423,7 @@ function abilitiesHtml(p) {
       <div class="a-text">${esc(a.GameText || '')}</div>
       <div class="a-meta">${[a.Type, a.RollType, a.DieSource ? 'Source: ' + a.DieSource : '', a.EffectDieHint ? 'Effect: ' + a.EffectDieHint : ''].filter(Boolean).map(esc).join(' · ')}</div>
     </div>`).join('');
-  return `<div class="abil-filter row"><label class="muted" style="font-size:12px;">Filter:</label>
-      <select class="scene-difficulty-select" onchange="setAbilFilter(this.value)">${options.join('')}</select>
-    </div>${rows || '<span class="muted">No abilities in this view.</span>'}`;
+  return filterUi + (rows || '<span class="muted">No abilities in this view.</span>');
 }
 
 function setAbilFilter(f) { window.__abilFilter = f; renderSheet(lastPayload); }
