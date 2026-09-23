@@ -53,10 +53,10 @@
   .header-heroes { display: flex; gap: 10px; flex: 0 0 auto; }
   /* Fixed header height shared by the token cards and the header card — only
      the header card's WIDTH ever changes. */
-  .header-wrap { --header-h: 200px; }
+  .header-wrap { --header-h: 170px; }
   .header-heroes .occ-card { flex: 0 0 138px; width: 138px; min-width: 138px; max-width: 138px;
                              height: var(--header-h); overflow: hidden; padding: 0 0 2px; }
-  .header-heroes .occ-card .o-art { width: 100%; height: calc(var(--header-h) - 46px);
+  .header-heroes .occ-card .o-art { width: 100%; aspect-ratio: 1/1;
                                     background-size: contain; background-position: center;
                                     border-radius: 6px 6px 0 0; }
   .header-heroes .occ-card .o-name { margin-top: 2px; }
@@ -65,7 +65,7 @@
   /* identity header */
   .id-head { display: flex; gap: 14px; align-items: stretch; }
   .id-center { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-  .portrait { width: calc(var(--header-h, 200px) - 58px); height: calc(var(--header-h, 200px) - 58px);
+  .portrait { width: calc(var(--header-h, 170px) - 32px); height: calc(var(--header-h, 170px) - 32px);
               border-radius: 12px; border: 3px solid var(--hero);
               background: var(--panel-2) center/cover no-repeat; flex: 0 0 auto; }
   /* Name/Alias/Player stay on one row beside the image even when the header
