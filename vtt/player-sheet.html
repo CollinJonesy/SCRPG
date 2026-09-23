@@ -52,15 +52,20 @@
   .header-wrap { display: flex; gap: 12px; align-items: flex-start; }
   .header-wrap > .card { flex: 1; min-width: 0; margin-bottom: 0; }
   .header-heroes { display: flex; gap: 10px; flex: 0 0 auto; }
+  /* Other-hero tokens are FIXED size — they never shrink; the header card
+     flexes narrower instead. */
+  .header-heroes .occ-card { flex: 0 0 150px; width: 150px; min-width: 150px; max-width: 150px; }
   /* identity header */
   .id-head { display: flex; gap: 14px; align-items: stretch; }
   .id-center { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
   .portrait { width: 96px; height: 96px; border-radius: 12px; border: 3px solid var(--hero);
               background: var(--panel-2) center/cover no-repeat; flex: 0 0 auto; }
-  .id-name { font-size: 30px; line-height: 1.05; }
-  .id-alias { font-size: 16px; color: var(--gold); }
-  .id-player { font-size: 13px; color: var(--text-lo); }
-  .id-row { display: flex; align-items: baseline; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  /* Name/Alias/Player stay on one row beside the image even when the header
+     narrows — the type scales, the position does not. */
+  .id-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: nowrap; min-width: 0; }
+  .id-name { font-size: clamp(16px, 2.6vw, 30px); line-height: 1.05; }
+  .id-alias { font-size: clamp(12px, 1.3vw, 16px); color: var(--gold); }
+  .id-player { font-size: clamp(10px, 1vw, 13px); color: var(--text-lo); white-space: nowrap; }
   .health-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
   .health-bar { flex: 1; height: 12px; border-radius: 6px; background: #0d0d16; overflow: hidden; border: 1px solid var(--line); }
   .health-fill { height: 100%; transition: width .3s; }
