@@ -46,17 +46,12 @@
   @media (max-width: 940px) { .sheet-grid { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 560px) { .pq-pair { grid-template-columns: minmax(0, 1fr); } }
 
-  /* header row: 1:1 token column OUTSIDE the header card, same height as it */
-  .header-row { display: flex; gap: 12px; align-items: stretch; }
-  .header-row > .card { flex: 1; min-width: 0; margin-bottom: 0; }
-  .occ-mini { background: var(--panel-2); border: 2px solid var(--hero); border-radius: 8px; text-align: center; }
-  .occ-mini .o-art { border-radius: 6px; background: #0d0d16 center/cover no-repeat; }
-  .occ-mini .o-name { font-size: 10px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .header-heroes { display: flex; flex-direction: column; gap: 6px; flex: 0 0 120px; }
-  .header-heroes .occ-mini { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column;
-                             align-items: center; justify-content: center; padding: 3px; }
-  .header-heroes .occ-mini .o-art { flex: 1; min-height: 0; width: auto; max-width: 100%; aspect-ratio: 1/1; }
-  .header-heroes .occ-mini .o-name { width: 100%; }
+  /* header row: 4 Location-scale hero tokens OUTSIDE the header, horizontally,
+     pushing the header right. Tokens keep Location card size; header keeps
+     its own height. */
+  .header-wrap { display: flex; gap: 12px; align-items: flex-start; }
+  .header-wrap > .card { flex: 1; min-width: 0; margin-bottom: 0; }
+  .header-heroes { display: flex; gap: 10px; flex: 0 0 auto; }
   /* identity header */
   .id-head { display: flex; gap: 14px; align-items: stretch; }
   .id-center { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
@@ -461,12 +456,17 @@ function hpDots(n) {
 }
 
 function headerHeroesHtml(p) {
+  // Location-card build at 1:1 scale: image, name, health.
   const heroes = sortedOccupants(p.occupants).filter(x => x.g === 4).slice(0, 4);
-  return heroes.map(({ t }) => `
-    <div class="occ-mini">
+  return heroes.map(({ t }) => {
+    let hpLine = '';
+    if (t.currentHealth != null && t.maxHealth) hpLine = `<div class="o-hp">Health ${t.currentHealth}/${t.maxHealth}</div>`;
+    return `<div class="occ-card hero">
       <div class="o-art" style="background-image:url('${esc(portraitUrl(t.kind, t.slug))}')"></div>
       <div class="o-name">${esc(t.name)}</div>
-    </div>`).join('');
+      ${hpLine}
+    </div>`;
+  }).join('');
 }
 
 function renderSheet(p) {
@@ -483,24 +483,22 @@ function renderSheet(p) {
   const maxHP = p.myToken && p.myToken.maxHealth != null ? p.myToken.maxHealth : (Number(row.MaxHealth) || null);
   const hpPct = curHP != null && maxHP ? Math.max(0, Math.min(100, curHP / maxHP * 100)) : 0;
   document.getElementById('sheet').innerHTML = `
-    <div class="header-row">
+    <div class="header-wrap">
       <div class="header-heroes">${headerHeroesHtml(p)}</div>
       <div class="card">
         <div class="id-head">
+          <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl('hero', HERO))}')"></div>
           <div class="id-center">
-            <div style="display:flex;gap:14px;align-items:center;justify-content:center;">
-              <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl('hero', HERO))}')"></div>
-              <div class="id-row">
-                <h1 class="id-name">${esc(row.Name || '')}</h1>
-                <span class="id-alias">${esc(row.Alias || '')}</span>
-                <span class="id-player">${esc(row.Player || '')}</span>
-              </div>
+            <div class="id-row">
+              <h1 class="id-name">${esc(row.Name || '')}</h1>
+              <span class="id-alias">${esc(row.Alias || '')}</span>
+              <span class="id-player">${esc(row.Player || '')}</span>
             </div>
             <div class="health-row">
               <div class="health-bar"><div class="health-fill ${band}" style="width:${hpPct}%"></div></div>
               <span class="health-nums">Current ${curHP != null ? curHP : '—'} / Max ${maxHP != null ? maxHP : '—'}</span>
             </div>
-            <div class="track-status" style="justify-content:center;">
+            <div class="track-status">
               ${trackerHtml(p)}
               <div class="status-row">${statusRowHtml(p)}</div>
             </div>
