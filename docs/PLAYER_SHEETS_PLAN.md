@@ -93,6 +93,20 @@ challenge solutions, other locations' contents, other players' private notes.
 2. `/api/player-action` for self-affecting actions behind the confirm stage.
 3. Attacks/targeting + staged location-move approvals + dice-resolution path.
 
+## Later build: Montage scenes in the Scene Builder (needed)
+
+Montage scenes must be buildable as their own scene type in the Scene
+Builder, differently from Action or Social scenes.RAW already diverges
+mechanically for Montage (recovery happens as part of the scene, NOT as a
+taken action — the app now enforces this: the sheet has no basic Recover
+button and `heroCanRecover()`/`scene_is_montage()` bypass the
+ability-requirement only in a Montage), and the PD hides all health bars in
+Montage/Social.So the Scene Builder needs a Montage shape of its own —
+turn/tracker structure, challenge vs. freeform round flow, what the panel
+shows — before a real Montage is authored.Shipping note: the code paths
+already treat `sceneType: 'Montage'` (case-insensitive) as its own mode
+wherever it matters; what is missing is the Builder authoring experience.
+
 ## Gates
 
 - `tests/test_server.py` round-trips for every new endpoint (auth reject,
