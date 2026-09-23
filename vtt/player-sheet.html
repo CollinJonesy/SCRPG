@@ -46,13 +46,19 @@
   @media (max-width: 940px) { .sheet-grid { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 560px) { .pq-pair { grid-template-columns: minmax(0, 1fr); } }
 
+  /* header row: 1:1 token column OUTSIDE the header card, same height as it */
+  .header-row { display: flex; gap: 12px; align-items: stretch; }
+  .header-row > .card { flex: 1; min-width: 0; margin-bottom: 0; }
+  .occ-mini { background: var(--panel-2); border: 2px solid var(--hero); border-radius: 8px; text-align: center; }
+  .occ-mini .o-art { border-radius: 6px; background: #0d0d16 center/cover no-repeat; }
+  .occ-mini .o-name { font-size: 10px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-heroes { display: flex; flex-direction: column; gap: 6px; flex: 0 0 120px; }
+  .header-heroes .occ-mini { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column;
+                             align-items: center; justify-content: center; padding: 3px; }
+  .header-heroes .occ-mini .o-art { flex: 1; min-height: 0; width: auto; max-width: 100%; aspect-ratio: 1/1; }
+  .header-heroes .occ-mini .o-name { width: 100%; }
   /* identity header */
   .id-head { display: flex; gap: 14px; align-items: stretch; }
-  .header-heroes { display: flex; gap: 6px; align-items: flex-start; flex: 0 0 auto; flex-wrap: wrap; max-width: 330px; }
-  .occ-mini { width: 64px; background: var(--panel-2); border: 2px solid var(--hero);
-              border-radius: 8px; padding: 4px; text-align: center; }
-  .occ-mini .o-art { width: 100%; aspect-ratio: 1/1; border-radius: 6px; background: #0d0d16 center/cover no-repeat; }
-  .occ-mini .o-name { font-size: 10px; font-weight: 600; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .id-center { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
   .portrait { width: 96px; height: 96px; border-radius: 12px; border: 3px solid var(--hero);
               background: var(--panel-2) center/cover no-repeat; flex: 0 0 auto; }
@@ -477,28 +483,30 @@ function renderSheet(p) {
   const maxHP = p.myToken && p.myToken.maxHealth != null ? p.myToken.maxHealth : (Number(row.MaxHealth) || null);
   const hpPct = curHP != null && maxHP ? Math.max(0, Math.min(100, curHP / maxHP * 100)) : 0;
   document.getElementById('sheet').innerHTML = `
-    <div class="card">
-      <div class="id-head">
-        <div class="header-heroes">${headerHeroesHtml(p)}</div>
-        <div class="id-center">
-          <div style="display:flex;gap:14px;align-items:center;justify-content:center;">
-            <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl('hero', HERO))}')"></div>
-            <div class="id-row">
-              <h1 class="id-name">${esc(row.Name || '')}</h1>
-              <span class="id-alias">${esc(row.Alias || '')}</span>
-              <span class="id-player">${esc(row.Player || '')}</span>
+    <div class="header-row">
+      <div class="header-heroes">${headerHeroesHtml(p)}</div>
+      <div class="card">
+        <div class="id-head">
+          <div class="id-center">
+            <div style="display:flex;gap:14px;align-items:center;justify-content:center;">
+              <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl('hero', HERO))}')"></div>
+              <div class="id-row">
+                <h1 class="id-name">${esc(row.Name || '')}</h1>
+                <span class="id-alias">${esc(row.Alias || '')}</span>
+                <span class="id-player">${esc(row.Player || '')}</span>
+              </div>
+            </div>
+            <div class="health-row">
+              <div class="health-bar"><div class="health-fill ${band}" style="width:${hpPct}%"></div></div>
+              <span class="health-nums">Current ${curHP != null ? curHP : '—'} / Max ${maxHP != null ? maxHP : '—'}</span>
+            </div>
+            <div class="track-status" style="justify-content:center;">
+              ${trackerHtml(p)}
+              <div class="status-row">${statusRowHtml(p)}</div>
             </div>
           </div>
-          <div class="health-row">
-            <div class="health-bar"><div class="health-fill ${band}" style="width:${hpPct}%"></div></div>
-            <span class="health-nums">Current ${curHP != null ? curHP : '—'} / Max ${maxHP != null ? maxHP : '—'}</span>
-          </div>
-          <div class="track-status" style="justify-content:center;">
-            ${trackerHtml(p)}
-            <div class="status-row">${statusRowHtml(p)}</div>
-          </div>
+          <div style="flex:0 0 90px;"></div>
         </div>
-        <div style="flex:0 0 90px;"></div>
       </div>
     </div>
 
