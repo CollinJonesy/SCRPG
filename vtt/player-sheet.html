@@ -509,7 +509,8 @@ function abilitiesHtml(p) {
     const title = [t, esc(a.DisplayName || a.Name), esc(roll)].filter(Boolean).join(' - ');
     const meta = [a.DieSource ? 'Source: ' + a.DieSource : ''].filter(Boolean).map(esc).join(' · ');
     const name = String(a.Name || '');
-    const click = bandAllowsZone(p, a.Zone) && rollTypesOf(a).length
+    const actionable = rollTypesOf(a).length || isActionChoiceAbility(a);
+    const click = bandAllowsZone(p, a.Zone) && actionable
       ? ` onclick="openAbilityAction('${esc(name)}')" title="Tap to use this ability"`
       : ` title="${bandAllowsZone(p, a.Zone) ? 'No roll types on this ability' : 'Your status band does not allow this ability yet'}"`;
     return `
@@ -770,6 +771,9 @@ function openActionStaged(types, ability) {
     return openEmergencySwitchStaged(p, ability);
   }
   aysState = { types: types.slice(), ability };
+  aysState.actionChoice = isActionChoiceAbility(ability);
+  if (aysState.actionChoice) aysState.types = ['Attack', 'Defend'];
+  types = aysState.types;
   const row = p.row || {};
   const heroName = row.Name || HERO;
   const abilName = ability ? (ability.DisplayName || ability.Name) : ('Basic ' + types[0]);
@@ -789,19 +793,8 @@ function openActionStaged(types, ability) {
     ? `Action: ${esc(ability.DisplayName || ability.Name)}${types.length ? ' - ' + esc(types.join(', ')) : ''}`
         .replace(/^Action:/, typeWord + ':')
     : `Action: ${esc('Basic ' + types[0])}`;
-  const blocks = types.map((t, i) => {
-    const isOvercome = t === 'Overcome';
-    const target = isOvercome
-      ? `<label>Overcome target <input type="text" id="aysTargetLabel_${i}" placeholder="Door, alarm, scene object…"></label>`
-      : `<label>Target <select id="aysTarget_${i}">${targetOptionsFor(p, t)}</select></label>`;
-    return `<div class="blk">
-      <div class="bd-row"><b>${esc(t)}</b>${ability ? ' — ' + esc(abilName) : ''}</div>
-      ${target}
-      ${diceBlockHtml(p, i)}
-      ${modSpendHtml(p, i, ignorePenalties)}
-      ${(t === 'Boost' || t === 'Hinder') ? modTwistHtml(p, i) : ''}
-    </div>`;
-  }).join('');
+  const blocks = null; // replaced by shared dice + per-action target rows
+  const targetRows = types.map((t, i) => targetRowHtml(p, t, i)).join('');
   const modeSel = modeChange
     ? `<div class="bd-row"><b>${/quick/i.test(ability.Name) ? 'Quick Switch' : 'Switch'}:</b>
         <label>New mode</label><select id="aysMode">${(p.modes || []).map(m =>
@@ -815,13 +808,51 @@ function openActionStaged(types, ability) {
       ${ignorePenalties ? '<div class="fineprint">This attack ignores all penalties — Hinders on you cannot apply and Defend actions are ignored.</div>' : ''}
       ${noReactions ? '<div class="fineprint">Reactions cannot affect this ability.</div>' : ''}
     </div>
-    ${blocks}${modeSel}
+    ${aysState.actionChoice ? actionChoiceRowHtml() : ''}
+    ${diceBlockHtml(p, 0)}
+    <div id="aysTargetsBox">${targetRows}</div>
+    ${modSpendHtml(p, 0, ignorePenalties)}
+    ${modeSel}
     <div class="fineprint">On confirm this applies to the board immediately — the GM sees it land live. Nothing happens until you press Confirm.</div>
     <div id="aysOutcome"></div>
     <div class="foot">
       <button class="btn" onclick="closeAys()">Cancel</button>
       <button class="btn primary" id="aysConfirmBtn" onclick="confirmAys()">Confirm — Apply</button>
     </div>`);
+}
+
+// One Target row per basic action, stacked directly below each other, no
+// per-action type boxes. Boost/Hinder rows carry their two-use twist inline.
+function targetRowHtml(p, t, i) {
+  const target = t === 'Overcome'
+    ? `<input type="text" id="aysTargetLabel_${i}" placeholder="Door, alarm, scene object…">`
+    : `<select id="aysTarget_${i}">${targetOptionsFor(p, t)}</select>`;
+  const twist = (t === 'Boost' || t === 'Hinder') ? modTwistHtml(p, i) : '';
+  return `<div class="bd-row"><label>${esc(t)} Target</label>${target}</div>${twist}`;
+}
+
+// Flexible Stance-style abilities: "Take any two basic actions…" — two
+// dropdowns of all six basics, side by side, at the top of the prompt.
+function isActionChoiceAbility(a) {
+  if (!a || rollTypesOf(a).length) return false;
+  return /take (any|one|two)[^.]{0,30}basic action/i.test(String(a.GameText || ''));
+}
+const ALL_SIX_ACTIONS = ['Attack', 'Defend', 'Boost', 'Hinder', 'Overcome', 'Recover'];
+function actionChoiceRowHtml() {
+  const opts = (sel, dflt) => ALL_SIX_ACTIONS.map(t =>
+    `<option value="${esc(t)}"${t === dflt ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  return `<div class="bd-row"><div class="dice-row pq-selects" style="margin-top:0;">
+      <div><label>First action</label><select id="aysChoice_0" onchange="rebuildAysTargets()">${opts(0, 'Attack')}</select></div>
+      <div><label>Second action</label><select id="aysChoice_1" onchange="rebuildAysTargets()">${opts(1, 'Defend')}</select></div>
+    </div>
+    <div class="fineprint">The two actions may be the same action twice; each gets its own target and the same roll.</div></div>`;
+}
+function rebuildAysTargets() {
+  const c0 = (document.getElementById('aysChoice_0') || {}).value || 'Attack';
+  const c1 = (document.getElementById('aysChoice_1') || {}).value || 'Defend';
+  aysState.types = [c0, c1];
+  const box = document.getElementById('aysTargetsBox');
+  if (box) box.innerHTML = aysState.types.map((t, i) => targetRowHtml(lastPayload, t, i)).join('');
 }
 
 // [Bracketed] dice in ability text, matched against the hero's real
@@ -865,9 +896,24 @@ function diceBlockHtml(p, i) {
   const selQ = `<select id="aysQuality_${i}"${lockQ}>${qualOpts.join('')}</select>`;
   if (forced.power) { setTimeout(() => { const s = document.getElementById('aysPower_' + i); if (s) s.value = forced.power; }, 0); }
   if (forced.quality) { setTimeout(() => { const s = document.getElementById('aysQuality_' + i); if (s) s.value = forced.quality; }, 0); }
-  const statusDie = dieTag(p.myToken && p.myToken.currentDie);
   const bandL = currentBandLetter(p);
+  const statusDie = (() => {
+    const tokDie = dieTag(p.myToken && p.myToken.currentDie);
+    const n = parseInt(String((p.myToken && p.myToken.currentDie) == null ? '' : p.myToken.currentDie).replace(/\D/g, ''), 10);
+    if (n > 0) return tokDie;
+    // same fallback as the header row: the hero's CSV status die for the band
+    const col = { g: 'GreenStatusDie', y: 'YellowStatusDie', r: 'RedStatusDie', o: 'GreenStatusDie' }[bandL];
+    return dieTag(row[col]) || '—';
+  })();
   return `<div class="bd-row dice-block">
+    <div class="dice-row pq-selects">
+      <div><label>Power</label>${selP}</div>
+      <div><label>Quality</label>${selQ}</div>
+      <div class="status-cell" style="flex:0 0 auto;">
+        <div class="muted" style="font-size:11px;">Status</div>
+        <div class="die ${bandL}">${esc(statusDie)}</div>
+      </div>
+    </div>
     <div class="dice-row dice-entries" id="aysManualRow_${i}">
       <div><label>Min</label><input type="number" id="aysMin_${i}" min="0" value="0"></div>
       <div><label>Mid</label><input type="number" id="aysMid_${i}" min="0" value="0"></div>
@@ -875,14 +921,6 @@ function diceBlockHtml(p, i) {
       <div class="roll-mode-stack">
         <label class="radio-line"><input type="radio" name="rollMode_${i}" value="manual" checked onchange="aysToggleRoll(${i})">Manual Roll</label>
         <label class="radio-line"><input type="radio" name="rollMode_${i}" value="digital" onchange="aysToggleRoll(${i})">Digital Roll</label>
-      </div>
-    </div>
-    <div class="dice-row pq-selects">
-      <div><label>Power</label>${selP}</div>
-      <div><label>Quality</label>${selQ}</div>
-      <div class="status-cell" style="flex:0 0 auto;">
-        <div class="muted" style="font-size:11px;">Status</div>
-        <div class="die ${bandL}">${esc(statusDie)}</div>
       </div>
     </div>
     <div class="fineprint" id="aysDigitalNote_${i}" style="display:none;">Digital Roll: the server rolls your chosen Power + Quality + Status dice and computes Min/Mid/Max and the effect die itself.</div>
@@ -950,8 +988,20 @@ function aysToggleRoll(i) {
 function aysBlockPayload(p, types) {
   const blocks = [];
   const errs = [];
+  // ONE shared dice pool for the whole ability (all basic actions of one roll
+  // share the same Min/Mid/Max + Power + Quality); only targets differ.
+  const sharedRoll = (() => {
+    const manual = document.querySelector('input[name="rollMode_0"]:checked').value === 'manual';
+    if (manual) {
+      const g = id => Number((document.getElementById(id) || {}).value) || 0;
+      // No Effect Die entry — the ability (or Mid default) determines it server-side.
+      return { manual: { min: g('aysMin_0'), mid: g('aysMid_0'), max: g('aysMax_0') } };
+    }
+    return { power: (document.getElementById('aysPower_0') || {}).value || '',
+             quality: (document.getElementById('aysQuality_0') || {}).value || '' };
+  })();
   types.forEach((t, i) => {
-    const block = { type: t };
+    const block = { type: t, roll: JSON.parse(JSON.stringify(sharedRoll)) };
     if (t === 'Overcome') {
       block.targetLabel = (document.getElementById('aysTargetLabel_' + i) || {}).value || 'scene object';
     } else {
@@ -959,24 +1009,16 @@ function aysBlockPayload(p, types) {
       if (!sel || !sel.value) { errs.push(t + ' needs a target'); return; }
       block.targetId = sel.value;
     }
-    const manual = document.querySelector(`input[name="rollMode_${i}"]:checked`).value === 'manual';
-    if (manual) {
-      const g = id => Number((document.getElementById(id) || {}).value) || 0;
-      // No Effect Die entry — the ability (or Mid default) determines it server-side.
-      block.roll = { manual: { min: g('aysMin_' + i), mid: g('aysMid_' + i), max: g('aysMax_' + i) } };
-    } else {
-      block.roll = { power: (document.getElementById('aysPower_' + i) || {}).value || '',
-                     quality: (document.getElementById('aysQuality_' + i) || {}).value || '' };
-    }
-    const spend = [...document.querySelectorAll(`.ays-mod[data-block="${i}"]:checked`)].map(el =>
-      el.id.split('_').slice(2).join('_'));
-    if (spend.length) block.spendMods = spend;
     const tw = document.getElementById('aysTwist_' + i);
     if (tw && tw.checked) {
       block.boostTwist = { principle: Number((document.getElementById('aysTwistPrinciple_' + i) || {}).value) || 0 };
     }
     blocks.push(block);
   });
+  // Mods are spent once, on the roll — attach to the first action.
+  const spend = [...document.querySelectorAll('.ays-mod:checked')].map(el =>
+    el.id.split('_').slice(2).join('_'));
+  if (spend.length && blocks.length) blocks[0].spendMods = spend;
   return { blocks, errs };
 }
 

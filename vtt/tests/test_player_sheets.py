@@ -686,12 +686,60 @@ class TestPlayerActionAuthAndValidation(ServerTestCase):
         # the server used the client-chosen power since the bracket only names Fitness
 
     def test_reminders_endpoint(self):
+        self.seed_action_scene()
         status, data = self.request('GET', '/api/reminders')
         self.assertEqual(status, 200)
         j = json.loads(data)
         self.assertIn('powers', j)
         self.assertIn('qualities', j)
         self.assertIsInstance(j['powers'], dict)
+
+    def test_defensive_strike_per_action_effects(self):
+        self.seed_action_scene()
+        # "Defend using [Close Combat]. Attack using your Min die." — the
+        # Attack's effect is the Min die; the Defend's value is Mid (default).
+        rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
+            'Slug': 'test-hero', 'Name': 'Defensive Strike', 'Type': 'A',
+            'GameText': 'Defend using [Close Combat]. Attack using your Min die.',
+            'RollType': 'Attack, Defend'}]
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['tokens'][0]['locationId'] = 'loc1'
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.act(self.base(abilityName='Defensive Strike', actions=[
+            {'type': 'Attack', 'targetId': 't2', 'roll': {'manual': {'min': 2, 'mid': 5, 'max': 9}}},
+            {'type': 'Defend', 'targetId': 't1', 'roll': {'manual': {'min': 2, 'mid': 5, 'max': 9}}},
+        ]))
+        self.assertTrue(parsed['ok'], parsed)
+        # attack effect = Min (2); defend value = Mid (5)
+        self.assertEqual(parsed['outcomes'][0]['effect'], 2)
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 2)
+        self.assertEqual(parsed['outcomes'][1]['value'], 5)
+        self.assertEqual(parsed['outcomes'][1]['type'], 'Defend')
+
+    def test_flexible_stance_action_choice(self):
+        self.seed_action_scene()
+        rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
+            'Slug': 'test-hero', 'Name': 'Flexible Stance', 'Type': 'A',
+            'GameText': 'Take any two basic actions using [Close Combat], each using your Min die.',
+            'RollType': ''}]
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        # two actions, same action twice (Attack + Attack), both use the Min die
+        parsed = self.act(self.base(abilityName='Flexible Stance', actions=[
+            {'type': 'Attack', 'targetId': 't2', 'roll': {'manual': {'min': 3, 'mid': 7, 'max': 11}}},
+            {'type': 'Boost', 'targetId': 't1', 'roll': {'manual': {'min': 3, 'mid': 7, 'max': 11}}},
+        ]))
+        self.assertTrue(parsed['ok'], parsed)
+        self.assertEqual(parsed['outcomes'][0]['effect'], 3)   # 'each using your Min die'
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 3)
+        self.assertEqual(parsed['outcomes'][1]['effect'], 3)   # Boost band from Min too
+        self.assertEqual(parsed['outcomes'][1]['value'], 1)    # 3 → +1
+        # choosing Recover is allowed even though the RollType column is blank
+        parsed = self.act(self.base(abilityName='Flexible Stance', actions=[
+            {'type': 'Recover', 'targetId': 't1', 'roll': {'manual': {'min': 3, 'mid': 7, 'max': 11}}},
+            {'type': 'Defend', 'targetId': 't1', 'roll': {'manual': {'min': 3, 'mid': 7, 'max': 11}}},
+        ]))
+        self.assertTrue(parsed['ok'], parsed)
 
 
 class TestPlayerMode(ServerTestCase):

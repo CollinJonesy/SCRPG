@@ -837,6 +837,33 @@ def forced_dice_for(row, mode_info, game_text):
     return out[0], out[1]
 
 
+def action_effect_mode(atype: str, die_source: str, game_text: str) -> str:
+    """Per-action effect die mode. Priority: '<Action> using your X die'
+    (Defensive Strike: Attack uses Min) → 'each using your X die' (Flexible
+    Stance: both chosen actions use Min) → DieSource column → 'Use your X
+    dice' in GameText (Unerring Strike) → '' (Mid)."""
+    t = str(game_text or '').lower()
+    m = re.search(re.escape(str(atype or '').lower()) + r'[^.]{0,40}?using your (max\+min|max|min) die', t)
+    if m:
+        return m.group(1)
+    m = re.search(r'each using your (max\+min|max|min) die', t)
+    if m:
+        return m.group(1)
+    ds = parse_die_source(str(die_source or ''))
+    if ds:
+        return ds
+    m = re.search(r'use your (max\+min|max|min) dice', t)
+    if m:
+        return m.group(1)
+    return ''
+
+
+def action_choice_ability(game_text) -> bool:
+    """'Take any two basic actions…' — the chosen actions are allowed even
+    when the ability's RollType column is blank (e.g. choosing Recover)."""
+    return bool(re.search(r'take (any|one|two)[^.]{0,30}basic action', str(game_text or '').lower()))
+
+
 def effect_from_values(vals, mode: str) -> int:
     if mode == 'max+min':
         return int(vals['max']) + int(vals['min'])
@@ -1164,10 +1191,22 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
     atype = str((a or {}).get('type') or '').strip()
     if atype not in PLAYER_ACTIONS:
         return 400, {'error': 'unknown action type: ' + atype}
+
+    # ---- ability row: GameText drives the effect die, forced dice, flags ----
+    ability_row = None
+    if ability_name:
+        an = ability_name.strip().lower()
+        ability_row = next((r for r in abilities
+                            if (r.get('Name') or '').strip().lower() == an
+                            or (r.get('DisplayName') or '').strip().lower() == an), None)
+    game_text = str((ability_row or {}).get('GameText') or '')
+    flags = ability_flags(game_text)
+
     if atype.lower() in locked:
         return 400, {'error': atype + ' is locked in this mode'}
     if atype == 'Recover' and not (hero_has_recover_ability(abilities)
-                                   or scene_is_montage(scene)):
+                                   or scene_is_montage(scene)
+                                   or action_choice_ability(game_text)):
         return 400, {'error': 'Recover needs an ability that grants it'
                               + ('' if not scene_is_montage(scene) else '')}
 
@@ -1195,16 +1234,6 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
         if target.get('ko'):
             return 400, {'error': 'target is out'}
 
-    # ---- ability row: GameText drives the effect die, forced dice, flags ----
-    ability_row = None
-    if ability_name:
-        an = ability_name.strip().lower()
-        ability_row = next((r for r in abilities
-                            if (r.get('Name') or '').strip().lower() == an
-                            or (r.get('DisplayName') or '').strip().lower() == an), None)
-    game_text = str((ability_row or {}).get('GameText') or '')
-    flags = ability_flags(game_text)
-
     # ---- dice pool ----
     pool = dict(a.get('roll') or {})
     fp, fq = forced_dice_for(row, mode_info, game_text)
@@ -1215,7 +1244,7 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
     vals, err = resolve_pool(row, tok, mode_info, pool)
     if err:
         return 400, {'error': err}
-    ds = parse_die_source(str((ability_row or {}).get('DieSource') or '') + ' ' + game_text)
+    ds = action_effect_mode(atype, (ability_row or {}).get('DieSource') or '', game_text)
     if ds:
         # The ability's effect die is an internal calculation (e.g. Max+Min) —
         # the client never supplies it.
