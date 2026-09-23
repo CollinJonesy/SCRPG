@@ -661,22 +661,19 @@ function rollTypesOf(a) {
   return String(a.RollType || '').split(',').map(s => s.trim()).filter(Boolean);
 }
 
-const BASIC_ACTIONS = ['Attack', 'Defend', 'Boost', 'Hinder', 'Overcome', 'Recover'];
+const BASIC_ACTIONS = ['Attack', 'Defend', 'Boost', 'Hinder', 'Overcome'];
 
 function basicActionsHtml(p) {
+  // No basic Recover action — Recover exists ONLY inside abilities that grant
+  // it (their own Recover buttons); Montage recovery is part of the scene, not
+  // a taken action, so there is no Recover button at all here.
   const locked = lockedActionsFor(p);
-  const montage = /montage/i.test(String(p.sceneType || ''));
   return `<div class="action-bar">` + BASIC_ACTIONS.map(t => {
-    const tl = t.toLowerCase();
-    if (locked.has(tl)) {
+    if (locked.has(t.toLowerCase())) {
       return `<button class="btn small locked" disabled title="${esc(t)} is locked in this mode">${esc(t)} 🔒</button>`;
     }
-    if (t === 'Recover' && !p.recoverAllowed) {
-      return `<button class="btn small locked" disabled title="Recover needs an ability that grants it (outside a Montage scene)">Recover 🔒</button>`;
-    }
     return `<button class="btn small primary" onclick="openBasicAction('${esc(t)}')">${esc(t)}</button>`;
-  }).join('') + `</div>`
-    + (montage ? '<div class="fineprint">Montage scene: Recover is part of the scene here.</div>' : '');
+  }).join('') + `</div>`;
 }
 
 function openBasicAction(t) { openActionStaged([t], null); }
@@ -922,9 +919,6 @@ function abilityActionButtons(p, a) {
   const btns = types.map(t => {
     if (locked.has(t.toLowerCase())) {
       return `<button class="btn small locked" disabled title="${esc(t)} is locked in this mode">${esc(t)} 🔒</button>`;
-    }
-    if (t === 'Recover' && !p.recoverAllowed) {
-      return `<button class="btn small locked" disabled title="Recover needs an ability that grants it (outside a Montage scene)">Recover 🔒</button>`;
     }
     return `<button class="btn small primary" onclick="${btnOnclick(t)}">${esc(t)}</button>`;
   }).join('');
