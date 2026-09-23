@@ -1138,12 +1138,38 @@ async function tick() {
   // 'flex' (not 'block') — the inline style must match the tablet layout's
   // flex-column wrapper or the inline value overrides it and scrolling breaks
   document.getElementById('sheet').style.display = 'flex';
+  // Re-render only when the server payload actually changed — an unchanged
+  // poll must never touch the DOM (this is the scroll/focus/dropdown-reset
+  // fix); the snapshot/restore inside renderSheet covers the renders that do.
+  const pj = JSON.stringify(p);
+  if (pj === lastSheetJson) return;
+  lastSheetJson = pj;
   lastPayload = p;
   renderSheet(p);
 }
 
+// --- Live updates: SSE push with polling fallback ---------------------------
+// The server streams its campaign-data version on /api/events; tick() runs the
+// moment it changes (coalesced, and still guarded by the AYS/focus checks at
+// the top of tick). The 3s interval remains ONLY as a fallback while the
+// stream is down (EventSource reconnects itself).
+let lastSheetJson = '';
+let sheetSseOpen = false;
+let sheetPollTimer = null;
+function connectEvents() {
+  try {
+    const es = new EventSource('/api/events');
+    es.onopen = () => { sheetSseOpen = true; };
+    es.onerror = () => { sheetSseOpen = false; };
+    es.onmessage = () => {
+      if (sheetPollTimer) return;
+      sheetPollTimer = setTimeout(() => { sheetPollTimer = null; tick(); }, 100);
+    };
+  } catch (e) { /* no EventSource — the interval fallback drives everything */ }
+}
+connectEvents();
 tick();
-setInterval(tick, 3000);
+setInterval(() => { if (!sheetSseOpen) tick(); }, 3000);
 loadReminders();
 </script>
 </body>

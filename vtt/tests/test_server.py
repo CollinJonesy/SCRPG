@@ -900,5 +900,140 @@ class TestActiveFlagAndMinionNotes(ServerTestCase):
         self.assertNotIn('ally-cape', min_slugs)
 
 
+class TestConcurrencyAndEvents(ServerTestCase):
+    """STATE_LOCK + atomic writes: concurrent writers must never lose updates
+    or leave partial files behind, and /api/events must push version bumps."""
+
+    def _tmp_names(self, d):
+        return [p.name for p in d.iterdir()
+                if p.name.endswith('.tmp') or p.name.startswith('.')]
+
+    def test_concurrent_merge_puts_no_lost_updates(self):
+        # /api/issues/<slug> is a server-side read-merge-write: every key any
+        # client PUTs must survive every other client's PUT.
+        n_threads, n_ops = 12, 10
+        errors = []
+        barrier = threading.Barrier(n_threads)
+
+        def worker(t):
+            barrier.wait()
+            for i in range(n_ops):
+                status, _ = self.request(
+                    'PUT', '/api/issues/stress',
+                    body=json.dumps({f'k{t}_{i}': i}),
+                    headers={'Content-Type': 'application/json'})
+                if status != 200:
+                    errors.append((t, i, status))
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(n_threads)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join(timeout=30)
+        self.assertEqual(errors, [])
+        doc = json.loads((self.campaign / 'issues' / 'stress.json').read_text(encoding='utf-8'))
+        expected = {f'k{t}_{i}': i for t in range(n_threads) for i in range(n_ops)}
+        self.assertEqual(doc, expected)
+        self.assertEqual(self._tmp_names(self.campaign / 'issues'), [])
+
+    def test_concurrent_scene_puts_never_partial(self):
+        # Full-replace scene PUTs from many threads while a reader hammers the
+        # file: atomic replace means every read parses and the final file is
+        # exactly one complete payload — never a torn/truncated write.
+        n_threads, n_ops = 8, 15
+        errors = []
+        read_errors = []
+        stop = threading.Event()
+        scene_path = self.campaign / 'scenes' / 'torn.json'
+
+        def reader():
+            while not stop.is_set():
+                try:
+                    json.loads(scene_path.read_text(encoding='utf-8'))
+                except FileNotFoundError:
+                    pass
+                except Exception as e:  # a torn write would land here
+                    read_errors.append(repr(e))
+
+        def writer(t):
+            for i in range(n_ops):
+                body = json.dumps({'name': f'scene-{t}', 'round': i,
+                                   'tokens': [{'id': f'{t}-{i}'}]})
+                status, _ = self.request(
+                    'PUT', '/api/scenes/torn', body=body,
+                    headers={'Content-Type': 'application/json'})
+                if status != 200:
+                    errors.append((t, i, status))
+
+        rt = threading.Thread(target=reader, daemon=True)
+        rt.start()
+        threads = [threading.Thread(target=writer, args=(t,)) for t in range(n_threads)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join(timeout=30)
+        stop.set()
+        rt.join(timeout=5)
+        self.assertEqual(errors, [])
+        self.assertEqual(read_errors, [])
+        doc = json.loads(scene_path.read_text(encoding='utf-8'))
+        self.assertIn(doc['round'], range(n_ops))
+        self.assertEqual(self._tmp_names(self.campaign / 'scenes'), [])
+
+    def test_concurrent_sheet_key_generation_no_lost_updates(self):
+        # sheet-keys.json is a server-side read-modify-write over one shared
+        # store: 12 concurrent generates for 12 distinct heroes must all land.
+        n_threads = 12
+        errors = []
+        barrier = threading.Barrier(n_threads)
+
+        def worker(t):
+            barrier.wait()
+            status, _ = self.request(
+                'POST', '/api/sheet-keys',
+                body=json.dumps({'hero': f'hero-{t}'}),
+                headers={'Content-Type': 'application/json'})
+            if status != 200:
+                errors.append((t, status))
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(n_threads)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join(timeout=30)
+        self.assertEqual(errors, [])
+        keys = json.loads((self.campaign / 'sheet-keys.json').read_text(encoding='utf-8'))
+        self.assertEqual(sorted(keys.keys()), sorted(f'hero-{t}' for t in range(n_threads)))
+        self.assertTrue(all(keys.values()))
+        self.assertEqual(self._tmp_names(self.campaign), [])
+
+    def test_events_stream_pushes_version_on_write(self):
+        conn = http.client.HTTPConnection('127.0.0.1', self.port, timeout=10)
+        self.addCleanup(conn.close)
+        conn.request('GET', '/api/events')
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        self.assertIn('text/event-stream', resp.getheader('Content-Type') or '')
+
+        def read_event():
+            buf = b''
+            while b'data:' not in buf:
+                chunk = resp.read1(512)
+                if not chunk:
+                    break
+                buf += chunk
+            return int(buf.split(b'data:', 1)[1].split(b'\n', 1)[0].strip())
+
+        first = read_event()  # bootstrap event: current version
+        self.assertGreaterEqual(first, 0)
+        status, _ = self.request(
+            'POST', '/api/hero-points',
+            body=json.dumps({'issue': 'sse', 'reset': True}),
+            headers={'Content-Type': 'application/json'})
+        self.assertEqual(status, 200)
+        second = read_event()  # pushed the moment the write lands
+        self.assertGreater(second, first)
+
+
 if __name__ == '__main__':
     unittest.main()

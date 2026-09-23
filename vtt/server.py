@@ -22,9 +22,12 @@ import argparse
 import csv
 import io
 import json
+import os
 import random
 import re
 import socket
+import tempfile
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime
 import secrets
@@ -34,6 +37,63 @@ from urllib.parse import urlparse, unquote
 
 APP_DIR = Path(__file__).parent
 RULES_DIR = APP_DIR / 'rules'
+
+# ---------------- Concurrency: one lock + atomic file writes ----------------
+#
+# ThreadingHTTPServer serves each request on its own thread. Nearly every
+# mutating route is a read-modify-write over a campaign file (scene JSON,
+# CSV extras-merge, hero points, sheet keys, activity feed, alerts). Without
+# a lock, two overlapping writers read the same baseline and one update is
+# silently lost; a crash mid-write can also truncate a file. Rules for ALL
+# state IO in this module:
+#   1. Every write goes through _atomic_write_text/_atomic_write_bytes —
+#      temp file in the target directory, fsync, then os.replace, so a
+#      reader only ever sees the complete old file or the complete new one.
+#   2. Every read-modify-write cycle holds STATE_LOCK from its first read
+#      through its final write. Atomicity alone does NOT stop lost updates.
+#   3. Plain reads need no lock (atomic replace guarantees whole files).
+#      Never hold STATE_LOCK while talking to the HTTP client.
+# STATE_LOCK is an RLock because save paths nest (e.g. record_sheet_activity
+# runs inside the /api/sheet-keys critical section).
+
+STATE_LOCK = threading.RLock()
+
+# Monotonic campaign-data version for /api/events (Server-Sent Events).
+# Bumped by every successful atomic write; display.js / player-sheet.html
+# re-fetch only when this moves instead of blind-polling.
+STATE_VERSION = [0]
+
+
+def state_version() -> int:
+    with STATE_LOCK:
+        return STATE_VERSION[0]
+
+
+def _atomic_write_bytes(path: Path, data: bytes):
+    """Replace `path` atomically: temp file in the same directory, fsync,
+    os.replace. Bumps STATE_VERSION so SSE clients see the change."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent),
+                                    prefix='.' + path.name + '.', suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+    with STATE_LOCK:
+        STATE_VERSION[0] += 1
+
+
+def _atomic_write_text(path: Path, text: str):
+    _atomic_write_bytes(path, text.encode('utf-8'))
 
 
 def iter_rule_files():
@@ -336,65 +396,81 @@ def _write_csv_raw(path: Path, headers, rows):
     w.writeheader()
     for row in rows:
         w.writerow({h: '' if row.get(h) is None else str(row.get(h, '')) for h in headers})
-    path.write_text(buf.getvalue(), encoding='utf-8')
+    _atomic_write_text(path, buf.getvalue())
 
 
 def _write_csv(path: Path, headers, rows):
     """Write canonical headers plus any extra columns already on disk, by Slug."""
-    extras = _csv_fieldnames(path)
-    old = {r.get('Slug'): r for r in _csv_rows(path, None)}
-    fieldnames = _union_headers(headers, extras)
-    merged = []
-    for row in rows:
-        prev = old.get(row.get('Slug')) or {}
-        out = {}
-        for h in fieldnames:
-            if h in headers:
-                val = row.get(h, '')
-                out[h] = '' if val is None else str(val)
-            else:
-                out[h] = prev.get(h, '') or ''
-        merged.append(out)
-    _write_csv_raw(path, fieldnames, merged)
+    with STATE_LOCK:  # read-extras → merge → write is one critical section
+        extras = _csv_fieldnames(path)
+        old = {r.get('Slug'): r for r in _csv_rows(path, None)}
+        fieldnames = _union_headers(headers, extras)
+        merged = []
+        for row in rows:
+            prev = old.get(row.get('Slug')) or {}
+            out = {}
+            for h in fieldnames:
+                if h in headers:
+                    val = row.get(h, '')
+                    out[h] = '' if val is None else str(val)
+                else:
+                    out[h] = prev.get(h, '') or ''
+            merged.append(out)
+        _write_csv_raw(path, fieldnames, merged)
 
 
 def merge_json_put(path: Path, body: str) -> str:
-    """Keep keys the client omitted so a partial PUT cannot strip fields."""
+    """Keep keys the client omitted so a partial PUT cannot strip fields.
+    Read-merge runs under STATE_LOCK; callers write the returned text with
+    _atomic_write_text while still inside the same lock (RLock, re-entrant) —
+    see merged_json_put_write() which does both as one transaction."""
     incoming = json.loads(body or '{}')
     if not isinstance(incoming, dict):
         return body
-    if path.exists():
-        try:
-            existing = json.loads(path.read_text(encoding='utf-8'))
-        except Exception:
-            existing = None
-        if isinstance(existing, dict):
-            for k, v in existing.items():
-                if k not in incoming:
-                    incoming[k] = v
-    return json.dumps(incoming, indent=2)
+    with STATE_LOCK:
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding='utf-8'))
+            except Exception:
+                existing = None
+            if isinstance(existing, dict):
+                for k, v in existing.items():
+                    if k not in incoming:
+                        incoming[k] = v
+        return json.dumps(incoming, indent=2)
+
+
+def merged_json_put_write(path: Path, body: str) -> str:
+    """merge_json_put + atomic write as ONE critical section — this is the
+    form every route must use; a merge and its write must never be split
+    across two lock acquisitions or a concurrent PUT can be lost."""
+    with STATE_LOCK:
+        merged = merge_json_put(path, body)
+        _atomic_write_text(path, merged)
+        return merged
 
 
 def put_csv(path: Path, canonical_headers, body: str):
     """Library PUT: keep columns the client omitted, matched by Slug."""
-    reader = csv.DictReader(io.StringIO(body or ''))
-    incoming_fields = list(reader.fieldnames or [])
-    incoming = list(reader)
-    old = {r.get('Slug'): r for r in _csv_rows(path, None)}
-    fieldnames = _union_headers(canonical_headers, _csv_fieldnames(path), incoming_fields)
-    incoming_set = set(incoming_fields)
-    merged = []
-    for row in incoming:
-        prev = old.get(row.get('Slug')) or {}
-        out = {}
-        for h in fieldnames:
-            if h in incoming_set:
-                val = row.get(h, '')
-                out[h] = '' if val is None else str(val)
-            else:
-                out[h] = prev.get(h, '') or ''
-        merged.append(out)
-    _write_csv_raw(path, fieldnames, merged)
+    with STATE_LOCK:  # read-old → merge → write is one critical section
+        reader = csv.DictReader(io.StringIO(body or ''))
+        incoming_fields = list(reader.fieldnames or [])
+        incoming = list(reader)
+        old = {r.get('Slug'): r for r in _csv_rows(path, None)}
+        fieldnames = _union_headers(canonical_headers, _csv_fieldnames(path), incoming_fields)
+        incoming_set = set(incoming_fields)
+        merged = []
+        for row in incoming:
+            prev = old.get(row.get('Slug')) or {}
+            out = {}
+            for h in fieldnames:
+                if h in incoming_set:
+                    val = row.get(h, '')
+                    out[h] = '' if val is None else str(val)
+                else:
+                    out[h] = prev.get(h, '') or ''
+            merged.append(out)
+        _write_csv_raw(path, fieldnames, merged)
 
 
 # ---------------- Player Sheets (keys / notes / alerts / activity) ----------------
@@ -418,8 +494,8 @@ def _load_json_file(path: Path, default):
 
 
 def _save_json_file(path: Path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+    with STATE_LOCK:
+        _atomic_write_text(path, json.dumps(data, indent=2))
 
 
 def generate_sheet_key() -> str:
@@ -442,18 +518,19 @@ def sheet_key_valid(campaign: Path, hero: str, key: str) -> bool:
 def record_sheet_activity(campaign: Path, hero: str, action: str, detail: str = ''):
     """Append a player-initiated action to the GM's Sheets change feed."""
     path = campaign / 'sheet_activity.json'
-    data = _load_json_file(path, [])
-    if not isinstance(data, list):
-        data = []
-    data.append({
-        'ts': datetime.now().isoformat(timespec='seconds'),
-        'hero': hero,
-        'action': str(action or ''),
-        'detail': str(detail or ''),
-    })
-    if len(data) > SHEET_ACTIVITY_MAX:
-        data = data[-SHEET_ACTIVITY_MAX:]
-    _save_json_file(path, data)
+    with STATE_LOCK:  # read → append → cap → write is one critical section
+        data = _load_json_file(path, [])
+        if not isinstance(data, list):
+            data = []
+        data.append({
+            'ts': datetime.now().isoformat(timespec='seconds'),
+            'hero': hero,
+            'action': str(action or ''),
+            'detail': str(detail or ''),
+        })
+        if len(data) > SHEET_ACTIVITY_MAX:
+            data = data[-SHEET_ACTIVITY_MAX:]
+        _save_json_file(path, data)
 
 
 def sheet_notes_path(campaign: Path, hero: str) -> Path | None:
@@ -1101,7 +1178,16 @@ def apply_player_attack(scene, actor, target, dmg: int, ability_name: str, effec
 
 def apply_player_action(campaign: Path, hero: str, payload: dict):
     """Validate + apply one player action. Returns (http_status, response dict).
-    All clamping/validation happens here; the client is never trusted."""
+    All clamping/validation happens here; the client is never trusted.
+    The entire read-mutate-write cycle runs under STATE_LOCK so a player
+    action can never interleave with a GM scene save or another player's
+    action (load_active_scene → mutate → spath write is one transaction)."""
+    with STATE_LOCK:
+        return _apply_player_action_body(campaign, hero, payload)
+
+
+def _apply_player_action_body(campaign: Path, hero: str, payload: dict):
+    """Worker for apply_player_action — caller must hold STATE_LOCK."""
     row = hero_csv_row(campaign, hero)
     if row is None:
         return 404, {'error': 'hero not found'}
@@ -1171,7 +1257,7 @@ def apply_player_action(campaign: Path, hero: str, payload: dict):
         outcomes.append(resp)
     if mode_change and mode_change_pos == 'post':
         set_mode()
-    spath.write_text(json.dumps(scene, indent=2), encoding='utf-8')
+    _atomic_write_text(spath, json.dumps(scene, indent=2))
     return 200, {'ok': True, 'outcomes': outcomes, 'round': scene.get('round') or 1,
                  'currentMode': tok.get('currentMode') or 'default'}
 
@@ -1205,7 +1291,7 @@ def _apply_emergency_switch(campaign, scene, spath, tok, mode_info, payload, row
                        + '; ' + cost_txt, {'mode': mode}, counts_as_turn=False)
     record_sheet_activity(campaign, str(tok.get('slug') or ''), 'Emergency Switch',
                           '→ ' + mname + '; ' + cost_txt)
-    spath.write_text(json.dumps(scene, indent=2), encoding='utf-8')
+    _atomic_write_text(spath, json.dumps(scene, indent=2))
     return 200, {'ok': True, 'outcomes': [{'type': 'Emergency Switch', 'result': cost_txt}],
                  'currentMode': mode}
 
@@ -1520,7 +1606,7 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
         modes = payload.get('modes')
         if isinstance(modes, list) and modes:
             md_lines += ['## Modes', '', '```json', json.dumps(modes, indent=2), '```', '']
-        md_path.write_text('\n'.join(md_lines), encoding='utf-8')
+        _atomic_write_text(md_path, '\n'.join(md_lines))
 
     obsidian_path = None
     if obsidian_heroes and constructed:
@@ -1547,7 +1633,7 @@ def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None 
             '',
         ]
         note = obsidian_heroes / f'{name}.md'
-        note.write_text('\n'.join(fm) + md_path.read_text(encoding='utf-8'), encoding='utf-8')
+        _atomic_write_text(note, '\n'.join(fm) + md_path.read_text(encoding='utf-8'))
         obsidian_path = str(note)
 
     return {
@@ -1603,18 +1689,19 @@ def _ability_card_md(card: dict) -> list[str]:
 
 def _upsert_actor_abilities(campaign: Path, slug: str, ability_rows: list) -> Path:
     """Replace all abilities.csv rows for slug with ability_rows (dicts with CSV keys)."""
-    ab_path = campaign / 'abilities.csv'
-    keep = [r for r in _csv_rows(ab_path, ABILITIES_HEADERS)
-            if (r.get('Slug') or r.get('HeroSlug') or '') != slug]
-    for a in ability_rows:
-        row = {h: '' for h in ABILITIES_HEADERS}
-        row.update({k: (a.get(k) or '') for k in ABILITIES_HEADERS})
-        row['Slug'] = slug
-        if not row.get('RollType'):
-            row['RollType'] = _infer_roll_types(row.get('GameText') or '')
-        keep.append(row)
-    _write_csv(ab_path, ABILITIES_HEADERS, keep)
-    return ab_path
+    with STATE_LOCK:  # read-keep → append → write is one critical section
+        ab_path = campaign / 'abilities.csv'
+        keep = [r for r in _csv_rows(ab_path, ABILITIES_HEADERS)
+                if (r.get('Slug') or r.get('HeroSlug') or '') != slug]
+        for a in ability_rows:
+            row = {h: '' for h in ABILITIES_HEADERS}
+            row.update({k: (a.get(k) or '') for k in ABILITIES_HEADERS})
+            row['Slug'] = slug
+            if not row.get('RollType'):
+                row['RollType'] = _infer_roll_types(row.get('GameText') or '')
+            keep.append(row)
+        _write_csv(ab_path, ABILITIES_HEADERS, keep)
+        return ab_path
 
 
 def save_built_villain(campaign: Path, payload: dict) -> dict:
@@ -1725,7 +1812,7 @@ def save_built_villain(campaign: Path, payload: dict) -> dict:
     md_dir = campaign / 'md' / 'villains'
     md_dir.mkdir(parents=True, exist_ok=True)
     md_path = md_dir / f'{slug}.md'
-    md_path.write_text('\n'.join(md_lines), encoding='utf-8')
+    _atomic_write_text(md_path, '\n'.join(md_lines))
 
     # Dice-roller / board layer: selected abilities + upgrade + mastery → abilities.csv
     ab_entries = []
@@ -1853,7 +1940,7 @@ def save_built_minion(campaign: Path, payload: dict) -> dict:
     md_dir = campaign / 'md' / 'minions'
     md_dir.mkdir(parents=True, exist_ok=True)
     md_path = md_dir / f'{slug}.md'
-    md_path.write_text('\n'.join(md_lines), encoding='utf-8')
+    _atomic_write_text(md_path, '\n'.join(md_lines))
     return {'slug': slug, 'minionsCsv': str(path), 'md': str(md_path)}
 
 
@@ -1971,7 +2058,7 @@ def save_built_environment(campaign: Path, payload: dict) -> dict:
         json.dumps({'origin': origin}, indent=2),
         '```', '',
     ]
-    md_path.write_text('\n'.join(md), encoding='utf-8')
+    _atomic_write_text(md_path, '\n'.join(md))
     return {'slug': slug, 'environmentsCsv': str(path), 'md': str(md_path)}
 
 
@@ -1989,7 +2076,8 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
             return {}
 
     def save_meta(m):
-        meta_path.write_text(json.dumps(m), encoding='utf-8')
+        with STATE_LOCK:
+            _atomic_write_text(meta_path, json.dumps(m))
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):
@@ -2011,6 +2099,41 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
             length = int(self.headers.get('Content-Length', 0))
             return self.rfile.read(length) if length else b''
 
+        def _serve_events(self):
+            """Server-Sent Events stream of the campaign state version.
+
+            Every state write bumps STATE_VERSION; this stream sends
+            `data: <version>` the moment it moves plus a `: ping` comment
+            every 15s so idle connections stay healthy. Clients (display.js,
+            player-sheet.html) refetch their normal GET endpoints when the
+            version changes; their polling intervals remain only as a
+            fallback for a dropped stream. One thread per connected client —
+            a handful of displays at the table is well within budget."""
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            try:
+                last = -1
+                last_ping = time.time()
+                while True:
+                    cur = state_version()
+                    if cur != last:
+                        last = cur
+                        self.wfile.write(('data: %d\n\n' % cur).encode('utf-8'))
+                        self.wfile.flush()
+                        last_ping = time.time()
+                    elif time.time() - last_ping >= 15.0:
+                        self.wfile.write(b': ping\n\n')
+                        self.wfile.flush()
+                        last_ping = time.time()
+                    else:
+                        time.sleep(0.25)
+            except (BrokenPipeError, ConnectionResetError, OSError, ValueError):
+                return  # client hung up or socket closed — end this stream
+            finally:
+                self.close_connection = True
+
         def _read_body_text(self):
             return self._read_body_bytes().decode('utf-8')
 
@@ -2024,6 +2147,9 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
 
         def do_GET(self):
             path = unquote(urlparse(self.path).path)
+
+            if path == '/api/events':
+                return self._serve_events()
 
             if path in STATIC_FILES:
                 fname, ctype = STATIC_FILES[path]
@@ -2288,35 +2414,36 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 if not issue or '/' in issue or '\\' in issue:
                     return self._send_text(json.dumps({'error': 'issue required'}), 400, 'application/json')
                 p = campaign / 'hero_points.json'
-                data = {}
-                if p.exists():
-                    try:
-                        data = json.loads(p.read_text(encoding='utf-8'))
-                    except Exception:
-                        data = {}
-                if not isinstance(data, dict):
+                with STATE_LOCK:  # read → mutate → clamp → write is one critical section
                     data = {}
-                if payload.get('reset'):
-                    data.pop(issue, None)
-                else:
-                    hero = str(payload.get('hero') or '').strip()
-                    if not hero:
-                        return self._send_text(json.dumps({'error': 'hero required'}), 400, 'application/json')
-                    issue_data = data.setdefault(issue, {})
-                    cur = int(issue_data.get(hero) or 0)
-                    try:
-                        delta = int(payload.get('delta') or 0)
-                    except Exception:
-                        delta = 0
-                    # RAW: each hero may gain a maximum of 5 hero points per issue.
-                    new = max(0, min(5, cur + delta))
-                    if new == 0:
-                        issue_data.pop(hero, None)
-                    else:
-                        issue_data[hero] = new
-                    if not issue_data:
+                    if p.exists():
+                        try:
+                            data = json.loads(p.read_text(encoding='utf-8'))
+                        except Exception:
+                            data = {}
+                    if not isinstance(data, dict):
+                        data = {}
+                    if payload.get('reset'):
                         data.pop(issue, None)
-                p.write_text(json.dumps(data, indent=2), encoding='utf-8')
+                    else:
+                        hero = str(payload.get('hero') or '').strip()
+                        if not hero:
+                            return self._send_text(json.dumps({'error': 'hero required'}), 400, 'application/json')
+                        issue_data = data.setdefault(issue, {})
+                        cur = int(issue_data.get(hero) or 0)
+                        try:
+                            delta = int(payload.get('delta') or 0)
+                        except Exception:
+                            delta = 0
+                        # RAW: each hero may gain a maximum of 5 hero points per issue.
+                        new = max(0, min(5, cur + delta))
+                        if new == 0:
+                            issue_data.pop(hero, None)
+                        else:
+                            issue_data[hero] = new
+                        if not issue_data:
+                            data.pop(issue, None)
+                    _atomic_write_text(p, json.dumps(data, indent=2))
                 return self._send_text(json.dumps(data), 200, 'application/json')
             if path == '/api/sheet-keys':
                 # GM only: {hero, op: 'generate'|'clear'} — generate also acts
@@ -2329,19 +2456,20 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 if not is_safe_slug(hero):
                     return self._send_text(json.dumps({'error': 'hero required'}), 400, 'application/json')
                 p = campaign / 'sheet-keys.json'
-                keys = _load_json_file(p, {})
-                if not isinstance(keys, dict):
-                    keys = {}
-                op = payload.get('op') or 'generate'
-                if op == 'clear':
-                    keys.pop(hero, None)
-                else:
-                    was_reset = hero in keys
-                    keys[hero] = generate_sheet_key()
-                    record_sheet_activity(campaign, hero,
-                                          'Sheet key ' + ('reset' if was_reset else 'issued'),
-                                          'via GM Sheets menu')
-                _save_json_file(p, keys)
+                with STATE_LOCK:  # read → op → write is one critical section
+                    keys = _load_json_file(p, {})
+                    if not isinstance(keys, dict):
+                        keys = {}
+                    op = payload.get('op') or 'generate'
+                    if op == 'clear':
+                        keys.pop(hero, None)
+                    else:
+                        was_reset = hero in keys
+                        keys[hero] = generate_sheet_key()
+                        record_sheet_activity(campaign, hero,
+                                              'Sheet key ' + ('reset' if was_reset else 'issued'),
+                                              'via GM Sheets menu')
+                    _save_json_file(p, keys)
                 return self._send_text(json.dumps({'hero': hero, 'key': keys.get(hero) or ''}),
                                        200, 'application/json')
             if path == '/api/player-notes':
@@ -2359,8 +2487,7 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                     return self._send_text(json.dumps({'error': 'invalid slug'}), 400, 'application/json')
                 text = str(payload.get('text') or '')
                 existed = np.exists()
-                np.parent.mkdir(parents=True, exist_ok=True)
-                np.write_text(text, encoding='utf-8')
+                _atomic_write_text(np, text)
                 record_sheet_activity(campaign, hero, 'Notes updated',
                                       'edited' if existed else 'created')
                 return self._send_text(json.dumps({'ok': True}), 200, 'application/json')
@@ -2388,16 +2515,17 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 sp = campaign / 'scenes' / (scene_slug + '.json')
                 if not sp.exists():
                     return self._send_text(json.dumps({'error': 'no active scene'}), 400, 'application/json')
-                try:
-                    scene = json.loads(sp.read_text(encoding='utf-8'))
-                except Exception:
-                    return self._send_text(json.dumps({'error': 'bad scene'}), 500, 'application/json')
-                tok = next((t for t in scene.get('tokens') or []
-                            if t.get('kind') == 'hero' and (t.get('slug') or '').strip() == hero), None)
-                if tok is None:
-                    return self._send_text(json.dumps({'error': 'hero not on board'}), 400, 'application/json')
-                tok['currentMode'] = mode
-                sp.write_text(json.dumps(scene, indent=2), encoding='utf-8')
+                with STATE_LOCK:  # read scene → set mode → write is one critical section
+                    try:
+                        scene = json.loads(sp.read_text(encoding='utf-8'))
+                    except Exception:
+                        return self._send_text(json.dumps({'error': 'bad scene'}), 500, 'application/json')
+                    tok = next((t for t in scene.get('tokens') or []
+                                if t.get('kind') == 'hero' and (t.get('slug') or '').strip() == hero), None)
+                    if tok is None:
+                        return self._send_text(json.dumps({'error': 'hero not on board'}), 400, 'application/json')
+                    tok['currentMode'] = mode
+                    _atomic_write_text(sp, json.dumps(scene, indent=2))
                 mode_name = next((str(m.get('name') or m.get('slug')) for m in hero_modes_md(campaign, hero)
                                   if str(m.get('slug') or '').strip() == mode), mode)
                 record_sheet_activity(campaign, hero, 'Mode changed', '→ ' + mode_name)
@@ -2429,42 +2557,43 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 except Exception:
                     return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
                 p = campaign / 'alerts.json'
-                alerts = _load_json_file(p, [])
-                if not isinstance(alerts, list):
-                    alerts = []
-                op = payload.get('op') or 'compose'
-                if op == 'compose':
-                    text = str(payload.get('text') or '').strip()
-                    if not text:
-                        return self._send_text(json.dumps({'error': 'text required'}), 400, 'application/json')
-                    targets = payload.get('targets') or 'all'
-                    if targets != 'all':
-                        if not isinstance(targets, list) or not targets:
-                            return self._send_text(json.dumps({'error': 'bad targets'}), 400, 'application/json')
-                        targets = [str(t) for t in targets]
-                    alerts.append({
-                        'id': secrets.token_hex(8),
-                        'ts': datetime.now().isoformat(timespec='seconds'),
-                        'targets': targets,
-                        'text': text,
-                        'dismissed': [],
-                    })
-                elif op == 'dismiss':
-                    hero = str(payload.get('hero') or '').strip()
-                    if not sheet_key_valid(campaign, hero, str(payload.get('key') or '')):
-                        return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
-                    aid = str(payload.get('id') or '')
-                    for a in alerts:
-                        if isinstance(a, dict) and str(a.get('id') or '') == aid:
-                            dis = a.setdefault('dismissed', [])
-                            if isinstance(dis, list) and hero not in dis:
-                                dis.append(hero)
-                elif op == 'delete':
-                    aid = str(payload.get('id') or '')
-                    alerts = [a for a in alerts if not (isinstance(a, dict) and str(a.get('id') or '') == aid)]
-                else:
-                    return self._send_text(json.dumps({'error': 'bad op'}), 400, 'application/json')
-                _save_json_file(p, alerts)
+                with STATE_LOCK:  # read → op → write is one critical section
+                    alerts = _load_json_file(p, [])
+                    if not isinstance(alerts, list):
+                        alerts = []
+                    op = payload.get('op') or 'compose'
+                    if op == 'compose':
+                        text = str(payload.get('text') or '').strip()
+                        if not text:
+                            return self._send_text(json.dumps({'error': 'text required'}), 400, 'application/json')
+                        targets = payload.get('targets') or 'all'
+                        if targets != 'all':
+                            if not isinstance(targets, list) or not targets:
+                                return self._send_text(json.dumps({'error': 'bad targets'}), 400, 'application/json')
+                            targets = [str(t) for t in targets]
+                        alerts.append({
+                            'id': secrets.token_hex(8),
+                            'ts': datetime.now().isoformat(timespec='seconds'),
+                            'targets': targets,
+                            'text': text,
+                            'dismissed': [],
+                        })
+                    elif op == 'dismiss':
+                        hero = str(payload.get('hero') or '').strip()
+                        if not sheet_key_valid(campaign, hero, str(payload.get('key') or '')):
+                            return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
+                        aid = str(payload.get('id') or '')
+                        for a in alerts:
+                            if isinstance(a, dict) and str(a.get('id') or '') == aid:
+                                dis = a.setdefault('dismissed', [])
+                                if isinstance(dis, list) and hero not in dis:
+                                    dis.append(hero)
+                    elif op == 'delete':
+                        aid = str(payload.get('id') or '')
+                        alerts = [a for a in alerts if not (isinstance(a, dict) and str(a.get('id') or '') == aid)]
+                    else:
+                        return self._send_text(json.dumps({'error': 'bad op'}), 400, 'application/json')
+                    _save_json_file(p, alerts)
                 return self._send_text(json.dumps(alerts), 200, 'application/json')
             if path == '/api/builder/hero':
                 try:
@@ -2526,37 +2655,41 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                     return self._send_text('unknown kind', 404)
                 if not is_safe_slug(slug):
                     return self._send_text('invalid slug', 400)
+                body = self._read_body_text()
                 d = campaign / 'md' / kind
                 d.mkdir(parents=True, exist_ok=True)
-                (d / (slug + '.md')).write_text(self._read_body_text(), encoding='utf-8')
+                _atomic_write_text(d / (slug + '.md'), body)
                 return self._send_text('ok')
 
             if path.startswith('/api/scenes/'):
                 slug = path.rsplit('/', 1)[-1]
+                body = self._read_body_text()
                 scenes_dir.mkdir(parents=True, exist_ok=True)
-                (scenes_dir / (slug + '.json')).write_text(self._read_body_text(), encoding='utf-8')
+                _atomic_write_text(scenes_dir / (slug + '.json'), body)
                 return self._send_text('ok')
 
             if path.startswith('/api/issues/'):
                 slug = path.rsplit('/', 1)[-1]
+                body = self._read_body_text()
                 issues_dir.mkdir(parents=True, exist_ok=True)
-                dest = issues_dir / (slug + '.json')
-                dest.write_text(merge_json_put(dest, self._read_body_text()), encoding='utf-8')
+                merged_json_put_write(issues_dir / (slug + '.json'), body)
                 return self._send_text('ok')
 
             if path.startswith('/api/collections/'):
                 slug = path.rsplit('/', 1)[-1]
+                body = self._read_body_text()
                 collections_dir.mkdir(parents=True, exist_ok=True)
-                dest = collections_dir / (slug + '.json')
-                dest.write_text(merge_json_put(dest, self._read_body_text()), encoding='utf-8')
+                merged_json_put_write(collections_dir / (slug + '.json'), body)
                 return self._send_text('ok')
 
             if path == '/api/active-scene':
-                (campaign / 'active_scene.json').write_text(self._read_body_text(), encoding='utf-8')
+                body = self._read_body_text()
+                _atomic_write_text(campaign / 'active_scene.json', body)
                 return self._send_text('ok')
 
             if path == '/api/revealed-roll':
-                (campaign / 'revealed_roll.json').write_text(self._read_body_text(), encoding='utf-8')
+                body = self._read_body_text()
+                _atomic_write_text(campaign / 'revealed_roll.json', body)
                 return self._send_text('ok')
 
             if path.startswith('/api/backgrounds/'):
@@ -2567,10 +2700,11 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                     return self._send_text('unsupported image type: ' + ctype, 400)
                 backgrounds_dir.mkdir(parents=True, exist_ok=True)
                 data = self._read_body_bytes()
-                (backgrounds_dir / f'{key}.{ext}').write_bytes(data)
-                m = load_meta()
-                m[key] = ctype
-                save_meta(m)
+                with STATE_LOCK:  # image + meta index must land together
+                    _atomic_write_bytes(backgrounds_dir / f'{key}.{ext}', data)
+                    m = load_meta()
+                    m[key] = ctype
+                    save_meta(m)
                 return self._send_text('ok')
 
             self._send_text('not found', 404)
@@ -2589,10 +2723,11 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 except ValueError:
                     idx = -1
                 p = campaign / 'sheet_activity.json'
-                data = _load_json_file(p, [])
-                if isinstance(data, list) and 0 <= idx < len(data):
-                    data.pop(idx)
-                    _save_json_file(p, data)
+                with STATE_LOCK:  # read → pop → write is one critical section
+                    data = _load_json_file(p, [])
+                    if isinstance(data, list) and 0 <= idx < len(data):
+                        data.pop(idx)
+                        _save_json_file(p, data)
                 return self._send_text('ok')
 
             if path.startswith('/api/scenes/'):

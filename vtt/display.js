@@ -758,34 +758,60 @@ function heroModeBadge(t) {
   return `<div class="mode-badge">${escHtml(label)}</div>`;
 }
 
+let lastSceneJson = null;
+let lastRollJson = null;
+let pdPollBusy = false;
+
 async function poll() {
+  if (pdPollBusy) return;
+  pdPollBusy = true;
   try {
-    const activeRes = await fetch('/api/active-scene');
-    const active = await activeRes.json();
-    if (!active.slug) { renderScene(null); }
-    else {
-      await fetchLibrary();
-      const sceneRes = await fetch(`/api/scenes/${encodeURIComponent(active.slug)}`);
-      if (!sceneRes.ok) renderScene(null);
-      else {
-        const scene = await sceneRes.json();
-        // Prime the modular-modes cache for any hero in a non-default mode; the
-        // next tick renders the resolved mode name.
-        (scene.tokens || []).forEach(t => {
-          if (t.kind === 'hero' && t.currentMode && pdModesCache[(t.slug || '').trim()] === undefined) pdModesFor(t);
-        });
-        renderScene(scene);
+    try {
+      const activeRes = await fetch('/api/active-scene');
+      const active = await activeRes.json();
+      if (!active.slug) {
+        if (lastSceneJson !== '') { lastSceneJson = ''; renderScene(null); }
       }
+      else {
+        await fetchLibrary();
+        const sceneRes = await fetch(`/api/scenes/${encodeURIComponent(active.slug)}`);
+        if (!sceneRes.ok) {
+          if (lastSceneJson !== '') { lastSceneJson = ''; renderScene(null); }
+        }
+        else {
+          const sceneText = await sceneRes.text();
+          const scene = JSON.parse(sceneText);
+          // Prime the modular-modes cache for any hero in a non-default mode; a
+          // follow-up poll after the fetch resolves renders the resolved name.
+          let modesPrimed = false;
+          (scene.tokens || []).forEach(t => {
+            if (t.kind === 'hero' && t.currentMode && pdModesCache[(t.slug || '').trim()] === undefined) {
+              modesPrimed = true;
+              pdModesFor(t).then(() => { lastSceneJson = null; schedulePoll(); });
+            }
+          });
+          // Touch the DOM only when the scene actually changed — an unchanged
+          // poll must never re-render (that is what caused scroll/layout churn).
+          if (modesPrimed || sceneText !== lastSceneJson) {
+            lastSceneJson = sceneText;
+            renderScene(scene);
+          }
+        }
+      }
+    } catch (e) {
+      // transient network hiccup — keep last rendered state, try again next tick
     }
-  } catch (e) {
-    // transient network hiccup — keep last rendered state, try again next tick
-  }
-  try {
-    const rollRes = await fetch('/api/revealed-roll');
-    const roll = await rollRes.json();
-    renderRollOverlay(roll);
-  } catch (e) {
-    // transient network hiccup — leave overlay as-is
+    try {
+      const rollText = await (await fetch('/api/revealed-roll')).text();
+      if (rollText !== lastRollJson) {
+        lastRollJson = rollText;
+        renderRollOverlay(JSON.parse(rollText));
+      }
+    } catch (e) {
+      // transient network hiccup — leave overlay as-is
+    }
+  } finally {
+    pdPollBusy = false;
   }
 }
 
@@ -803,6 +829,23 @@ function renderRollOverlay(roll) {
     <div class="roll-effect">Effect Die (${escHtml(roll.effectLabel)}): ${roll.effectValue}</div>`;
 }
 
+// --- Live updates: SSE push with polling fallback ---------------------------
+// The server streams its campaign-data version on /api/events; poll() runs the
+// moment it changes (coalesced through schedulePoll). The 2s interval remains
+// ONLY as a fallback while the stream is down (EventSource reconnects itself).
+let pdSseOpen = false;
+let pdPollTimer = null;
+function schedulePoll() {
+  if (pdPollTimer) return;
+  pdPollTimer = setTimeout(() => { pdPollTimer = null; poll(); }, 100);
+}
+try {
+  const es = new EventSource('/api/events');
+  es.onopen = () => { pdSseOpen = true; };
+  es.onerror = () => { pdSseOpen = false; };
+  es.onmessage = schedulePoll;
+} catch (e) { /* no EventSource — the interval fallback drives everything */ }
+
 fetchLibrary();
 poll();
-setInterval(poll, 2000);
+setInterval(() => { if (!pdSseOpen) poll(); }, 2000);
