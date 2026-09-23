@@ -47,13 +47,19 @@
   @media (max-width: 560px) { .pq-pair { grid-template-columns: minmax(0, 1fr); } }
 
   /* identity header */
-  .id-head { display: flex; gap: 14px; align-items: flex-start; }
-  .portrait { width: 110px; height: 110px; border-radius: 12px; border: 3px solid var(--hero);
+  .id-head { display: flex; gap: 14px; align-items: stretch; }
+  .header-heroes { display: flex; gap: 6px; align-items: flex-start; flex: 0 0 auto; flex-wrap: wrap; max-width: 330px; }
+  .occ-mini { width: 64px; background: var(--panel-2); border: 2px solid var(--hero);
+              border-radius: 8px; padding: 4px; text-align: center; }
+  .occ-mini .o-art { width: 100%; aspect-ratio: 1/1; border-radius: 6px; background: #0d0d16 center/cover no-repeat; }
+  .occ-mini .o-name { font-size: 10px; font-weight: 600; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .id-center { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  .portrait { width: 96px; height: 96px; border-radius: 12px; border: 3px solid var(--hero);
               background: var(--panel-2) center/cover no-repeat; flex: 0 0 auto; }
   .id-name { font-size: 30px; line-height: 1.05; }
   .id-alias { font-size: 16px; color: var(--gold); }
   .id-player { font-size: 13px; color: var(--text-lo); }
-  .id-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .id-row { display: flex; align-items: baseline; justify-content: center; gap: 12px; flex-wrap: wrap; }
   .health-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
   .health-bar { flex: 1; height: 12px; border-radius: 6px; background: #0d0d16; overflow: hidden; border: 1px solid var(--line); }
   .health-fill { height: 100%; transition: width .3s; }
@@ -447,6 +453,15 @@ function hpDots(n) {
   return '<span class="hp-dots">' + '●'.repeat(n) + '<span style="color:#444;">' + '●'.repeat(Math.max(0, 5 - n)) + '</span></span>';
 }
 
+function headerHeroesHtml(p) {
+  const heroes = sortedOccupants(p.occupants).filter(x => x.g === 4).slice(0, 4);
+  return heroes.map(({ t }) => `
+    <div class="occ-mini">
+      <div class="o-art" style="background-image:url('${esc(portraitUrl(t.kind, t.slug))}')"></div>
+      <div class="o-name">${esc(t.name)}</div>
+    </div>`).join('');
+}
+
 function renderSheet(p) {
   if (!p || p.error) return;
   const row = p.row || {};
@@ -463,22 +478,26 @@ function renderSheet(p) {
   document.getElementById('sheet').innerHTML = `
     <div class="card">
       <div class="id-head">
-        <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl('hero', HERO))}')"></div>
-        <div style="flex:1;">
-          <div class="id-row">
-            <h1 class="id-name">${esc(row.Name || '')}</h1>
-            <span class="id-alias">${esc(row.Alias || '')}</span>
-            <span class="id-player">${esc(row.Player || '')}</span>
+        <div class="header-heroes">${headerHeroesHtml(p)}</div>
+        <div class="id-center">
+          <div style="display:flex;gap:14px;align-items:center;justify-content:center;">
+            <div class="portrait" id="portraitBox" style="background-image:url('${esc(portraitUrl('hero', HERO))}')"></div>
+            <div class="id-row">
+              <h1 class="id-name">${esc(row.Name || '')}</h1>
+              <span class="id-alias">${esc(row.Alias || '')}</span>
+              <span class="id-player">${esc(row.Player || '')}</span>
+            </div>
           </div>
           <div class="health-row">
             <div class="health-bar"><div class="health-fill ${band}" style="width:${hpPct}%"></div></div>
             <span class="health-nums">Current ${curHP != null ? curHP : '—'} / Max ${maxHP != null ? maxHP : '—'}</span>
           </div>
-          <div class="track-status">
+          <div class="track-status" style="justify-content:center;">
             ${trackerHtml(p)}
             <div class="status-row">${statusRowHtml(p)}</div>
           </div>
         </div>
+        <div style="flex:0 0 90px;"></div>
       </div>
     </div>
 
