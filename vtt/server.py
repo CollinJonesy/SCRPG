@@ -2148,8 +2148,9 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 # the catalog description, from the Hero Builder catalogs.
                 def _cat(name):
                     rows = _csv_rows(APP_DIR / 'builder' / 'catalog' / (name + '.csv'),
-                                     ['slug', 'name', 'description'])
-                    return {r.get('Name', ''): r.get('Description', '') for r in rows}
+                                     ['slug', 'category', 'name', 'description'])
+                    return {(r.get('name') or '').strip(): (r.get('description') or '').strip()
+                            for r in rows if r.get('name')}
                 return self._send_text(json.dumps({
                     'powers': _cat('powers'), 'qualities': _cat('qualities'),
                 }), 200, 'application/json')
