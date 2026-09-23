@@ -375,6 +375,22 @@ function switchToMode(slug) {
   renderSheet(lastPayload);
 }
 
+function bhdRowHtml(p) {
+  const bhd = (p.myToken && p.myToken.bhd) || {};
+  const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+  const boost = num(bhd.boost), hinder = num(bhd.hinder), defend = num(bhd.defend);
+  const cells = [
+    ['Boost', boost >= 0 ? '+' + boost : String(boost)],
+    ['Hinder', hinder >= 0 ? '−' + hinder : '+' + Math.abs(hinder)],
+    ['Defend', defend >= 0 ? '+' + defend : String(defend)],
+  ];
+  return cells.map(([label, val]) => `
+    <div class="status-cell">
+      <div class="muted" style="font-size:11px;">${label}</div>
+      <div class="die o">${esc(val)}</div>
+    </div>`).join('');
+}
+
 function abilitiesHtml(p) {
   const isModular = (p.modes || []).length > 0;
   if (isModular && window.__abilFilter === undefined) window.__abilFilter = 'mode:' + (p.currentMode || 'default');
@@ -514,6 +530,7 @@ function renderSheet(p) {
             <div class="track-status">
               ${trackerHtml(p)}
               <div class="status-row">${statusRowHtml(p)}</div>
+              <div class="status-row">${bhdRowHtml(p)}</div>
             </div>
           </div>
           <div style="flex:0 0 90px;"></div>

@@ -509,6 +509,18 @@ def hero_modes_md(campaign: Path, hero: str) -> list:
         return []
 
 
+def die_label(value) -> str:
+    """Normalize a stored die to 'dN' — tokens store plain numbers (6, not d6)."""
+    s = str(value or '').strip()
+    if not s:
+        return ''
+    if s[0] in 'dD':
+        return 'd' + s[1:]
+    if s.isdigit():
+        return 'd' + s
+    return s
+
+
 def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
     """Full read-only sheet payload for one hero — everything the player device
     may see. Hiding rules mirror the Player Display: no villain health numbers,
@@ -553,7 +565,7 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
                     'kind': t.get('kind') or '',
                     'slug': t.get('slug') or '',
                     'name': t.get('name') or '',
-                    'currentDie': t.get('currentDie') or '',
+                    'currentDie': die_label(t.get('currentDie')),
                 }
                 if t.get('kind') == 'hero':
                     occ['currentHealth'] = t.get('currentHealth')
@@ -615,6 +627,7 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
             'currentHealth': (my_token or {}).get('currentHealth'),
             'maxHealth': (my_token or {}).get('maxHealth'),
             'currentDie': (my_token or {}).get('currentDie'),
+            'bhd': (my_token or {}).get('bhdDelta') or {},
         },
         'heroPoints': {
             'issue': issue,
