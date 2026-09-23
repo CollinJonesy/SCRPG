@@ -40,7 +40,6 @@
   .sheet-col { min-width: 0; overflow: hidden; }
   .pq-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
   .pq-pair .card { margin-bottom: 14px; min-width: 0; overflow: hidden; }
-  .pq-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr)); }
   .collapsible-head { cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
   .collapsible-head .chev { color: var(--text-lo); font-size: 14px; font-family: var(--font-body); }
   @media (max-width: 940px) { .sheet-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -62,7 +61,8 @@
   /* identity header */
   .id-head { display: flex; gap: 14px; align-items: stretch; }
   .id-center { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-  .portrait { width: 96px; height: 96px; border-radius: 12px; border: 3px solid var(--hero);
+  .portrait { width: calc(var(--header-h, 200px) - 58px); height: calc(var(--header-h, 200px) - 58px);
+              border-radius: 12px; border: 3px solid var(--hero);
               background: var(--panel-2) center/cover no-repeat; flex: 0 0 auto; }
   /* Name/Alias/Player stay on one row beside the image even when the header
      narrows — the type scales, the position does not. */
@@ -96,11 +96,11 @@
   .status-cell.current { border-width: 2px; border-color: var(--gold); }
 
   /* dice grids */
-  .pq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .pq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr)); gap: 8px; }
   .pq { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
-        display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .pq > span:first-child { min-width: 0; overflow-wrap: anywhere; }
-  .pq .die { font-family: var(--font-display); font-size: 20px; color: var(--gold); flex: 0 0 auto; }
+        display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+  .pq > span:first-child { min-width: 0; overflow-wrap: anywhere; font-size: clamp(11px, 1.1vw, 14px); }
+  .pq .die { font-family: var(--font-display); font-size: clamp(15px, 1.5vw, 20px); color: var(--gold); flex: 0 0 auto; }
 
   /* abilities */
   .abil-filter { margin-bottom: 8px; }
