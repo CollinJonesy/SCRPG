@@ -82,17 +82,17 @@
   .health-nums { font-size: 12.5px; color: var(--text-lo); white-space: nowrap; }
 
   /* scene tracker + status dice */
-  .track-status { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
-  .tracker { display: flex; gap: 4px; align-items: center; }
-  .tracker .star { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); background: #0d0d16; opacity: .45; }
+  .track-status { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .tracker { display: flex; gap: 3px; align-items: center; }
+  .tracker .star { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--line); background: #0d0d16; opacity: .45; }
   .tracker .star.green { background: var(--green); } .tracker .star.yellow { background: var(--yellow); }
   .tracker .star.red { background: var(--red); }
   .tracker .star.here { opacity: 1; outline: 2px solid #fff; outline-offset: 1px; }
-  .track-label { font-size: 11px; color: var(--text-lo); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
-  .status-row { display: flex; gap: 8px; }
-  .status-cell { width: 72px; text-align: center; background: var(--panel-2);
-                 border: 1px solid var(--line); border-radius: 8px; padding: 6px; position: relative; }
-  .status-cell .die { font-family: var(--font-display); font-size: 20px; }
+  .track-label { font-size: 10px; color: var(--text-lo); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+  .status-row { display: flex; gap: 5px; }
+  .status-cell { width: 54px; text-align: center; background: var(--panel-2);
+                 border: 1px solid var(--line); border-radius: 8px; padding: 4px 2px; position: relative; }
+  .status-cell .die { font-family: var(--font-display); font-size: 16px; }
   .status-cell .die.g { color: var(--green); } .status-cell .die.y { color: var(--yellow); }
   .status-cell .die.r { color: var(--red); } .status-cell .die.o { color: #777; }
   .status-cell.masked::after { content: ''; position: absolute; inset: 0; border-radius: 8px;
