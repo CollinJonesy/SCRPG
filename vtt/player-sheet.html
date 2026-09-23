@@ -399,17 +399,19 @@ function abilitiesHtml(p) {
   const curMode = String(p.currentMode || 'default');
   let filterUi;
   if (isModular) {
-    // Modular heroes: mode filters as one dropdown (with All/Status included).
-    const options = [
-      `<option value="all" ${filter === 'all' ? 'selected' : ''}>All</option>`,
-      `<option value="status" ${filter === 'status' ? 'selected' : ''}>Status</option>`,
-    ];
-    for (const m of p.modes) {
+    // Modular heroes: All + Status BUTTONS, plus a separate dropdown for the
+    // modes ONLY (that's the part that saves room).
+    const modeOptions = p.modes.map(m => {
       const slug = String(m.slug || '');
-      options.push(`<option value="mode:${esc(slug)}" ${filter === 'mode:' + slug ? 'selected' : ''}>${esc(modeButtonLabel(m))}</option>`);
-    }
-    filterUi = `<div class="abil-filter row"><label class="muted" style="font-size:12px;">Filter:</label>
-        <select class="scene-difficulty-select" onchange="setAbilFilter(this.value)">${options.join('')}</select>
+      return `<option value="mode:${esc(slug)}" ${filter === 'mode:' + slug ? 'selected' : ''}>${esc(modeButtonLabel(m))}</option>`;
+    }).join('');
+    filterUi = `<div class="abil-filter row">
+        <button class="btn ${filter === 'all' ? 'primary' : ''}" onclick="setAbilFilter('all')">All</button>
+        <button class="btn ${filter === 'status' ? 'primary' : ''}" onclick="setAbilFilter('status')">Status</button>
+        <select class="scene-difficulty-select" onchange="setAbilFilter(this.value)">
+          <option value="" disabled ${filter.startsWith('mode:') ? '' : 'selected'}>Modes…</option>
+          ${modeOptions}
+        </select>
       </div>`;
   } else {
     filterUi = `<div class="abil-filter row">
