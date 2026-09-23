@@ -546,6 +546,30 @@ def pending_mods_payload(scene, hero: str) -> list:
     return out
 
 
+def bhd_display_totals(scene, token) -> dict:
+    """Mirror of the board's bhdTotals/bhdDisplay (app.js + display.js): mods
+    the token CREATED count toward its Boost/Hinder boxes, Defend mods sitting
+    ON the token count toward Defend, then the token's manual bhdDelta on top.
+    The sheet header must show the same numbers the board and PD show."""
+    mods = ensure_scene_mods(scene)
+    tid = token.get('id')
+    boost = sum(int(m.get('value') or 0) for m in mods
+                if not m.get('consumed') and m.get('kind') == 'boost'
+                and m.get('creatorId') == tid)
+    hinder = sum(int(m.get('value') or 0) for m in mods
+                 if not m.get('consumed') and m.get('kind') == 'hinder'
+                 and m.get('creatorId') == tid)
+    defend = sum(int(m.get('value') or 0) for m in mods
+                 if not m.get('consumed') and m.get('kind') == 'defend'
+                 and m.get('targetId') == tid)
+    d = token.get('bhdDelta') or {}
+    return {
+        'boost': max(0, boost + (int(d.get('boost') or 0))),
+        'hinder': max(0, hinder + (int(d.get('hinder') or 0))),
+        'defend': max(0, defend + (int(d.get('defend') or 0))),
+    }
+
+
 def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
     """Full read-only sheet payload for one hero — everything the player device
     may see. Hiding rules mirror the Player Display: no villain health numbers,
@@ -655,7 +679,7 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
             'currentHealth': (my_token or {}).get('currentHealth'),
             'maxHealth': (my_token or {}).get('maxHealth'),
             'currentDie': (my_token or {}).get('currentDie'),
-            'bhd': (my_token or {}).get('bhdDelta') or {},
+            'bhd': bhd_display_totals(scene, my_token) if my_token else (my_token or {}).get('bhdDelta') or {},
         },
         'sceneType': str((scene or {}).get('sceneType') or ''),
         'recoverAllowed': bool(hero_has_recover_ability(abilities) or scene_is_montage(scene)),

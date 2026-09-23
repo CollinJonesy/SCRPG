@@ -446,6 +446,26 @@ class TestPlayerActionAuthAndValidation(ServerTestCase):
                                               'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 20}}}]))
         self.assertEqual(parsed['outcomes'][0]['health'], 30)
 
+    def test_bhd_reflects_player_defend_mod(self):
+        # Defensive Strike self-defend of 5: the sheet header's BHD boxes must
+        # show the mod-based Defend (same math as the board and PD), not just
+        # the token's manual bhdDelta.
+        self.seed_action_scene()
+        parsed = self.act(self.base(actions=[{'type': 'Defend', 'targetId': 't1',
+                                              'roll': {'manual': {'min': 2, 'mid': 5, 'max': 9}}}]))
+        self.assertTrue(parsed['ok'])
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        p = json.loads(data)
+        self.assertEqual(p['myToken']['bhd']['defend'], 5)
+        self.assertEqual(p['myToken']['bhd']['boost'], 0)
+        # consumed mods stop counting
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        for m in scene['mods']:
+            m['consumed'] = True
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        self.assertEqual(json.loads(data)['myToken']['bhd']['defend'], 0)
+
     def test_recover_allowed_flag_in_payload(self):
         self.seed_action_scene()
         _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
