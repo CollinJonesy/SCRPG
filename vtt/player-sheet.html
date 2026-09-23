@@ -52,9 +52,13 @@
   .header-wrap { display: flex; gap: 12px; align-items: flex-start; }
   .header-wrap > .card { flex: 1; min-width: 0; margin-bottom: 0; }
   .header-heroes { display: flex; gap: 10px; flex: 0 0 auto; }
-  /* Other-hero tokens are FIXED size — they never shrink; the header card
-     flexes narrower instead. */
-  .header-heroes .occ-card { flex: 0 0 150px; width: 150px; min-width: 150px; max-width: 150px; }
+  /* Fixed header height shared by the token cards and the header card — only
+     the header card's WIDTH ever changes. */
+  .header-wrap { --header-h: 200px; }
+  .header-heroes .occ-card { flex: 0 0 150px; width: 150px; min-width: 150px; max-width: 150px;
+                             height: var(--header-h); overflow: hidden; }
+  .header-heroes .occ-card .o-art { width: auto; height: calc(var(--header-h) - 58px); margin: 0 auto; }
+  .header-wrap > .card { height: var(--header-h); overflow: hidden; }
   /* identity header */
   .id-head { display: flex; gap: 14px; align-items: stretch; }
   .id-center { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
