@@ -794,6 +794,59 @@ def power_quality_die(row, prefix: str, name: str) -> str:
     return ''
 
 
+def parse_die_source(text) -> str:
+    """Effect-die mode from an ability's DieSource column and/or GameText:
+    'max+min' | 'max' | 'min' | '' (Mid default). E.g. Unerring Strike's
+    'Use your Max+Min dice' lives in GameText, not the DieSource column."""
+    t = str(text or '').lower()
+    if 'max' in t and 'min' in t:
+        return 'max+min'
+    if 'max' in t:
+        return 'max'
+    if 'min' in t:
+        return 'min'
+    return ''
+
+
+def ability_bracket_dice(game_text) -> list:
+    """Dice the ability text forces, e.g. 'Attack using [Awareness].'."""
+    return re.findall(r'\[([^\]]+)\]', str(game_text or ''))
+
+
+def ability_flags(game_text) -> dict:
+    t = str(game_text or '').lower()
+    return {
+        'ignorePenalties': bool(re.search(r'ignore.{0,30}penalt', t)
+                                or re.search(r'ignore.{0,30}defend', t)),
+        'noReactions': 'cannot be affected by reactions' in t,
+    }
+
+
+def forced_dice_for(row, mode_info, game_text):
+    """Match [Bracket] names in the ability text against the hero's real
+    power/quality names. Returns (powerName|'', qualityName|'')."""
+    out = ['', '']
+    for name in ability_bracket_dice(game_text):
+        n = name.strip().lower()
+        if not out[0] and (name in (mode_info.get('powers') or {})
+                           or power_quality_die(row, 'Power', n)):
+            out[0] = name
+        elif not out[1] and (name in (mode_info.get('powers') or {})
+                             or power_quality_die(row, 'Quality', n)):
+            out[1] = name
+    return out[0], out[1]
+
+
+def effect_from_values(vals, mode: str) -> int:
+    if mode == 'max+min':
+        return int(vals['max']) + int(vals['min'])
+    if mode == 'max':
+        return int(vals['max'])
+    if mode == 'min':
+        return int(vals['min'])
+    return int(vals['mid'])
+
+
 def resolve_pool(row, token, mode_info, pool):
     """Dice-pool resolution. Returns ({min, mid, max, effect, ...}, err).
     pool['manual'] = player-entered Min/Mid/Max + Effect Die (server clamps and
@@ -805,17 +858,18 @@ def resolve_pool(row, token, mode_info, pool):
             vals = sorted(int(manual.get(k) or 0) for k in ('min', 'mid', 'max'))
         except (TypeError, ValueError):
             return None, 'manual roll needs numeric min/mid/max'
-        try:
-            eff = int(manual.get('effect') or 0)
-        except (TypeError, ValueError):
-            return None, 'effect die must be a number'
-        if eff < 0 or eff > 20:
-            return None, 'effect die out of range'
+        eff = None
+        if manual.get('effect') not in (None, ''):
+            try:
+                eff = int(manual.get('effect'))
+            except (TypeError, ValueError):
+                return None, 'effect die must be a number'
         return {'min': vals[0], 'mid': vals[1], 'max': vals[2], 'effect': eff}, None
-    # Digital roll — the server rolls; the client only picks WHICH dice.
+    # Digital roll — the server rolls; the client only picks WHICH dice
+    # (a bracketed ability like [Awareness] forces the die server-side).
     powers = mode_info.get('powers') or {}
-    pname = str((pool or {}).get('power') or '')
-    qname = str((pool or {}).get('quality') or '')
+    pname = str((pool or {}).get('forcedPower') or (pool or {}).get('power') or '')
+    qname = str((pool or {}).get('forcedQuality') or (pool or {}).get('quality') or '')
     pdie = die_size_of(powers.get(pname) or power_quality_die(row, 'Power', pname))
     qdie = die_size_of(powers.get(qname) or power_quality_die(row, 'Quality', qname))
     sdie = (die_size_of((token or {}).get('currentDie'))
@@ -1141,13 +1195,48 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
         if target.get('ko'):
             return 400, {'error': 'target is out'}
 
+    # ---- ability row: GameText drives the effect die, forced dice, flags ----
+    ability_row = None
+    if ability_name:
+        an = ability_name.strip().lower()
+        ability_row = next((r for r in abilities
+                            if (r.get('Name') or '').strip().lower() == an
+                            or (r.get('DisplayName') or '').strip().lower() == an), None)
+    game_text = str((ability_row or {}).get('GameText') or '')
+    flags = ability_flags(game_text)
+
     # ---- dice pool ----
-    vals, err = resolve_pool(row, tok, mode_info, a.get('roll') or {})
+    pool = dict(a.get('roll') or {})
+    fp, fq = forced_dice_for(row, mode_info, game_text)
+    if fp:
+        pool['forcedPower'] = fp
+    if fq:
+        pool['forcedQuality'] = fq
+    vals, err = resolve_pool(row, tok, mode_info, pool)
     if err:
         return 400, {'error': err}
-    effect = int(vals['effect'])
+    ds = parse_die_source(str((ability_row or {}).get('DieSource') or '') + ' ' + game_text)
+    if ds:
+        # The ability's effect die is an internal calculation (e.g. Max+Min) —
+        # the client never supplies it.
+        effect = effect_from_values(vals, ds)
+        vals['effectMode'] = ds
+    elif vals['effect'] is None:
+        effect = int(vals['mid'])
+        vals['effect'] = effect
+    else:
+        effect = int(vals['effect'])
+        if effect < 0 or effect > 20:
+            return 400, {'error': 'effect die out of range'}
 
     # ---- mod spends (the affected decides when a Boost/Hinder happens) ----
+    if flags['ignorePenalties']:
+        spent = [str(i) for i in (a.get('spendMods') or [])]
+        mods = ensure_scene_mods(scene)
+        for mid in spent:
+            m = next((x for x in mods if str(x.get('id') or '') == mid), None)
+            if m is not None and m.get('kind') == 'hinder' and m.get('targetId') == tok.get('id'):
+                return 400, {'error': 'this attack ignores all penalties — Hinders cannot apply'}
     spend_delta, err = spend_player_mods(scene, tok, a.get('spendMods'), None)
     if err:
         return 400, {'error': err}
@@ -1176,11 +1265,15 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
     result = ''
     outcome = {'type': atype, 'effect': effect, 'roll': vals}
     if atype == 'Attack':
-        defend = defend_total_on(scene, target)
+        defend = 0 if flags['ignorePenalties'] else defend_total_on(scene, target)
         dmg = max(0, effect + spend_delta - defend)
         if defend:
             consume_defend_mods(scene, target)
             details['defend'] = defend
+        if flags['ignorePenalties']:
+            details['ignorePenalties'] = True
+        if flags['noReactions']:
+            details['noReactions'] = True
         details['dmg'] = dmg
         result = apply_player_attack(scene, tok, target, dmg, ability_name or 'Attack', effect)
         outcome['target'] = {'id': target.get('id'), 'name': target.get('name'),
@@ -2049,6 +2142,17 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 # GM only (LAN console): the whole {heroSlug: key} map.
                 return self._send_text(json.dumps(_load_json_file(campaign / 'sheet-keys.json', {})),
                                        200, 'application/json')
+
+            if path == '/api/reminders':
+                # Power/Quality reminder data for hover boxes: the real name +
+                # the catalog description, from the Hero Builder catalogs.
+                def _cat(name):
+                    rows = _csv_rows(APP_DIR / 'builder' / 'catalog' / (name + '.csv'),
+                                     ['slug', 'name', 'description'])
+                    return {r.get('Name', ''): r.get('Description', '') for r in rows}
+                return self._send_text(json.dumps({
+                    'powers': _cat('powers'), 'qualities': _cat('qualities'),
+                }), 200, 'application/json')
 
             if path == '/api/player-sheet':
                 # Player-device read path, key-gated. ?hero=<slug>&key=<token>

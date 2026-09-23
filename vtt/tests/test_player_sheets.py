@@ -625,6 +625,74 @@ class TestPlayerActionAuthAndValidation(ServerTestCase):
             {'type': 'Attack', 'targetId': 't2', 'roll': {'power': 'Nope', 'quality': 'Fitness'}}]))
         self.assertIn('error', parsed)
 
+    def test_effect_die_from_game_text(self):
+        self.seed_action_scene()
+        # Unerring-Strike-style: "Use your Max+Min dice" → effect = max+min,
+        # computed server-side; a client-supplied effect is ignored.
+        rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
+            'Slug': 'test-hero', 'Name': 'Unerring Strike', 'Type': 'A',
+            'GameText': 'Attack using [Awareness]. Use your Max+Min dice. Ignore all penalties on this attack, ignore any Defend actions, and it cannot be affected by Reactions.',
+            'RollType': 'Attack, Defend'}]
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        parsed = self.act(self.base(abilityName='Unerring Strike', actions=[
+            {'type': 'Attack', 'targetId': 't2',
+             'roll': {'manual': {'min': 2, 'mid': 5, 'max': 9, 'effect': 999}}}]))
+        self.assertTrue(parsed['ok'], parsed)
+        self.assertEqual(parsed['outcomes'][0]['effect'], 11)  # 9 + 2
+        self.assertEqual(parsed['outcomes'][0]['roll']['effectMode'], 'max+min')
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertEqual(next(t for t in scene['tokens'] if t['id'] == 't2')['currentHealth'], 29)
+
+    def test_ignore_penalties_flags(self):
+        self.seed_action_scene()
+        rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
+            'Slug': 'test-hero', 'Name': 'Unerring Strike', 'Type': 'A',
+            'GameText': 'Attack using [Awareness]. Use your Max+Min dice. Ignore all penalties on this attack, ignore any Defend actions, and it cannot be affected by Reactions.',
+            'RollType': 'Attack'}]
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['mods'] = [
+            {'id': 'md', 'kind': 'defend', 'value': 4, 'creatorId': 't1', 'targetId': 't2', 'uses': 1},
+            {'id': 'mh', 'kind': 'hinder', 'value': 2, 'creatorId': 't2', 'targetId': 't1', 'uses': 1},
+        ]
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        # a Defend mod on the target is ignored, NOT consumed
+        parsed = self.act(self.base(abilityName='Unerring Strike', actions=[
+            {'type': 'Attack', 'targetId': 't2',
+             'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3}}}]))
+        self.assertTrue(parsed['ok'])
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 4)  # max+min = 4, defend NOT subtracted
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertFalse(next(m for m in scene['mods'] if m['id'] == 'md').get('consumed'))
+        # spending the hero's own Hinder is refused — penalties cannot apply
+        parsed = self.act(self.base(abilityName='Unerring Strike', actions=[
+            {'type': 'Attack', 'targetId': 't2', 'spendMods': ['mh'],
+             'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3}}}]))
+        self.assertIn('error', parsed)
+        self.assertIn('ignores', parsed['error'])
+
+    def test_forced_die_digital_roll(self):
+        self.seed_action_scene()
+        # [Awareness] is a QUALITY on the seeded hero — digital roll must use it
+        rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
+            'Slug': 'test-hero', 'Name': 'Sense Attack', 'Type': 'R',
+            'GameText': 'Defend using [Fitness].', 'RollType': 'Defend'}]
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        parsed = self.act(self.base(abilityName='Sense Attack', actions=[
+            {'type': 'Defend', 'targetId': 't1', 'roll': {'power': 'Strength', 'quality': 'Fitness'}}]))
+        self.assertTrue(parsed['ok'])
+        self.assertEqual(parsed['outcomes'][0]['roll']['qualityDie'], 'd8')
+        self.assertEqual(parsed['outcomes'][0]['roll']['powerDie'], 'd8')  # forced Power=Strength? No: only quality forced
+        # the server used the client-chosen power since the bracket only names Fitness
+
+    def test_reminders_endpoint(self):
+        status, data = self.request('GET', '/api/reminders')
+        self.assertEqual(status, 200)
+        j = json.loads(data)
+        self.assertIn('powers', j)
+        self.assertIn('qualities', j)
+        self.assertIsInstance(j['powers'], dict)
+
 
 class TestPlayerMode(ServerTestCase):
     def seed_modular(self):

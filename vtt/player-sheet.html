@@ -114,6 +114,9 @@
   .abil .a-zone { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-lo); }
   .abil .a-text { margin-top: 4px; font-size: 13.5px; color: #cfcfde; white-space: pre-wrap; }
   .abil .a-meta { margin-top: 4px; font-size: 12px; color: var(--text-lo); }
+  .abil.clickable { cursor: pointer; }
+  .abil.clickable:hover { background: #2a2a42; }
+  .abil.noclick { opacity: .45; cursor: not-allowed; }
 
   /* principles */
   .principle { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
@@ -166,6 +169,12 @@
                  padding: 8px 10px; margin-bottom: 6px; font-size: 13.5px; }
   .pending-mod .pm-meta { color: var(--text-lo); font-size: 12px; margin-top: 3px; }
 
+  /* Reminder boxes (generic: data-rem + data-rem-kind on any element) */
+  .reminder-box { position: fixed; z-index: 60; background: #26263c; border: 1px solid var(--gold);
+                  border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text);
+                  box-shadow: 0 4px 14px rgba(0,0,0,.5); pointer-events: none; line-height: 1.45; }
+  .reminder-box b { color: var(--gold); }
+
   /* Are You Sure? modal */
   .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
                     display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -180,6 +189,10 @@
         border: 1px solid var(--line); border-radius: 6px; padding: 7px; font-size: 14px; }
   .ays .dice-row { display: flex; gap: 8px; }
   .ays .dice-row > div { flex: 1; }
+  .ays .roll-mode-stack { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+  .ays .roll-mode-stack .radio-line { margin: 0; white-space: nowrap; font-size: 13px; }
+  .ays .pq-selects { margin-top: 8px; align-items: flex-end; }
+  .ays .pq-selects > div { min-width: 0; }
   .ays .blk { border-left: 3px solid var(--accent); padding-left: 10px; margin: 12px 0; }
   .ays .outcome { background: #14251a; border: 1px solid var(--green); border-radius: 8px;
                   padding: 10px 12px; margin-top: 10px; font-size: 14px; }
@@ -269,7 +282,7 @@ function pqSorted(row, prefix, count) {
   for (let i = 1; i <= count; i++) {
     const name = row[prefix + i] || '';
     if (!name) continue;
-    out.push({ name: String(row[prefix + i + 'DisplayName'] || name), die: row[prefix + 'Die' + i] || '' });
+    out.push({ real: String(name), name: String(row[prefix + i + 'DisplayName'] || name), die: row[prefix + 'Die' + i] || '' });
   }
   out.sort((a, b) => dieNum(b.die) - dieNum(a.die) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   return out;
@@ -299,9 +312,60 @@ function modesOf(list) {
 // ---- section renderers ----
 function pqGridHtml(row, prefix, count) {
   const items = pqSorted(row, prefix, count);
-  return items.map(it => `<div class="pq"><span>${esc(it.name)}</span><span class="die">${esc(it.die)}</span></div>`).join('')
+  const remKind = prefix === 'Power' ? 'powers' : 'qualities';
+  return items.map(it => `<div class="pq" data-rem="${esc(it.real)}" data-rem-kind="${remKind}"><span>${esc(it.name)}</span><span class="die">${esc(it.die)}</span></div>`).join('')
     || '<span class="muted">None recorded.</span>';
 }
+
+// ================= Reminder Box architecture =================
+// One delegated hover handler for the WHOLE sheet: any element carrying
+// data-rem (real name) + data-rem-kind (powers|qualities) gets a floating
+// box after 1 second of hover, showing the real name + catalog description.
+// To attach a reminder elsewhere later: add those two data attributes.
+let REMINDERS = { powers: {}, qualities: {} };
+let remTimer = null;
+
+function loadReminders() {
+  return fetch('/api/reminders').then(r => r.json())
+    .then(j => { REMINDERS = j && j.powers ? j : { powers: {}, qualities: {} }; })
+    .catch(() => {});
+}
+
+function showReminderBox(el, kind, name) {
+  hideReminderBox();
+  const desc = (REMINDERS[kind] || {})[name] || '';
+  const box = document.createElement('div');
+  box.className = 'reminder-box';
+  box.id = 'remBox';
+  box.innerHTML = desc
+    ? `<b>${esc(name)}:</b> ${esc(desc)}`
+    : `<b>${esc(name)}</b><div class="fineprint">No description on record.</div>`;
+  document.body.appendChild(box);
+  const r = el.getBoundingClientRect();
+  const bw = Math.min(320, window.innerWidth - 16);
+  let left = Math.max(8, Math.min(r.left, window.innerWidth - bw - 8));
+  let top = r.bottom + 6;
+  if (top + box.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - box.offsetHeight - 6);
+  box.style.left = left + 'px';
+  box.style.top = top + 'px';
+  box.style.maxWidth = bw + 'px';
+}
+function hideReminderBox() {
+  clearTimeout(remTimer);
+  remTimer = null;
+  const box = document.getElementById('remBox');
+  if (box) box.remove();
+}
+document.addEventListener('mouseover', e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-rem]') : null;
+  if (!el) return;
+  clearTimeout(remTimer);
+  remTimer = setTimeout(() => showReminderBox(el, el.dataset.remKind, el.dataset.rem), 1000);
+});
+document.addEventListener('mouseout', e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-rem]') : null;
+  if (el) hideReminderBox();
+});
 
 function trackerColor(p) {
   const tr = p.tracker;
@@ -444,12 +508,15 @@ function abilitiesHtml(p) {
     const roll = String(a.RollType || '').trim();
     const title = [t, esc(a.DisplayName || a.Name), esc(roll)].filter(Boolean).join(' - ');
     const meta = [a.DieSource ? 'Source: ' + a.DieSource : ''].filter(Boolean).map(esc).join(' · ');
+    const name = String(a.Name || '');
+    const click = bandAllowsZone(p, a.Zone) && rollTypesOf(a).length
+      ? ` onclick="openAbilityAction('${esc(name)}')" title="Tap to use this ability"`
+      : ` title="${bandAllowsZone(p, a.Zone) ? 'No roll types on this ability' : 'Your status band does not allow this ability yet'}"`;
     return `
-    <div class="abil z-${esc(a.Zone || 'Green')}">
+    <div class="abil z-${esc(a.Zone || 'Green')}${abilityRowClass(p, a)}"${click}>
       <div class="a-head"><span class="a-name">${title}</span></div>
       <div class="a-text">${esc(a.GameText || '')}</div>
       ${meta ? `<div class="a-meta">${meta}</div>` : ''}
-      ${abilityActionButtons(p, a)}
     </div>`;
   }).join('');
   return filterUi + basicActionsHtml(p) + (rows || '<span class="muted">No abilities in this view.</span>');
@@ -685,17 +752,9 @@ function targetOptionsFor(p, type) {
     `<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.kind)})</option>`).join('');
 }
 
-function pqOptions(row, prefix, count) {
-  const out = [];
-  for (let i = 1; i <= count; i++) {
-    const n = row[prefix + i];
-    if (n) out.push(`<option value="${esc(n)}">${esc(n)} (${esc(row[prefix + 'Die' + i] || '?')})</option>`);
-  }
-  return out.join('');
-}
-
-function modSpendHtml(p, idx) {
-  const mods = p.pendingMods || [];
+function modSpendHtml(p, idx, ignorePenalties) {
+  const mods = (p.pendingMods || []).filter(m =>
+    !(ignorePenalties && m.kind === 'hinder'));
   if (!mods.length) return '';
   return `<div class="bd-row"><b>Spend mods on this roll</b> (you decide when a Boost/Hinder happens)` +
     mods.map(m => `<div class="radio-line"><input type="checkbox" class="ays-mod" data-block="${idx}" id="mod_${idx}_${esc(m.id)}">
@@ -717,37 +776,29 @@ function openActionStaged(types, ability) {
   const modeChange = ability && /switch/i.test(String(ability.Name || ''))
     ? { position: /quick switch/i.test(String(ability.Name || '')) ? 'pre' : 'post' } : null;
   aysState.modeChange = modeChange;
+  // Flags parsed from GameText (server enforces the same rules).
+  const gt = String((ability || {}).GameText || '');
+  const ignorePenalties = /ignore.{0,30}penalt/i.test(gt) || /ignore.{0,30}defend/i.test(gt);
+  const noReactions = /cannot be affected by reactions/i.test(gt);
+  aysState.flags = { ignorePenalties, noReactions };
+  // Dice the ability forces via [Brackets] — locked dropdowns.
+  const forced = forcedDiceFromText(gt, row);
+  aysState.forced = forced;
+  const typeWord = { A: 'Action', R: 'Reaction' }[String((ability || {}).Type || '').trim().toUpperCase()] || 'Action';
+  const headerLine = ability
+    ? `Action: ${esc(ability.DisplayName || ability.Name)}${types.length ? ' - ' + esc(types.join(', ')) : ''}`
+        .replace(/^Action:/, typeWord + ':')
+    : `Action: ${esc('Basic ' + types[0])}`;
   const blocks = types.map((t, i) => {
     const isOvercome = t === 'Overcome';
-    const isRecover = t === 'Recover';
     const target = isOvercome
       ? `<label>Overcome target <input type="text" id="aysTargetLabel_${i}" placeholder="Door, alarm, scene object…"></label>`
       : `<label>Target <select id="aysTarget_${i}">${targetOptionsFor(p, t)}</select></label>`;
-    const dieSource = String((ability || {}).DieSource || '').toLowerCase();
-    const effectHint = /max/.test(dieSource) ? ' (ability uses the MAX die)' : /min/.test(dieSource) ? ' (ability uses the MIN die)' : '';
     return `<div class="blk">
       <div class="bd-row"><b>${esc(t)}</b>${ability ? ' — ' + esc(abilName) : ''}</div>
       ${target}
-      <div class="bd-row">
-        <div class="radio-line"><input type="radio" name="rollMode_${i}" value="manual" checked onchange="aysToggleRoll(${i})">
-          <b>Manual Roll</b> — enter what you rolled on your physical dice</div>
-        <div class="radio-line"><input type="radio" name="rollMode_${i}" value="digital" onchange="aysToggleRoll(${i})">
-          <b>Digital Roll</b> — the server rolls for you</div>
-        <div id="aysManual_${i}">
-          <div class="dice-row">
-            <div><label>Min</label><input type="number" id="aysMin_${i}" min="0" value="0"></div>
-            <div><label>Mid</label><input type="number" id="aysMid_${i}" min="0" value="0"></div>
-            <div><label>Max</label><input type="number" id="aysMax_${i}" min="0" value="0"></div>
-            <div><label>Effect Die${esc(effectHint)}</label><input type="number" id="aysEffect_${i}" min="0" value="0"></div>
-          </div>
-        </div>
-        <div id="aysDigital_${i}" style="display:none;">
-          <label>Power</label><select id="aysPower_${i}">${pqOptions(row, 'Power', 6)}</select>
-          <label>Quality</label><select id="aysQuality_${i}">${pqOptions(row, 'Quality', 6)}</select>
-          <div class="fineprint">The server rolls your power + quality + status dice and sorts Min/Mid/Max.</div>
-        </div>
-      </div>
-      ${modSpendHtml(p, i)}
+      ${diceBlockHtml(p, i)}
+      ${modSpendHtml(p, i, ignorePenalties)}
       ${(t === 'Boost' || t === 'Hinder') ? modTwistHtml(p, i) : ''}
     </div>`;
   }).join('');
@@ -759,7 +810,11 @@ function openActionStaged(types, ability) {
           : '<div class="fineprint">Order: the action happens in your CURRENT mode first, then the mode changes.</div>'}</div>`
     : '';
   showAys(`Are You Sure? — ${esc(heroName)}`, `
-    <div class="bd-row"><b>Action:</b> ${esc(abilName)}${ability ? `<div class="fineprint">${esc(ability.GameText || '')}</div>` : ''}</div>
+    <div class="bd-row"><b>${headerLine}</b>
+      ${ability ? `<div class="fineprint">${esc(ability.GameText || '')}</div>` : ''}
+      ${ignorePenalties ? '<div class="fineprint">This attack ignores all penalties — Hinders on you cannot apply and Defend actions are ignored.</div>' : ''}
+      ${noReactions ? '<div class="fineprint">Reactions cannot affect this ability.</div>' : ''}
+    </div>
     ${blocks}${modeSel}
     <div class="fineprint">On confirm this applies to the board immediately — the GM sees it land live. Nothing happens until you press Confirm.</div>
     <div id="aysOutcome"></div>
@@ -767,6 +822,78 @@ function openActionStaged(types, ability) {
       <button class="btn" onclick="closeAys()">Cancel</button>
       <button class="btn primary" id="aysConfirmBtn" onclick="confirmAys()">Confirm — Apply</button>
     </div>`);
+}
+
+// [Bracketed] dice in ability text, matched against the hero's real
+// power/quality names — those dropdowns get locked.
+function forcedDiceFromText(gt, row) {
+  const out = { power: '', quality: '' };
+  const brackets = (String(gt || '').match(/\[([^\]]+)\]/g) || []).map(s => s.slice(1, -1).trim().toLowerCase());
+  for (const b of brackets) {
+    for (let i = 1; i <= 6 && !out.power; i++) {
+      if (String(row['Power' + i] || '').trim().toLowerCase() === b.toLowerCase()) out.power = String(row['Power' + i] || '');
+    }
+    for (let i = 1; i <= 6 && !out.quality; i++) {
+      if (String(row['Quality' + i] || '').trim().toLowerCase() === b.toLowerCase()) out.quality = String(row['Quality' + i] || '');
+    }
+  }
+  return out;
+}
+
+// Min/Mid/Max inputs with Manual/Digital stacked on the right (the Effect Die
+// field is gone — the ability's effect die is an internal calculation), then
+// the Power/Quality dropdowns (locked when the ability forces them) and the
+// current Status die beside them.
+function diceBlockHtml(p, i) {
+  const row = p.row || {};
+  const forced = aysState.forced || {};
+  const dieTag = v => 'd' + (parseInt(String(v || '').replace(/\D/g, ''), 10) || 0);
+  const opt = (prefix, realName, die) => {
+    const n = parseInt(String(die || '').replace(/\D/g, ''), 10) || 0;
+    return `<option value="${esc(realName)}">${esc(realName)} (d${n})</option>`;
+  };
+  const powerOpts = [];
+  const qualOpts = [];
+  for (let i = 1; i <= 6; i++) {
+    const pn = row['Power' + i], qn = row['Quality' + i];
+    if (pn) powerOpts.push(opt('Power', pn, row['PowerDie' + i]));
+    if (qn) qualOpts.push(opt('Quality', qn, row['QualityDie' + i]));
+  }
+  const lockP = forced.power ? ' disabled' : '';
+  const lockQ = forced.quality ? ' disabled' : '';
+  const selP = `<select id="aysPower_${i}"${lockP}>${powerOpts.join('')}</select>`;
+  const selQ = `<select id="aysQuality_${i}"${lockQ}>${qualOpts.join('')}</select>`;
+  if (forced.power) { setTimeout(() => { const s = document.getElementById('aysPower_' + i); if (s) s.value = forced.power; }, 0); }
+  if (forced.quality) { setTimeout(() => { const s = document.getElementById('aysQuality_' + i); if (s) s.value = forced.quality; }, 0); }
+  const statusDie = dieTag(p.myToken && p.myToken.currentDie);
+  const bandL = currentBandLetter(p);
+  return `<div class="bd-row dice-block">
+    <div class="dice-row dice-entries" id="aysManualRow_${i}">
+      <div><label>Min</label><input type="number" id="aysMin_${i}" min="0" value="0"></div>
+      <div><label>Mid</label><input type="number" id="aysMid_${i}" min="0" value="0"></div>
+      <div><label>Max</label><input type="number" id="aysMax_${i}" min="0" value="0"></div>
+      <div class="roll-mode-stack">
+        <label class="radio-line"><input type="radio" name="rollMode_${i}" value="manual" checked onchange="aysToggleRoll(${i})">Manual Roll</label>
+        <label class="radio-line"><input type="radio" name="rollMode_${i}" value="digital" onchange="aysToggleRoll(${i})">Digital Roll</label>
+      </div>
+    </div>
+    <div class="dice-row pq-selects">
+      <div><label>Power</label>${selP}</div>
+      <div><label>Quality</label>${selQ}</div>
+      <div class="status-cell" style="flex:0 0 auto;">
+        <div class="muted" style="font-size:11px;">Status</div>
+        <div class="die ${bandL}">${esc(statusDie)}</div>
+      </div>
+    </div>
+    <div class="fineprint" id="aysDigitalNote_${i}" style="display:none;">Digital Roll: the server rolls your chosen Power + Quality + Status dice and computes Min/Mid/Max and the effect die itself.</div>
+  </div>`;
+}
+
+function aysToggleRoll(i) {
+  const manual = document.querySelector(`input[name="rollMode_${i}"]:checked`).value === 'manual';
+  const row = document.getElementById('aysManualRow_' + i);
+  if (row) row.style.opacity = manual ? '' : '.35';
+  document.querySelectorAll(`#aysManualRow_${i} input[type=number]`).forEach(inp => { inp.disabled = !manual; });
 }
 
 function modTwistHtml(p, idx) {
@@ -835,13 +962,11 @@ function aysBlockPayload(p, types) {
     const manual = document.querySelector(`input[name="rollMode_${i}"]:checked`).value === 'manual';
     if (manual) {
       const g = id => Number((document.getElementById(id) || {}).value) || 0;
-      block.roll = { manual: { min: g('aysMin_' + i), mid: g('aysMid_' + i), max: g('aysMax_' + i), effect: g('aysEffect_' + i) } };
+      // No Effect Die entry — the ability (or Mid default) determines it server-side.
+      block.roll = { manual: { min: g('aysMin_' + i), mid: g('aysMid_' + i), max: g('aysMax_' + i) } };
     } else {
       block.roll = { power: (document.getElementById('aysPower_' + i) || {}).value || '',
                      quality: (document.getElementById('aysQuality_' + i) || {}).value || '' };
-      const ds = String((aysState.ability || {}).DieSource || '').toLowerCase();
-      if (/max/.test(ds)) block.roll.effectDie = 'max';
-      if (/min/.test(ds)) block.roll.effectDie = 'min';
     }
     const spend = [...document.querySelectorAll(`.ays-mod[data-block="${i}"]:checked`)].map(el =>
       el.id.split('_').slice(2).join('_'));
@@ -910,29 +1035,31 @@ function pendingModsHtml(p) {
   </div>`).join('');
 }
 
-function abilityActionButtons(p, a) {
-  const types = rollTypesOf(a);
-  if (!types.length) return '';
-  const locked = lockedActionsFor(p);
-  const name = String(a.Name || '');
-  const btnOnclick = t => `openAbilityAction('${esc(t)}','${esc(name)}')`;
-  const btns = types.map(t => {
-    if (locked.has(t.toLowerCase())) {
-      return `<button class="btn small locked" disabled title="${esc(t)} is locked in this mode">${esc(t)} 🔒</button>`;
-    }
-    return `<button class="btn small primary" onclick="${btnOnclick(t)}">${esc(t)}</button>`;
-  }).join('');
-  const multi = types.length > 1
-    ? `<button class="btn small" onclick="openAbilityAction('__ALL__','${esc(name)}')">Whole Ability</button>` : '';
-  return `<div class="a-actions">${btns}${multi}</div>`;
+function abilityActionButtons(p, a) { return ''; }
+
+// GYRO availability: a hero may only use abilities at or above their current
+// status band — Green status: Green only; Yellow: Green+Yellow; Red: all but
+// Out; Out: Out only. Returns false when the row is not clickable.
+function bandAllowsZone(p, zone) {
+  const cur = currentBandLetter(p); // 'g' | 'y' | 'r' | 'o'
+  const z = String(zone || 'Green').toLowerCase();
+  if (cur === 'g') return z === 'green';
+  if (cur === 'y') return z === 'green' || z === 'yellow';
+  if (cur === 'r') return z !== 'out';
+  return z === 'out'; // Out: only Out abilities
 }
 
-function openAbilityAction(t, name) {
-  const a = abilitiesByName[name] || null;
-  openActionStaged(t === '__ALL__' ? rollTypesOf(a || {}) : [t], a);
+function abilityRowClass(p, a) {
+  return bandAllowsZone(p, a.Zone) ? ' clickable' : ' noclick';
 }
 
 let abilitiesByName = {};
+
+function openAbilityAction(name) {
+  const a = abilitiesByName[name] || null;
+  if (!a) return;
+  openActionStaged(rollTypesOf(a), a);
+}
 
 async function tick() {
   // Pause the poll while ANY decision surface is open so nothing under the
@@ -965,6 +1092,7 @@ async function tick() {
 
 tick();
 setInterval(tick, 3000);
+loadReminders();
 </script>
 </body>
 </html>
