@@ -197,7 +197,6 @@ applyLayoutMode();
 
 let lastPayload = null;
 let notesDirty = false;
-const HP_REMINDER = 'Hero Points: when <b>any</b> hero uses a Principle in an Overcome — success or not — every hero earns 1. A meaningful social scene earns 1 more (once per scene). Max 5 per Issue. They are not spent in play: at Issue end they convert to exclusive bonuses on your rolls (split freely, one bonus per roll).';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -561,8 +560,10 @@ function renderSheet(p) {
           </div>
         </div>
         <div class="card"><h2>Hero Points — ${esc(hp.issue || 'this Issue')}</h2>
-          ${hpDots(hp.mine || 0)}
-          <div class="hint-reminders">${HP_REMINDER}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            ${hpDots(hp.mine || 0)}
+            <span style="font-size:15px;color:var(--text-lo);">${hp.mine || 0} / 5</span>
+          </div>
         </div>
         <div class="card">
           <h2 class="collapsible-head" onclick="toggleLocationCard()">Location <span class="chev" id="locChev">${locOpen ? '▾' : '▸'}</span></h2>
