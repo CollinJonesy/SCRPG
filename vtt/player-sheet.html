@@ -418,7 +418,8 @@ function principlesHtml(row) {
 
 function occupantsHtml(p) {
   if (!p.location || !p.location.name) return '<span class="muted">You are not on the board yet. The GM will place you when the scene starts.</span>';
-  const cards = sortedOccupants(p.occupants).map(({ t, g }) => {
+  // Players live in the header now; the Location card shows everyone else.
+  const cards = sortedOccupants(p.occupants).filter(x => x.g !== 4).map(({ t, g }) => {
     let hpLine = '';
     if (t.kind !== 'villain' && t.currentHealth != null && t.maxHealth) {
       hpLine = `<div class="o-hp">Health ${t.currentHealth}/${t.maxHealth}</div>`;
