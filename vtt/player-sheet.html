@@ -454,6 +454,8 @@ function renderSheet(p) {
   const prevTa = document.getElementById('notesArea');
   const prevNotes = prevTa && notesDirty ? prevTa.value : null;
   const band = healthBand(p.myToken && p.myToken.currentHealth, p.myToken && p.myToken.maxHealth);
+  // preserve each column's scroll position across the 3s poll re-render
+  const prevScrolls = [...document.querySelectorAll('.sheet-col')].map(c => c.scrollTop);
   const hp = p.heroPoints || {};
   const curHP = p.myToken && p.myToken.currentHealth != null ? p.myToken.currentHealth : null;
   const maxHP = p.myToken && p.myToken.maxHealth != null ? p.myToken.maxHealth : (Number(row.MaxHealth) || null);
@@ -516,6 +518,8 @@ function renderSheet(p) {
   const ta = document.getElementById('notesArea');
   if (prevNotes !== null) ta.value = prevNotes;
   ta.addEventListener('input', () => { notesDirty = true; });
+  // restore column scroll positions after the re-render
+  document.querySelectorAll('.sheet-col').forEach((c, i) => { if (prevScrolls[i]) c.scrollTop = prevScrolls[i]; });
 }
 
 async function saveNotes() {
