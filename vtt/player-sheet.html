@@ -54,9 +54,13 @@
   /* Fixed header height shared by the token cards and the header card — only
      the header card's WIDTH ever changes. */
   .header-wrap { --header-h: 200px; }
-  .header-heroes .occ-card { flex: 0 0 150px; width: 150px; min-width: 150px; max-width: 150px;
-                             height: var(--header-h); overflow: hidden; }
-  .header-heroes .occ-card .o-art { width: auto; height: calc(var(--header-h) - 58px); margin: 0 auto; }
+  .header-heroes .occ-card { flex: 0 0 138px; width: 138px; min-width: 138px; max-width: 138px;
+                             height: var(--header-h); overflow: hidden; padding: 0 0 2px; }
+  .header-heroes .occ-card .o-art { width: 100%; height: calc(var(--header-h) - 46px);
+                                    background-size: contain; background-position: center;
+                                    border-radius: 6px 6px 0 0; }
+  .header-heroes .occ-card .o-name { margin-top: 2px; }
+  .header-heroes .occ-card .o-hp { margin-top: 0; padding-bottom: 0; }
   .header-wrap > .card { height: var(--header-h); overflow: hidden; }
   /* identity header */
   .id-head { display: flex; gap: 14px; align-items: stretch; }
