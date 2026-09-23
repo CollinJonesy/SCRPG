@@ -156,6 +156,38 @@
   .hp-dots { font-size: 24px; letter-spacing: 4px; }
   .save-status { font-size: 12px; color: var(--text-lo); margin-left: 8px; }
   @media (max-width: 560px) { .id-head { flex-direction: column; } .portrait { width: 84px; height: 84px; } }
+
+  /* actions */
+  .abil .a-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn.small { padding: 4px 10px; font-size: 12.5px; }
+  .btn.locked { opacity: .55; cursor: not-allowed; }
+  .action-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .pending-mod { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+                 padding: 8px 10px; margin-bottom: 6px; font-size: 13.5px; }
+  .pending-mod .pm-meta { color: var(--text-lo); font-size: 12px; margin-top: 3px; }
+
+  /* Are You Sure? modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
+                    display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ays { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+         max-width: 640px; width: 100%; max-height: 88vh; overflow-y: auto; padding: 18px; }
+  .ays h2 { color: var(--gold); font-size: 24px; margin-bottom: 10px; }
+  .ays .bd-row { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+                 padding: 8px 10px; margin-bottom: 8px; font-size: 13.5px; }
+  .ays .bd-row b { color: var(--text); }
+  .ays label { display: block; margin: 8px 0 2px; font-size: 13px; color: var(--text-lo); }
+  .ays input[type=number], .ays select { width: 100%; background: #0d0d16; color: var(--text);
+        border: 1px solid var(--line); border-radius: 6px; padding: 7px; font-size: 14px; }
+  .ays .dice-row { display: flex; gap: 8px; }
+  .ays .dice-row > div { flex: 1; }
+  .ays .blk { border-left: 3px solid var(--accent); padding-left: 10px; margin: 12px 0; }
+  .ays .outcome { background: #14251a; border: 1px solid var(--green); border-radius: 8px;
+                  padding: 10px 12px; margin-top: 10px; font-size: 14px; }
+  .ays .outcome.err { background: #2a1414; border-color: var(--red); }
+  .ays .radio-line { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--text); font-size: 13.5px; }
+  .ays .radio-line input { width: auto; }
+  .ays .foot { display: flex; gap: 10px; margin-top: 14px; justify-content: flex-end; }
+  .ays .fineprint { color: var(--text-lo); font-size: 12px; margin-top: 8px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -381,6 +413,8 @@ function abilitiesHtml(p) {
   if (isModular && window.__abilFilter === undefined) window.__abilFilter = 'mode:' + (p.currentMode || 'default');
   const filter = (window.__abilFilter === undefined ? 'all' : window.__abilFilter);
   const all = abilitiesSorted(p.abilities);
+  abilitiesByName = {};
+  all.forEach(a => { abilitiesByName[String(a.Name || '')] = a; });
   const shown = abilitiesForFilter(p, filter, all);
   const curMode = String(p.currentMode || 'default');
   let filterUi;
@@ -415,9 +449,10 @@ function abilitiesHtml(p) {
       <div class="a-head"><span class="a-name">${title}</span></div>
       <div class="a-text">${esc(a.GameText || '')}</div>
       ${meta ? `<div class="a-meta">${meta}</div>` : ''}
+      ${abilityActionButtons(p, a)}
     </div>`;
   }).join('');
-  return filterUi + (rows || '<span class="muted">No abilities in this view.</span>');
+  return filterUi + basicActionsHtml(p) + (rows || '<span class="muted">No abilities in this view.</span>');
 }
 
 function setAbilFilter(f) { window.__abilFilter = f; renderSheet(lastPayload); }
@@ -550,6 +585,7 @@ function renderSheet(p) {
 
       <div class="sheet-col">
         <div id="alertsBox">${alertsHtml(p)}</div>
+        <div class="card"><h2>Mods Waiting on You</h2><div id="pendingModsBox">${pendingModsHtml(p)}</div></div>
         <div class="card"><h2>Abilities</h2><div id="abilList">${abilitiesHtml(p)}</div></div>
       </div>
 
@@ -605,7 +641,312 @@ async function dismissAlert(id) {
   if (r.status === 200) { lastPayload = r.body; renderSheet(r.body); }
 }
 
+// ================= Player actions (Phase 2) =================
+// Every action stages here first: full breakdown → Manual or Digital roll →
+// confirm → POST /api/player-action (server computes the outcome and mutates
+// the scene). The 3s poll pauses while ANY decision surface is open.
+
+let aysState = null;      // truthy while the Are-You-Sure modal is open
+let aysInFlight = false;  // confirm POST in flight
+
+function lockedActionsFor(p) {
+  const slug = String(p.currentMode || 'default');
+  const mode = (p.modes || []).find(m => String(m.slug || '') === slug);
+  const locked = new Set((((mode || {}).lockedActions) || []).map(a => String(a).toLowerCase()));
+  locked.delete('recover'); // Recover is NEVER mode-locked
+  return locked;
+}
+
+function rollTypesOf(a) {
+  return String(a.RollType || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+const BASIC_ACTIONS = ['Attack', 'Defend', 'Boost', 'Hinder', 'Overcome', 'Recover'];
+
+function basicActionsHtml(p) {
+  const locked = lockedActionsFor(p);
+  const montage = /montage/i.test(String(p.sceneType || ''));
+  return `<div class="action-bar">` + BASIC_ACTIONS.map(t => {
+    const tl = t.toLowerCase();
+    if (locked.has(tl)) {
+      return `<button class="btn small locked" disabled title="${esc(t)} is locked in this mode">${esc(t)} 🔒</button>`;
+    }
+    if (t === 'Recover' && !p.recoverAllowed) {
+      return `<button class="btn small locked" disabled title="Recover needs an ability that grants it (outside a Montage scene)">Recover 🔒</button>`;
+    }
+    return `<button class="btn small primary" onclick="openBasicAction('${esc(t)}')">${esc(t)}</button>`;
+  }).join('') + `</div>`
+    + (montage ? '<div class="fineprint">Montage scene: Recover is part of the scene here.</div>' : '');
+}
+
+function openBasicAction(t) { openActionStaged([t], null); }
+
+function targetOptionsFor(p, type) {
+  // Same-location rule is enforced server-side too; the sheet only offers
+  // tokens in the hero's location. Overcome types get a free-text target.
+  return (p.occupants || []).map(t =>
+    `<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.kind)})</option>`).join('');
+}
+
+function pqOptions(row, prefix, count) {
+  const out = [];
+  for (let i = 1; i <= count; i++) {
+    const n = row[prefix + i];
+    if (n) out.push(`<option value="${esc(n)}">${esc(n)} (${esc(row[prefix + 'Die' + i] || '?')})</option>`);
+  }
+  return out.join('');
+}
+
+function modSpendHtml(p, idx) {
+  const mods = p.pendingMods || [];
+  if (!mods.length) return '';
+  return `<div class="bd-row"><b>Spend mods on this roll</b> (you decide when a Boost/Hinder happens)` +
+    mods.map(m => `<div class="radio-line"><input type="checkbox" class="ays-mod" data-block="${idx}" id="mod_${idx}_${esc(m.id)}">
+      <label for="mod_${idx}_${esc(m.id)}" style="margin:0;display:inline;color:var(--text);">` +
+      `${m.kind === 'boost' ? '+' : '−'}${m.value} ${esc(m.kind)} from ${esc(m.creator)}` +
+      `${m.uses > 1 ? ` — ${m.uses} uses (minor twist: “${esc(m.twist)}”)` : ''}</label></div>`).join('') + `</div>`;
+}
+
+function openActionStaged(types, ability) {
+  const p = lastPayload;
+  if (!p) return;
+  if (ability && /emergency switch/i.test(String(ability.Name || ''))) {
+    return openEmergencySwitchStaged(p, ability);
+  }
+  aysState = { types: types.slice(), ability };
+  const row = p.row || {};
+  const heroName = row.Name || HERO;
+  const abilName = ability ? (ability.DisplayName || ability.Name) : ('Basic ' + types[0]);
+  const modeChange = ability && /switch/i.test(String(ability.Name || ''))
+    ? { position: /quick switch/i.test(String(ability.Name || '')) ? 'pre' : 'post' } : null;
+  aysState.modeChange = modeChange;
+  const blocks = types.map((t, i) => {
+    const isOvercome = t === 'Overcome';
+    const isRecover = t === 'Recover';
+    const target = isOvercome
+      ? `<label>Overcome target <input type="text" id="aysTargetLabel_${i}" placeholder="Door, alarm, scene object…"></label>`
+      : `<label>Target <select id="aysTarget_${i}">${targetOptionsFor(p, t)}</select></label>`;
+    const dieSource = String((ability || {}).DieSource || '').toLowerCase();
+    const effectHint = /max/.test(dieSource) ? ' (ability uses the MAX die)' : /min/.test(dieSource) ? ' (ability uses the MIN die)' : '';
+    return `<div class="blk">
+      <div class="bd-row"><b>${esc(t)}</b>${ability ? ' — ' + esc(abilName) : ''}</div>
+      ${target}
+      <div class="bd-row">
+        <div class="radio-line"><input type="radio" name="rollMode_${i}" value="manual" checked onchange="aysToggleRoll(${i})">
+          <b>Manual Roll</b> — enter what you rolled on your physical dice</div>
+        <div class="radio-line"><input type="radio" name="rollMode_${i}" value="digital" onchange="aysToggleRoll(${i})">
+          <b>Digital Roll</b> — the server rolls for you</div>
+        <div id="aysManual_${i}">
+          <div class="dice-row">
+            <div><label>Min</label><input type="number" id="aysMin_${i}" min="0" value="0"></div>
+            <div><label>Mid</label><input type="number" id="aysMid_${i}" min="0" value="0"></div>
+            <div><label>Max</label><input type="number" id="aysMax_${i}" min="0" value="0"></div>
+            <div><label>Effect Die${esc(effectHint)}</label><input type="number" id="aysEffect_${i}" min="0" value="0"></div>
+          </div>
+        </div>
+        <div id="aysDigital_${i}" style="display:none;">
+          <label>Power</label><select id="aysPower_${i}">${pqOptions(row, 'Power', 6)}</select>
+          <label>Quality</label><select id="aysQuality_${i}">${pqOptions(row, 'Quality', 6)}</select>
+          <div class="fineprint">The server rolls your power + quality + status dice and sorts Min/Mid/Max.</div>
+        </div>
+      </div>
+      ${modSpendHtml(p, i)}
+      ${(t === 'Boost' || t === 'Hinder') ? modTwistHtml(p, i) : ''}
+    </div>`;
+  }).join('');
+  const modeSel = modeChange
+    ? `<div class="bd-row"><b>${/quick/i.test(ability.Name) ? 'Quick Switch' : 'Switch'}:</b>
+        <label>New mode</label><select id="aysMode">${(p.modes || []).map(m =>
+          `<option value="${esc(m.slug)}">${esc(m.name || m.slug)}</option>`).join('')}</select>
+        ${modeChange.position === 'pre' ? '<div class="fineprint">Order: destroy one bonus on you → change mode → then the action happens in the NEW mode.</div>'
+          : '<div class="fineprint">Order: the action happens in your CURRENT mode first, then the mode changes.</div>'}</div>`
+    : '';
+  showAys(`Are You Sure? — ${esc(heroName)}`, `
+    <div class="bd-row"><b>Action:</b> ${esc(abilName)}${ability ? `<div class="fineprint">${esc(ability.GameText || '')}</div>` : ''}</div>
+    ${blocks}${modeSel}
+    <div class="fineprint">On confirm this applies to the board immediately — the GM sees it land live. Nothing happens until you press Confirm.</div>
+    <div id="aysOutcome"></div>
+    <div class="foot">
+      <button class="btn" onclick="closeAys()">Cancel</button>
+      <button class="btn primary" id="aysConfirmBtn" onclick="confirmAys()">Confirm — Apply</button>
+    </div>`);
+}
+
+function modTwistHtml(p, idx) {
+  const row = p.row || {};
+  const opts = [];
+  for (const n of [1, 2]) {
+    if (row['Principle' + n + 'MinorTwist']) {
+      opts.push(`<option value="${n}">${esc(row['Principle' + n + 'Name'] || 'Principle ' + n)}: ${esc(row['Principle' + n + 'MinorTwist'])}</option>`);
+    }
+  }
+  if (!opts.length) return '';
+  return `<div class="bd-row"><div class="radio-line"><input type="checkbox" id="aysTwist_${idx}">
+    <label for="aysTwist_${idx}" style="margin:0;display:inline;color:var(--text);"><b>Take a Minor Twist</b> — this mod lasts for TWO uses</label></div>
+    <label>Which principle's twist</label><select id="aysTwistPrinciple_${idx}">${opts.join('')}</select></div>`;
+}
+
+function openEmergencySwitchStaged(p, ability) {
+  aysState = { emergency: true, ability };
+  showAys('Are You Sure? — Emergency Switch', `
+    <div class="bd-row"><b>Reaction:</b> change to any mode when hit by an Attack.</div>
+    <div class="bd-row">
+      <label>New mode</label><select id="aysMode">${(p.modes || []).map(m =>
+        `<option value="${esc(m.slug)}">${esc(m.name || m.slug)}</option>`).join('')}</select>
+      <div class="radio-line" style="margin-top:8px;"><input type="radio" name="emgCost" value="damage" checked>
+        <b>Cost:</b> take extra damage <input type="number" id="aysEmgDamage" min="0" value="0" style="width:80px;"></div>
+      <div class="radio-line"><input type="radio" name="emgCost" value="twist"> Take a minor twist instead</div>
+    </div>
+    <div class="fineprint">On confirm the mode changes and the cost applies immediately.</div>
+    <div id="aysOutcome"></div>
+    <div class="foot">
+      <button class="btn" onclick="closeAys()">Cancel</button>
+      <button class="btn primary" onclick="confirmAys()">Confirm — Apply</button>
+    </div>`);
+}
+
+function showAys(title, bodyHtml) {
+  const old = document.getElementById('aysBackdrop');
+  if (old) old.remove();
+  const div = document.createElement('div');
+  div.className = 'modal-backdrop';
+  div.id = 'aysBackdrop';
+  div.innerHTML = `<div class="ays"><h2>${title}</h2>${bodyHtml}</div>`;
+  document.body.appendChild(div);
+}
+
+function closeAys() { aysState = null; aysInFlight = false; const el = document.getElementById('aysBackdrop'); if (el) el.remove(); }
+
+function aysToggleRoll(i) {
+  const manual = document.querySelector(`input[name="rollMode_${i}"]:checked`).value === 'manual';
+  document.getElementById('aysManual_' + i).style.display = manual ? '' : 'none';
+  document.getElementById('aysDigital_' + i).style.display = manual ? 'none' : '';
+}
+
+function aysBlockPayload(p, types) {
+  const blocks = [];
+  const errs = [];
+  types.forEach((t, i) => {
+    const block = { type: t };
+    if (t === 'Overcome') {
+      block.targetLabel = (document.getElementById('aysTargetLabel_' + i) || {}).value || 'scene object';
+    } else {
+      const sel = document.getElementById('aysTarget_' + i);
+      if (!sel || !sel.value) { errs.push(t + ' needs a target'); return; }
+      block.targetId = sel.value;
+    }
+    const manual = document.querySelector(`input[name="rollMode_${i}"]:checked`).value === 'manual';
+    if (manual) {
+      const g = id => Number((document.getElementById(id) || {}).value) || 0;
+      block.roll = { manual: { min: g('aysMin_' + i), mid: g('aysMid_' + i), max: g('aysMax_' + i), effect: g('aysEffect_' + i) } };
+    } else {
+      block.roll = { power: (document.getElementById('aysPower_' + i) || {}).value || '',
+                     quality: (document.getElementById('aysQuality_' + i) || {}).value || '' };
+      const ds = String((aysState.ability || {}).DieSource || '').toLowerCase();
+      if (/max/.test(ds)) block.roll.effectDie = 'max';
+      if (/min/.test(ds)) block.roll.effectDie = 'min';
+    }
+    const spend = [...document.querySelectorAll(`.ays-mod[data-block="${i}"]:checked`)].map(el =>
+      el.id.split('_').slice(2).join('_'));
+    if (spend.length) block.spendMods = spend;
+    const tw = document.getElementById('aysTwist_' + i);
+    if (tw && tw.checked) {
+      block.boostTwist = { principle: Number((document.getElementById('aysTwistPrinciple_' + i) || {}).value) || 0 };
+    }
+    blocks.push(block);
+  });
+  return { blocks, errs };
+}
+
+async function confirmAys() {
+  if (!aysState || aysInFlight) return;
+  const p = lastPayload;
+  const out = document.getElementById('aysOutcome');
+  let payload = { hero: HERO, key: KEY };
+  if (aysState.emergency) {
+    const cost = (document.querySelector('input[name="emgCost"]:checked') || {}).value || 'damage';
+    payload.kind = 'emergency-switch';
+    payload.mode = (document.getElementById('aysMode') || {}).value || 'default';
+    payload.cost = cost;
+    if (cost === 'damage') payload.damage = Number((document.getElementById('aysEmgDamage') || {}).value) || 0;
+  } else {
+    const { blocks, errs } = aysBlockPayload(p, aysState.types);
+    if (errs.length) { out.innerHTML = `<div class="outcome err">${esc(errs.join('; '))}</div>`; return; }
+    payload.actions = blocks;
+    payload.abilityName = aysState.ability ? (aysState.ability.DisplayName || aysState.ability.Name) : '';
+    if (aysState.modeChange) {
+      payload.modeChange = { position: aysState.modeChange.position,
+                             mode: (document.getElementById('aysMode') || {}).value || 'default' };
+    }
+  }
+  aysInFlight = true;
+  const btn = document.getElementById('aysConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+  try {
+    const r = await fetch('/api/player-action', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json();
+    if (!r.ok) {
+      out.innerHTML = `<div class="outcome err"><b>Not applied:</b> ${esc(j.error || ('HTTP ' + r.status))}</div>`;
+    } else {
+      const lines = (j.outcomes || []).map(o => `<div>✅ ${esc(o.result || o.type)}</div>`).join('');
+      out.innerHTML = `<div class="outcome">${lines || '<div>✅ Applied.</div>'}
+        <div class="fineprint">Round ${esc(String(j.round || ''))}${j.currentMode ? ' · Mode: ' + esc(j.currentMode) : ''} — the board and change feed are updated.</div></div>`;
+      const foot = document.querySelector('#aysBackdrop .foot');
+      if (foot) foot.innerHTML = '<button class="btn primary" onclick="closeAys()">Done</button>';
+      const fr = await fetchSheet();
+      if (fr.status === 200) { lastPayload = fr.body; renderSheet(fr.body); }
+    }
+  } catch (e) {
+    out.innerHTML = `<div class="outcome err">Request failed — try again.</div>`;
+  }
+  aysInFlight = false;
+}
+
+function pendingModsHtml(p) {
+  const mods = p.pendingMods || [];
+  if (!mods.length) return '<span class="muted">No Boost/Hinder waiting on you right now.</span>';
+  return mods.map(m => `<div class="pending-mod">
+    <b>${m.kind === 'boost' ? '+' : '−'}${m.value} ${esc(m.kind)}</b> from ${esc(m.creator)}
+    <div class="pm-meta">${m.uses > 1 ? `${m.uses} uses — minor twist taken: “${esc(m.twist)}” · ` : ''}` +
+    `created for you — you decide when to spend it, during one of your actions below.</div>
+  </div>`).join('');
+}
+
+function abilityActionButtons(p, a) {
+  const types = rollTypesOf(a);
+  if (!types.length) return '';
+  const locked = lockedActionsFor(p);
+  const name = String(a.Name || '');
+  const btnOnclick = t => `openAbilityAction('${esc(t)}','${esc(name)}')`;
+  const btns = types.map(t => {
+    if (locked.has(t.toLowerCase())) {
+      return `<button class="btn small locked" disabled title="${esc(t)} is locked in this mode">${esc(t)} 🔒</button>`;
+    }
+    if (t === 'Recover' && !p.recoverAllowed) {
+      return `<button class="btn small locked" disabled title="Recover needs an ability that grants it (outside a Montage scene)">Recover 🔒</button>`;
+    }
+    return `<button class="btn small primary" onclick="${btnOnclick(t)}">${esc(t)}</button>`;
+  }).join('');
+  const multi = types.length > 1
+    ? `<button class="btn small" onclick="openAbilityAction('__ALL__','${esc(name)}')">Whole Ability</button>` : '';
+  return `<div class="a-actions">${btns}${multi}</div>`;
+}
+
+function openAbilityAction(t, name) {
+  const a = abilitiesByName[name] || null;
+  openActionStaged(t === '__ALL__' ? rollTypesOf(a || {}) : [t], a);
+}
+
+let abilitiesByName = {};
+
 async function tick() {
+  // Pause the poll while ANY decision surface is open so nothing under the
+  // player's fingers ever resets: the Are-You-Sure modal and any confirm in
+  // flight. (Notes edits are already preserved across re-renders, and the
+  // abilities filter dropdown is guarded below.) Data catches up on the next
+  // tick after the surface closes.
+  if (aysState || aysInFlight || document.getElementById('aysBackdrop')) return;
   // Don't re-render while the abilities filter dropdown is open — replacing
   // the DOM would close it every 3s. Data catches up on the next tick.
   const sel = document.querySelector('.abil-filter select');

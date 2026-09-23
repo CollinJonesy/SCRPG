@@ -20,6 +20,8 @@ def seed_hero(campaign, slug='test-hero', name='Test Hero'):
         'Slug': slug, 'Name': name, 'Alias': 'Alias ' + name,
         'Player': 'Tester', 'MaxHealth': '30', 'GreenStatusDie': 'd12',
         'YellowStatusDie': 'd8', 'RedStatusDie': 'd4', 'Active': 'yes',
+        'Power1': 'Strength', 'PowerDie1': 'd8',
+        'Quality1': 'Fitness', 'QualityDie1': 'd8',
         'Principle1Name': 'Principle of Testing',
         'Principle1MinorTwist': 'minor text', 'Principle1MajorTwist': 'major text',
     })
@@ -223,6 +225,405 @@ class TestSheetPayloadSceneData(ServerTestCase):
 
     def test_npc_type_lookup(self):
         self.assertEqual(srv.npc_type_for(self.campaign, 'nobody'), '')
+
+
+class TestPlayerActionAuthAndValidation(ServerTestCase):
+    def seed_action_scene(self):
+        seed_hero(self.campaign)
+        seed_scene(self.campaign, tokens=[
+            {'id': 't1', 'kind': 'hero', 'slug': 'test-hero', 'name': 'Test Hero',
+             'locationId': 'loc1', 'currentHealth': 20, 'maxHealth': 30},
+            {'id': 't2', 'kind': 'villain', 'slug': 'bad-guy', 'name': 'Bad Guy',
+             'locationId': 'loc1', 'currentHealth': 40, 'maxHealth': 40},
+            {'id': 't3', 'kind': 'minion', 'slug': 'grunt', 'name': 'Grunt',
+             'locationId': 'loc1', 'currentDie': 6, 'currentHealth': 4, 'maxHealth': 6},
+            {'id': 't4', 'kind': 'hero', 'slug': 'other-hero', 'name': 'Other Hero',
+             'locationId': 'loc2', 'currentHealth': 20, 'maxHealth': 30},
+        ])
+        srv._save_json_file(self.campaign / 'sheet-keys.json', {'test-hero': 'k123'})
+
+    def act(self, body, raw_status=False):
+        status, data = self.request('POST', '/api/player-action', json.dumps(body))
+        parsed = json.loads(data)
+        return (status, parsed) if raw_status else parsed
+
+    def base(self, **kw):
+        body = {'hero': 'test-hero', 'key': 'k123'}
+        body.update(kw)
+        return body
+
+    def test_bad_key_403(self):
+        self.seed_action_scene()
+        status, _ = self.request('POST', '/api/player-action', json.dumps(
+            {'hero': 'test-hero', 'key': 'WRONG', 'actions': []}))
+        self.assertEqual(status, 403)
+
+    def test_hero_not_on_board_400(self):
+        self.seed_action_scene()
+        seed_hero(self.campaign, 'lonely', 'Lonely')
+        srv._save_json_file(self.campaign / 'sheet-keys.json',
+                            dict(srv._load_json_file(self.campaign / 'sheet-keys.json', {}), lonely='k9'))
+        status, _ = self.request('POST', '/api/player-action', json.dumps(
+            {'hero': 'lonely', 'key': 'k9', 'actions': [{'type': 'Defend'}]}))
+        self.assertEqual(status, 400)
+
+    def test_unknown_type_and_bad_roll(self):
+        self.seed_action_scene()
+        status, _ = self.request('POST', '/api/player-action', json.dumps(self.base(
+            actions=[{'type': 'Dance', 'targetId': 't2'}])))
+        self.assertEqual(status, 400)
+        status, _ = self.request('POST', '/api/player-action', json.dumps(self.base(
+            actions=[{'type': 'Attack', 'targetId': 't2',
+                      'roll': {'manual': {'min': 'x', 'mid': 2, 'max': 3, 'effect': 2}}}])))
+        self.assertEqual(status, 400)
+        status, _ = self.request('POST', '/api/player-action', json.dumps(self.base(
+            actions=[{'type': 'Attack', 'targetId': 't2',
+                      'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 99}}}])))
+        self.assertEqual(status, 400)
+
+    def test_attack_needs_target_in_location(self):
+        self.seed_action_scene()
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't4',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertIn('error', parsed)
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 'nope',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertIn('error', parsed)
+        # self-attack refused
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't1',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertIn('error', parsed)
+
+    def test_attack_on_villain_applies_and_logs(self):
+        self.seed_action_scene()
+        parsed = self.act(self.base(abilityName='Haymaker', actions=[
+            {'type': 'Attack', 'targetId': 't2',
+             'roll': {'manual': {'min': 2, 'mid': 5, 'max': 9, 'effect': 6}}}]))
+        self.assertTrue(parsed['ok'])
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 6)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        villain = next(t for t in scene['tokens'] if t['id'] == 't2')
+        self.assertEqual(villain['currentHealth'], 34)
+        # activity log entry (board's single source) + change feed entry
+        self.assertEqual(scene['activityLog'][-1]['action'], 'Attack')
+        self.assertEqual(scene['activityLog'][-1]['details']['dmg'], 6)
+        feed = srv._load_json_file(self.campaign / 'sheet_activity.json', [])
+        self.assertIn('Haymaker', [e['action'] for e in feed])
+
+    def test_defend_consumed_by_attack(self):
+        self.seed_action_scene()
+        self.act(self.base(actions=[{'type': 'Defend', 'targetId': 't2',
+                                     'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 3}}}]))
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertEqual([m for m in scene['mods'] if m['kind'] == 'defend'][0]['value'], 3)
+        h_before = next(t for t in scene['tokens'] if t['id'] == 't2')['currentHealth']
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        # 5 effect - 3 defend = 2 damage, defend consumed
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 2)
+        self.assertEqual(parsed['outcomes'][0]['defended'], 3)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        villain = next(t for t in scene['tokens'] if t['id'] == 't2')
+        self.assertEqual(villain['currentHealth'], h_before - 2)
+        self.assertTrue(all(m.get('consumed') for m in scene['mods'] if m['kind'] == 'defend'))
+
+    def test_minion_house_rules(self):
+        self.seed_action_scene()
+        # dmg 1 never defeats (save roll >= 1)
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't3',
+                                              'roll': {'manual': {'min': 1, 'mid': 1, 'max': 1, 'effect': 1}}}]))
+        self.assertIn('held', parsed['outcomes'][0]['result'])
+        # dmg 7 vs d6 always defeats outright (house rule: no step-down)
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't3',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 7}}}]))
+        self.assertIn('defeated', parsed['outcomes'][0]['result'])
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertTrue(next(t for t in scene['tokens'] if t['id'] == 't3')['ko'])
+
+    def test_lieutenant_rules(self):
+        self.seed_action_scene()
+        lt = {'id': 't5', 'kind': 'lieutenant', 'slug': 'lt', 'name': 'Lt',
+              'locationId': 'loc1', 'currentDie': 8, 'currentHealth': 10, 'maxHealth': 10}
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['tokens'].append(lt)
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        # 16 >= 2*d8 → instant KO
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't5',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 16}}}]))
+        self.assertIn('instant KO', parsed['outcomes'][0]['result'])
+        # fresh lieutenant, dmg 9 vs d8: always fails save (roll <= 8 < 9) → step down to d6
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['tokens'].append({'id': 't6', 'kind': 'lieutenant', 'slug': 'lt2', 'name': 'Lt2',
+                                'locationId': 'loc1', 'currentDie': 8, 'currentHealth': 10, 'maxHealth': 10})
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't6',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 9}}}]))
+        self.assertIn('now d6', parsed['outcomes'][0]['result'])
+
+    def test_boost_hinder_table_and_targeting(self):
+        self.seed_action_scene()
+        for effect, want in ((0, 0), (2, 1), (5, 2), (9, 3), (13, 4)):
+            scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+            scene['mods'] = []
+            (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+            parsed = self.act(self.base(actions=[
+                {'type': 'Boost', 'targetId': 't1',
+                 'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': effect}}}]))
+            got = parsed['outcomes'][0]['value']
+            self.assertEqual(got, want, 'effect %s' % effect)
+        # cross-location boost refused
+        parsed = self.act(self.base(actions=[
+            {'type': 'Boost', 'targetId': 't4',
+             'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        self.assertIn('error', parsed)
+
+    def test_boost_minor_twist_grants_second_use(self):
+        self.seed_action_scene()
+        parsed = self.act(self.base(actions=[
+            {'type': 'Boost', 'targetId': 't1', 'boostTwist': {'principle': 1},
+             'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        self.assertEqual(parsed['outcomes'][0]['uses'], 2)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        mod = scene['mods'][0]
+        self.assertEqual(mod['uses'], 2)
+        self.assertEqual(mod['twist'], 'minor text')
+        # first spend survives, second consumes
+        scene['mods'][0]['targetId'] = 't1'
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'spendMods': [mod['id']],
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 6)  # 4 effect + 2 boost (use 1 of 2)
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'spendMods': [mod['id']],
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 6)  # second use also +2
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'spendMods': [mod['id']],
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertIn('error', parsed)  # both uses gone
+
+    def test_overcome_bands(self):
+        self.seed_action_scene()
+        cases = ((0, 'Spectacular failure'), (2, 'Major Twist'), (5, 'Minor Twist'),
+                 (9, 'Complete success'), (13, 'beyond expectations'))
+        for effect, want in cases:
+            parsed = self.act(self.base(actions=[
+                {'type': 'Overcome', 'targetLabel': 'Vault door',
+                 'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': effect}}}]))
+            self.assertIn(want, parsed['outcomes'][0]['outcome'], 'effect %s' % effect)
+            self.assertEqual(parsed['outcomes'][0]['targetLabel'], 'Vault door')
+
+    def test_recover_gating(self):
+        self.seed_action_scene()
+        # no Recover ability → refused
+        parsed = self.act(self.base(actions=[{'type': 'Recover',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        self.assertIn('error', parsed)
+        # grant a Recover ability
+        rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
+            'Slug': 'test-hero', 'Name': 'Second Wind', 'Zone': 'Green', 'Type': 'A',
+            'GameText': 'Heal.', 'RollType': 'Attack, Recover'}]
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        parsed = self.act(self.base(actions=[{'type': 'Recover',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        self.assertTrue(parsed['ok'])
+        self.assertEqual(parsed['outcomes'][0]['health'], 25)  # 20 + 5, max 30
+        # montage scene allows Recover with no ability
+        rows = [r for r in srv._csv_rows(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS)
+                if r.get('Slug') != 'test-hero']
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['tokens'][0]['currentHealth'] = 10
+        scene['sceneType'] = 'Montage'
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.act(self.base(actions=[{'type': 'Recover',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertTrue(parsed['ok'])
+        self.assertEqual(parsed['outcomes'][0]['health'], 14)
+        # recover clamps at max health (effect die caps at 20)
+        parsed = self.act(self.base(actions=[{'type': 'Recover',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 20}}}]))
+        self.assertEqual(parsed['outcomes'][0]['health'], 30)
+
+    def test_recover_allowed_flag_in_payload(self):
+        self.seed_action_scene()
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        p = json.loads(data)
+        self.assertFalse(p['recoverAllowed'])
+        self.assertEqual(p['pendingMods'], [])
+
+    def test_mode_locks(self):
+        self.seed_action_scene()
+        (self.campaign / 'md' / 'heroes' / 'test-hero.md').write_text(
+            '# T\n\n## Modes\n\n```json\n' + json.dumps([
+                {'slug': 'modular-debilitator', 'name': 'Debilitator', 'powerless': False,
+                 'powers': {'Strength': 'd8'},
+                 'lockedActions': ['Boost', 'Defend', 'Overcome']},
+            ]) + '\n```\n', encoding='utf-8')
+        srv._save_json_file(self.campaign / 'sheet-keys.json', {'test-hero': 'k123'})
+        self.request('POST', '/api/player-mode',
+                     json.dumps({'hero': 'test-hero', 'key': 'k123', 'mode': 'modular-debilitator'}))
+        parsed = self.act(self.base(actions=[
+            {'type': 'Boost', 'targetId': 't1',
+             'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 5}}}]))
+        self.assertIn('locked', parsed['error'])
+        # Recover is NEVER locked, even if a mode lists it
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        (self.campaign / 'md' / 'heroes' / 'test-hero.md').write_text(
+            '# T\n\n## Modes\n\n```json\n' + json.dumps([
+                {'slug': 'weird', 'name': 'Weird', 'powerless': False, 'powers': {},
+                 'lockedActions': ['Recover', 'Attack']},
+            ]) + '\n```\n', encoding='utf-8')
+        self.request('POST', '/api/player-mode',
+                     json.dumps({'hero': 'test-hero', 'key': 'k123', 'mode': 'weird'}))
+        rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
+            'Slug': 'test-hero', 'Name': 'Heal', 'RollType': 'Recover'}]
+        srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
+        parsed = self.act(self.base(actions=[{'type': 'Recover',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 2}}}]))
+        self.assertTrue(parsed['ok'], parsed)
+        # locked Attack still refused
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertIn('locked', parsed['error'])
+
+    def rindex(self, lst, item):
+        return len(lst) - 1 - lst[::-1].index(item)
+
+    def test_switch_post_and_quick_switch_pre(self):
+        self.seed_action_scene()
+        (self.campaign / 'md' / 'heroes' / 'test-hero.md').write_text(
+            '# T\n\n## Modes\n\n```json\n' + json.dumps([
+                {'slug': 'default', 'name': 'Default', 'powerless': False, 'powers': {}},
+                {'slug': 'modular-stalwart', 'name': 'Stalwart', 'powerless': False,
+                 'powers': {}, 'lockedActions': ['Hinder', 'Overcome']},
+            ]) + '\n```\n', encoding='utf-8')
+        # post: attack lands in the OLD mode, then mode flips
+        parsed = self.act(self.base(abilityName='Switch', modeChange={'position': 'post', 'mode': 'modular-stalwart'},
+                                    actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertTrue(parsed['ok'])
+        self.assertEqual(parsed['currentMode'], 'modular-stalwart')
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        acts = [e['action'] for e in scene['activityLog']]
+        self.assertLess(acts.index('Attack'), acts.index('Mode Change'))
+        # pre (Quick Switch): destroy one boost → change mode → action in new mode
+        scene['mods'] = [{'id': 'm1', 'kind': 'boost', 'value': 2, 'creatorId': 't1',
+                          'targetId': 't1', 'uses': 1}]
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        self.request('POST', '/api/player-mode',
+                     json.dumps({'hero': 'test-hero', 'key': 'k123', 'mode': 'default'}))
+        parsed = self.act(self.base(abilityName='Quick Switch',
+                                    modeChange={'position': 'pre', 'mode': 'modular-stalwart'},
+                                    actions=[{'type': 'Defend', 'targetId': 't1',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 3}}}]))
+        self.assertTrue(parsed['ok'])
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertEqual([m for m in scene['mods'] if m.get('id') == 'm1'], [])  # bonus destroyed
+        self.assertEqual(scene['tokens'][0]['currentMode'], 'modular-stalwart')
+        acts = [e['action'] for e in scene['activityLog']]
+        # first occurrences AFTER the earlier post-Switch leg — use last indexes
+        self.assertLess(self.rindex(acts, 'Quick Switch'), self.rindex(acts, 'Mode Change'))
+        self.assertLess(self.rindex(acts, 'Mode Change'), self.rindex(acts, 'Defend'))
+        # in the new mode the destroyed-bonus + mode flip happened before the action
+        self.assertNotIn('boost', [m['kind'] for m in scene['mods']])
+
+    def test_emergency_switch(self):
+        self.seed_action_scene()
+        (self.campaign / 'md' / 'heroes' / 'test-hero.md').write_text(
+            '# T\n\n## Modes\n\n```json\n' + json.dumps([
+                {'slug': 'modular-destroyer', 'name': 'Destroyer', 'powerless': False, 'powers': {}},
+            ]) + '\n```\n', encoding='utf-8')
+        parsed = self.act(self.base(kind='emergency-switch', mode='modular-destroyer',
+                                    cost='damage', damage=6))
+        self.assertTrue(parsed['ok'])
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        tok = scene['tokens'][0]
+        self.assertEqual(tok['currentHealth'], 14)
+        self.assertEqual(tok['currentMode'], 'modular-destroyer')
+        self.assertIn('Emergency Switch', [e['action'] for e in scene['activityLog']])
+        # twist cost
+        parsed = self.act(self.base(kind='emergency-switch', mode='default', cost='twist'))
+        self.assertTrue(parsed['ok'])
+        self.assertEqual(parsed['outcomes'][0]['result'], 'took a minor twist')
+        # unknown mode refused
+        parsed = self.act(self.base(kind='emergency-switch', mode='nope', cost='twist'))
+        self.assertEqual(parsed.get('error'), 'unknown mode')
+
+    def test_spend_mods_validation(self):
+        self.seed_action_scene()
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['mods'] = [
+            {'id': 'mb', 'kind': 'boost', 'value': 2, 'creatorId': 't1', 'targetId': 't1', 'uses': 1},
+            {'id': 'mo', 'kind': 'boost', 'value': 2, 'creatorId': 't1', 'targetId': 'other', 'uses': 1},
+        ]
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2', 'spendMods': ['mo'],
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertIn('error', parsed)  # mod not on this hero
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2', 'spendMods': ['ghost'],
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertIn('error', parsed)
+        # hinder subtracts
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['mods'].append({'id': 'mh', 'kind': 'hinder', 'value': 1, 'creatorId': 'x',
+                              'targetId': 't1', 'uses': 1})
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'spendMods': ['mb', 'mh'],
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 4}}}]))
+        self.assertEqual(parsed['outcomes'][0]['dmg'], 5)  # 4 + 2 - 1
+
+    def test_pending_mods_in_payload(self):
+        self.seed_action_scene()
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        scene['mods'] = [{'id': 'm1', 'kind': 'boost', 'value': 3, 'creatorId': 't2',
+                          'targetId': 't1', 'uses': 2, 'twist': 'why now?'},
+                         {'id': 'm2', 'kind': 'boost', 'value': 1, 'creatorId': 't1',
+                          'targetId': 't2', 'uses': 1}]
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        mods = json.loads(data)['pendingMods']
+        self.assertEqual(len(mods), 1)
+        self.assertEqual(mods[0]['creator'], 'Bad Guy')
+        self.assertEqual(mods[0]['uses'], 2)
+        self.assertEqual(mods[0]['twist'], 'why now?')
+
+    def test_turn_counting_round_advance(self):
+        self.seed_action_scene()
+        # two living combatants; hero acts twice → second action is after the
+        # round advanced (villain needs a turn too — act for it via direct log)
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 1}}}]))
+        self.assertTrue(parsed['ok'])
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        hero_tok = next(t for t in scene['tokens'] if t['id'] == 't1')
+        self.assertEqual(hero_tok['turnNumber'], 1)
+        # villain "acts" (turnNumber assigned directly), then the hero's next
+        # action ends the round — every living combatant needs a mark first
+        for t in scene['tokens']:
+            if t['id'] != 't1' and not t.get('ko'):
+                t['turnNumber'] = 2
+        (self.campaign / 'scenes' / 'sc-1.json').write_text(json.dumps(scene), encoding='utf-8')
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't2',
+                                              'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 1}}}]))
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        self.assertEqual(scene['round'], 2)
+        self.assertNotIn('turnNumber', next(t for t in scene['tokens'] if t['id'] == 't1'))
+
+    def test_digital_roll(self):
+        self.seed_action_scene()
+        parsed = self.act(self.base(actions=[
+            {'type': 'Attack', 'targetId': 't2', 'roll': {'power': 'Strength', 'quality': 'Fitness'}}]))
+        self.assertTrue(parsed['ok'], parsed)
+        roll = parsed['outcomes'][0]['roll']
+        self.assertIn('powerDie', roll)
+        self.assertGreaterEqual(roll['effect'], 1)
+        # unknown power refused
+        parsed = self.act(self.base(actions=[
+            {'type': 'Attack', 'targetId': 't2', 'roll': {'power': 'Nope', 'quality': 'Fitness'}}]))
+        self.assertIn('error', parsed)
 
 
 class TestPlayerMode(ServerTestCase):

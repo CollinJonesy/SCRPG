@@ -449,7 +449,7 @@ function bhdRowHtml(t, scene, interactive) {
   if (hasHealth) {
     const hp = Number(t.currentHealth) || 0;
     html += interactive
-      ? `<div class="bhd-stat health"><span onclick="openBoardAction('${t.id}','Recover',null)" title="Recover">HEALTH</span><input type="number" min="0" value="${hp}" onclick="event.stopPropagation()" onchange="setHealth('${t.id}',this.value)"></div>`
+      ? `<div class="bhd-stat health"><span onclick="event.stopPropagation();heroRecoverOrExplain('${t.id}')" title="Recover">HEALTH</span><input type="number" min="0" value="${hp}" onclick="event.stopPropagation()" onchange="setHealth('${t.id}',this.value)"></div>`
       : `<div class="bhd-stat health"><span>HEALTH</span><b>${hp}</b></div>`;
   }
   return `<div class="bhd-row${hasHealth ? ' bhd-row-4' : ''}${t.kind !== 'hero' ? ' bhd-row-lg' : ''}">${html}</div>`;
@@ -1209,7 +1209,16 @@ function modeLockedActions(t) {
   const locked = new Set();
   if (!mode) return locked;
   (mode.lockedActions || []).forEach(a => locked.add(String(a).toLowerCase()));
+  locked.delete('recover'); // Recover is NEVER mode-locked (locked decision)
   return locked;
+}
+// Recover exists ONLY when an ability grants it, or as part of a Montage scene
+// (where recovery happens as part of the scene, not as a taken action).
+function heroCanRecover(t) {
+  const st = String((state.scene || {}).sceneType || '').toLowerCase();
+  if (st === 'montage') return true;
+  return heroAbilitiesForToken(t).some(a =>
+    String(a.RollType || '').toLowerCase().includes('recover'));
 }
 function heroModePowerMap(t) {
   const mode = heroCurrentMode(t);
@@ -1623,12 +1632,18 @@ function openBoardAction(tokenId, action, ability) {
     const targetInner = typeName === 'Overcome'
       ? `<label class="board-act-target">Target <input type="text" id="boardActTarget_${i}" data-rtype="${escAttr(typeName)}" placeholder="Door, alarm, scene object…"></label>`
       : `<label class="board-act-target">Target <select id="boardActTarget_${i}" data-rtype="${escAttr(typeName)}">${combatOpts}</select></label>`;
+    // Boost/Hinder creation: optional minor twist for a SECOND use of the mod.
+    const twistInner = (typeName === 'Boost' || typeName === 'Hinder')
+      ? boardActTwistHtml(t, i) : '';
+    // Attack rows: the actor decides which mods sitting on them to spend.
+    const modsInner = typeName === 'Attack' ? actorModsPickerHtml(t, i) : '';
     return `<div class="board-act-block">
       <div class="board-act-type-header field-label" style="margin-top:8px;">${escHtml(typeName)}</div>
       <div class="board-act-effect-row">
         <label class="board-act-effect">Effect Die <input type="number" id="boardActEffect_${i}" data-rtype="${escAttr(typeName)}" min="0" value="0"></label>
         ${targetInner}
       </div>
+      ${modsInner}${twistInner}
     </div>`;
   }).join('');
   const helpBits = types.map(k => actionHelpHtml(t, k)).filter(Boolean).join('');
@@ -1690,10 +1705,20 @@ function commitBoardAction() {
     const targetId = targetEl && targetEl.value;
     const target = findTok(targetId);
     if (!target) return;
-    if (action === 'Attack') applyBoardAttack(actor, target, effect, abilityName);
-    else if (action === 'Defend') applyBoardMod(actor, target, 'defend', effect, abilityName, false);
-    else if (action === 'Boost') applyBoardMod(actor, target, 'boost', bhModValue(effect), abilityName, true);
-    else if (action === 'Hinder') applyBoardMod(actor, target, 'hinder', bhModValue(effect), abilityName, true);
+    const spendDelta = spendRowMods(i);
+    const twistUsed = !!(document.getElementById('rowTwist_' + i) && document.getElementById('rowTwist_' + i).checked);
+    const twistPrinciple = twistUsed
+      ? (document.getElementById('rowTwistPrinciple_' + i) || {}).value : null;
+    if (action === 'Attack') applyBoardAttack(actor, target, effect + spendDelta, abilityName);
+    else if (action === 'Defend') applyBoardMod(actor, target, 'defend', Math.max(0, effect + spendDelta), abilityName, false);
+    else if (action === 'Boost' || action === 'Hinder') {
+      const value = bhModValue(effect + spendDelta);
+      const twistText = twistPrinciple
+        ? (((state.heroes.find(h => h.Slug === (actor.slug || '')) || {})['Principle' + twistPrinciple + 'MinorTwist']) || '')
+        : '';
+      applyBoardMod(actor, target, action.toLowerCase(), value, abilityName, true,
+        { uses: twistText ? 2 : 1, twistText });
+    }
     else if (action === 'Recover') applyBoardRecover(actor, target, effect, abilityName);
     else return;
     applied++;
@@ -1705,24 +1730,79 @@ function commitBoardAction() {
   closeAbilities();
   renderTokens();
 }
-function applyBoardMod(actor, target, kind, value, abilityName, creatorShows) {
+function applyBoardMod(actor, target, kind, value, abilityName, creatorShows, opts) {
   if (value <= 0) { toast('No mod created.'); return; }
+  const o = opts || {};
   const creatorId = actor.id;
   const targetId = kind === 'defend' ? target.id : (creatorShows && kind === 'boost' ? actor.id : target.id);
   if (kind === 'boost') {
-    ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false });
+    ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false, uses: o.uses || 1, twist: o.twistText || '' });
   } else if (kind === 'hinder') {
-    ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false });
+    ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false, uses: o.uses || 1, twist: o.twistText || '' });
   } else {
     ensureMods(state.scene).push({ id: uid('mod'), kind, value, creatorId: actor.id, targetId: target.id, exclusivePersistent: false });
   }
   saveSceneDebounced();
   logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, actionTitle(kind),
     { id: target.id, name: target.name, kind: target.kind },
-    `${abilityName}: ${kind} ${value} → ${target.name}`, { value, ability: abilityName });
+    `${abilityName}: ${kind} ${value} → ${target.name}${o.uses > 1 ? ' (2 uses — minor twist taken)' : ''}`, { value, ability: abilityName, uses: o.uses || 1, twist: o.twistText || '' });
   toast(`${abilityName}: ${kind} ${value} on ${kind === 'boost' ? actor.name + ' (creator)' : target.name}`);
 }
 function actionTitle(kind) { return kind.charAt(0).toUpperCase() + kind.slice(1); }
+
+// GM hero Recover: gated like the player sheet — an ability must grant it,
+// except in a Montage scene. The GM can still type a Health number directly.
+function heroRecoverOrExplain(tokenId) {
+  const t = findTok(tokenId);
+  if (!t) return;
+  if (t.kind === 'hero' && !heroCanRecover(t)) {
+    toast('Recover needs an ability that grants it (outside a Montage scene)');
+    return;
+  }
+  openBoardAction(tokenId, 'Recover', null);
+}
+
+// Mods sitting ON the actor — the affected party decides when they happen.
+function actorModsPickerHtml(actor, rowIdx) {
+  const spend = liveMods(state.scene).filter(m =>
+    (m.kind === 'boost' || m.kind === 'hinder') && m.targetId === actor.id);
+  if (!spend.length) return '';
+  const rows = spend.map(m => {
+    const cr = findTok(m.creatorId);
+    const tag = m.exclusivePersistent ? 'Exclusive & Persistent'
+      : (Number(m.uses) > 1 ? `one-off, ${m.uses} uses (minor twist taken)` : 'one-off');
+    return `<label><input type="checkbox" class="row-mod" data-row="${rowIdx}" data-id="${m.id}">
+      ${m.kind === 'boost' ? '+' : '−'}${m.value} ${m.kind} from ${escHtml(cr ? cr.name : '?')} (${tag})</label>`;
+  }).join('');
+  return `<div class="mod-list"><b>Mods on ${escHtml(actor.name)} (spend on this roll)</b>${rows}</div>`;
+}
+function selectedRowMods(rowIdx) {
+  return [...document.querySelectorAll(`.row-mod[data-row="${rowIdx}"]:checked`)].map(el =>
+    liveMods(state.scene).find(m => m.id === el.dataset.id)
+  ).filter(Boolean);
+}
+function spendRowMods(rowIdx) {
+  let delta = 0;
+  selectedRowMods(rowIdx).forEach(m => {
+    delta += m.kind === 'boost' ? (Number(m.value) || 0) : -(Number(m.value) || 0);
+    consumeOneUse(m, false);
+  });
+  return delta;
+}
+// Creation-time minor twist: the mod lasts for two uses (RAW: take a minor
+// twist related to the situation when you create it).
+function boardActTwistHtml(t, rowIdx) {
+  const row = state.heroes.find(h => h.Slug === (t.slug || '')) || {};
+  const opts = [];
+  for (const n of [1, 2]) {
+    const q = row['Principle' + n + 'MinorTwist'];
+    if (q) opts.push(`<option value="${n}">${escHtml(row['Principle' + n + 'Name'] || ('Principle ' + n))}: ${escHtml(q)}</option>`);
+  }
+  if (!opts.length) return '';
+  return `<div class="mod-list"><label><input type="checkbox" id="rowTwist_${rowIdx}">
+    Take a Minor Twist: this mod lasts for TWO uses</label>
+    <select id="rowTwistPrinciple_${rowIdx}" style="max-width:100%;">${opts.join('')}</select></div>`;
+}
 function applyBoardRecover(actor, target, effect, abilityName) {
   if (target.kind === 'hero' || target.kind === 'villain') {
     const max = Number(target.maxHealth) || target.currentHealth || 0;
@@ -3695,6 +3775,16 @@ function openModCreate(tokenId, kind) {
     `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(x.name)}${x.id === t.id ? ' (self)' : ''}</option>`
   ).join('');
   const existing = kind === 'defend' ? modsOnTarget(state.scene, t.id, 'defend') : modsCreatedBy(state.scene, t.id, kind);
+  const heroRow = state.heroes.find(h => h.Slug === (t.slug || '')) || {};
+  const twistOpts = [];
+  for (const n of [1, 2]) {
+    if (heroRow['Principle' + n + 'MinorTwist']) {
+      twistOpts.push(`<option value="${n}">${escHtml(heroRow['Principle' + n + 'Name'] || ('Principle ' + n))}: ${escHtml(heroRow['Principle' + n + 'MinorTwist'])}</option>`);
+    }
+  }
+  const twistHtml = (kind !== 'defend' && twistOpts.length)
+    ? `<label class="hidden-toggle"><input type="checkbox" id="modTwist2Uses"> Take a Minor Twist: mod lasts for TWO uses</label>
+       <select id="modTwistPrinciple">${twistOpts.join('')}</select>` : '';
   const existingHtml = existing.length
     ? `<div class="mod-list">${existing.map(m => {
         const who = findTok(m.targetId);
@@ -3711,6 +3801,7 @@ function openModCreate(tokenId, kind) {
     <label>Value <input type="number" id="modValue" min="0" value="2"></label>
     <label>${targetLabel}<select id="modTarget">${targetOpts}</select></label>
     <label class="hidden-toggle"><input type="checkbox" id="modPersistent"> Exclusive &amp; Persistent (one per creator)</label>
+    ${twistHtml}
     <p style="color:var(--text-lo);font-size:12px;">Default is one-off. Spend a Minor Twist later to reuse a one-off. Persistent stays until cleared. Defend subtracts from Attacks on the target.</p>
     <button class="btn btn-accent" type="button" onclick="commitMod('${t.id}','${kind}')">Add ${title}</button>`;
   document.getElementById('modModal').classList.remove('hidden');
@@ -3721,6 +3812,12 @@ function commitMod(creatorId, kind) {
   const value = Number(document.getElementById('modValue').value) || 0;
   const targetId = document.getElementById('modTarget').value;
   const exclusivePersistent = document.getElementById('modPersistent').checked;
+  const twistUsed = !!(document.getElementById('modTwist2Uses') && document.getElementById('modTwist2Uses').checked);
+  const twistPrinciple = twistUsed ? (document.getElementById('modTwistPrinciple') || {}).value : null;
+  const twistText = twistPrinciple
+    ? (((state.heroes.find(h => h.Slug === (creator.slug || '')) || {})['Principle' + twistPrinciple + 'MinorTwist']) || '')
+    : '';
+  const uses = twistText ? 2 : 1;
   if (value <= 0) { toast('Value must be &gt; 0'); return; }
   if (kind === 'defend') {
     const target = findTok(targetId);
@@ -3734,12 +3831,15 @@ function commitMod(creatorId, kind) {
     return;
   }
   ensureMods(state.scene).push({
-    id: uid('mod'), kind, creatorId, targetId, value, exclusivePersistent, consumed: false
+    id: uid('mod'), kind, creatorId, targetId, value, exclusivePersistent, consumed: false,
+    uses, twist: twistText
   });
   const cName = creator.name;
   const tName = (findTok(targetId) || {}).name || '?';
   logActivity({ id: creator.id, name: cName, kind: creator.kind }, kind[0].toUpperCase() + kind.slice(1),
-    { id: targetId, name: tName }, `${kind} ${value}${exclusivePersistent ? ' (Exclusive & Persistent)' : ''}`, { value, kind });
+    { id: targetId, name: tName },
+    `${kind} ${value}${exclusivePersistent ? ' (Exclusive & Persistent)' : uses > 1 ? ' (2 uses — minor twist taken)' : ''}`,
+    { value, kind, uses, twist: twistText });
   saveSceneDebounced(); renderTokens(); closeModCreate();
 }
 function consumeMod(modId) {
@@ -3749,12 +3849,17 @@ function consumeMod(modId) {
 }
 
 function attackModPickerHtml(target) {
-  const spend = liveMods(state.scene).filter(m => m.kind === 'boost' || m.kind === 'hinder');
+  // Only mods sitting ON the affected token — the affected character (or the
+  // GM on their behalf) decides when a Boost/Hinder happens (creator chose the
+  // target at creation; the traceable path is creator → target on every row).
+  const spend = liveMods(state.scene).filter(m =>
+    (m.kind === 'boost' || m.kind === 'hinder') && m.targetId === target.id);
   const defend = bhdTotals(state.scene, target).defend;
   const rows = spend.length
     ? spend.map(m => {
         const cr = findTok(m.creatorId);
-        const tag = m.exclusivePersistent ? 'Exclusive & Persistent' : 'one-off';
+        const tag = m.exclusivePersistent ? 'Exclusive & Persistent'
+          : (Number(m.uses) > 1 ? `one-off, ${m.uses} uses (minor twist taken)` : 'one-off');
         return `<label><input type="checkbox" class="atk-mod" data-id="${m.id}">
           ${m.kind === 'boost' ? '+' : '−'}${m.value} ${m.kind} from ${escHtml(cr ? cr.name : '?')} (${tag})</label>`;
       }).join('')
@@ -3777,7 +3882,7 @@ function applyStackedAttack(target, raw) {
   selectedAttackMods().forEach(m => {
     if (m.kind === 'boost') { dmg += Number(m.value) || 0; notes.push(`+${m.value} Boost`); }
     if (m.kind === 'hinder') { dmg -= Number(m.value) || 0; notes.push(`−${m.value} Hinder`); }
-    if (!m.exclusivePersistent && !twist) m.consumed = true;
+    consumeOneUse(m, twist);
   });
   const defend = bhdTotals(state.scene, target).defend;
   if (defend) {
@@ -3788,6 +3893,13 @@ function applyStackedAttack(target, raw) {
     });
   }
   return { dmg: Math.max(0, dmg), notes };
+}
+// A two-use mod (created by taking a minor twist) survives the first spend.
+function consumeOneUse(m, keepPersistent) {
+  if (m.exclusivePersistent && keepPersistent) return;
+  const uses = Number(m.uses) || 1;
+  if (!m.exclusivePersistent && uses > 1) { m.uses = uses - 1; return; }
+  if (!m.exclusivePersistent || keepPersistent) m.consumed = true;
 }
 
 function applyDamageToHealth(id) {

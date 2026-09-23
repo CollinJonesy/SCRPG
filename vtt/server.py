@@ -22,6 +22,7 @@ import argparse
 import csv
 import io
 import json
+import random
 import re
 import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -521,6 +522,30 @@ def die_label(value) -> str:
     return s
 
 
+def pending_mods_payload(scene, hero: str) -> list:
+    """Boost/Hinder mods waiting on this hero's decision, with the creator's
+    name resolved so the sheet can show the full creator → affected path."""
+    if not scene:
+        return []
+    my = next((t for t in scene.get('tokens') or []
+               if t.get('kind') == 'hero' and (t.get('slug') or '').strip() == hero), None)
+    if my is None:
+        return []
+    out = []
+    for m in pending_mods_for(scene, my.get('id')):
+        creator = next((t for t in scene.get('tokens') or []
+                        if t.get('id') == m.get('creatorId')), None)
+        out.append({
+            'id': m.get('id'),
+            'kind': m.get('kind'),
+            'value': m.get('value'),
+            'uses': int(m.get('uses') or 1),
+            'twist': m.get('twist') or '',
+            'creator': (creator or {}).get('name') or 'Unknown',
+        })
+    return out
+
+
 def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
     """Full read-only sheet payload for one hero — everything the player device
     may see. Hiding rules mirror the Player Display: no villain health numbers,
@@ -562,6 +587,7 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
                 if t.get('locationId') != loc_id:
                     continue
                 occ = {
+                    'id': t.get('id') or '',
                     'kind': t.get('kind') or '',
                     'slug': t.get('slug') or '',
                     'name': t.get('name') or '',
@@ -624,11 +650,19 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
         'location': {'id': (location or {}).get('id'), 'name': (location or {}).get('name')},
         'occupants': occupants,
         'myToken': {
+            'id': (my_token or {}).get('id') or '',
+            'locationId': (my_token or {}).get('locationId') or '',
             'currentHealth': (my_token or {}).get('currentHealth'),
             'maxHealth': (my_token or {}).get('maxHealth'),
             'currentDie': (my_token or {}).get('currentDie'),
             'bhd': (my_token or {}).get('bhdDelta') or {},
         },
+        'sceneType': str((scene or {}).get('sceneType') or ''),
+        'recoverAllowed': bool(hero_has_recover_ability(abilities) or scene_is_montage(scene)),
+        # Pending Boost/Hinder mods the affected hero decides when to spend
+        # (creator chose this hero as the beneficiary). Creator name resolved
+        # for the traceable creator → affected path on the sheet.
+        'pendingMods': pending_mods_payload(scene, hero),
         'heroPoints': {
             'issue': issue,
             'mine': my_hp,
@@ -637,6 +671,585 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
         'notes': notes,
         'alerts': alerts,
     }
+
+
+# ---------------- Player actions (Phase 2): rules math ----------------
+#
+# Port of the GM board's resolution math (app.js applyBoardAttack /
+# applyBoardMod / applyBoardRecover / bhModValue / overcomeResult /
+# assignTurnNumber / maybeEndRound) so a player action resolved here is
+# identical to the same action taken on the GM board. Player actions mutate
+# scene JSON in Python — NEVER a scene PUT.
+
+DIE_LADDER = [4, 6, 8, 10, 12]
+
+PLAYER_ACTIONS = ('Attack', 'Defend', 'Boost', 'Hinder', 'Recover', 'Overcome')
+
+
+def die_size_of(value) -> int:
+    s = str(value or '').strip().lower()
+    if s.startswith('d'):
+        s = s[1:]
+    try:
+        n = int(s)
+    except ValueError:
+        return 0
+    return n if n in DIE_LADDER else 0
+
+
+def degrade_die_size(size: int):
+    if size not in DIE_LADDER:
+        return None
+    i = DIE_LADDER.index(size)
+    return DIE_LADDER[i - 1] if i > 0 else None
+
+
+def bh_mod_value(total: int) -> int:
+    """Boost/Hinder table: 0− / 1–3 / 4–7 / 8–11 / 12+ → ±0/1/2/3/4."""
+    if total <= 0:
+        return 0
+    if total <= 3:
+        return 1
+    if total <= 7:
+        return 2
+    if total <= 11:
+        return 3
+    return 4
+
+
+def overcome_result_text(total: int) -> str:
+    """RAW Overcome table (verified against the rulebook PDF; 12+ = no twist)."""
+    if total <= 0:
+        return 'Spectacular failure (0−)'
+    if total <= 3:
+        return 'Failure, or success with a Major Twist (1–3)'
+    if total <= 7:
+        return 'Success with a Minor Twist (4–7)'
+    if total <= 11:
+        return 'Complete success (8–11)'
+    return 'Success beyond expectations (12+)'
+
+
+def load_active_scene(campaign: Path):
+    """(scene dict, scene path) for the active scene, or (None, None)."""
+    active = _load_json_file(campaign / 'active_scene.json', {})
+    slug = str(active.get('slug') or '') if isinstance(active, dict) else ''
+    if not slug or not is_safe_slug(slug):
+        return None, None
+    p = campaign / 'scenes' / (slug + '.json')
+    if not p.exists():
+        return None, None
+    try:
+        return json.loads(p.read_text(encoding='utf-8')), p
+    except Exception:
+        return None, None
+
+
+def hero_csv_row(campaign: Path, hero: str):
+    for r in _csv_rows(campaign / 'players.csv', HEROES_HEADERS):
+        if (r.get('Slug') or '').strip() == hero:
+            return r
+    return None
+
+
+def hero_ability_rows(campaign: Path, hero: str):
+    return [r for r in _csv_rows(campaign / 'abilities.csv', ABILITIES_HEADERS)
+            if (r.get('Slug') or '').strip() == hero]
+
+
+def scene_is_montage(scene) -> bool:
+    return 'montage' in str((scene or {}).get('sceneType') or '').lower()
+
+
+def hero_has_recover_ability(abilities) -> bool:
+    """Recover action exists ONLY when an ability explicitly grants it."""
+    return any('recover' in str(r.get('RollType') or '').lower() for r in abilities)
+
+
+def hero_mode_for(campaign: Path, hero: str, token) -> dict:
+    """The token's current mode info from the hero's ## Modes JSON. Default
+    mode (or an unknown slug) falls back to an unlocked, non-powerless shape."""
+    slug = str((token or {}).get('currentMode') or 'default')
+    info = next((m for m in hero_modes_md(campaign, hero)
+                 if str(m.get('slug') or '') == slug), None)
+    if info is None:
+        info = {'slug': slug, 'name': 'Default Mode' if slug == 'default' else slug,
+                'powers': {}, 'lockedActions': [], 'powerless': False, 'immobile': False}
+    return info
+
+
+def mode_locked_actions(mode_info) -> set:
+    """Lowercased locked basic actions for the current mode. Recover is NEVER
+    mode-locked (locked decision)."""
+    locked = {str(a).strip().lower() for a in (mode_info.get('lockedActions') or [])}
+    locked.discard('recover')
+    return locked
+
+
+def power_quality_die(row, prefix: str, name: str) -> str:
+    name = str(name or '').strip().lower()
+    for i in range(1, 7):
+        if str(row.get(prefix + str(i)) or '').strip().lower() == name:
+            return row.get(prefix + 'Die' + str(i)) or ''
+    return ''
+
+
+def resolve_pool(row, token, mode_info, pool):
+    """Dice-pool resolution. Returns ({min, mid, max, effect, ...}, err).
+    pool['manual'] = player-entered Min/Mid/Max + Effect Die (server clamps and
+    computes the outcome — entry is NOT display-only); otherwise a digital roll:
+    the server rolls the hero's chosen power + quality + current status die."""
+    manual = pool.get('manual') if isinstance(pool, dict) else None
+    if isinstance(manual, dict):
+        try:
+            vals = sorted(int(manual.get(k) or 0) for k in ('min', 'mid', 'max'))
+        except (TypeError, ValueError):
+            return None, 'manual roll needs numeric min/mid/max'
+        try:
+            eff = int(manual.get('effect') or 0)
+        except (TypeError, ValueError):
+            return None, 'effect die must be a number'
+        if eff < 0 or eff > 20:
+            return None, 'effect die out of range'
+        return {'min': vals[0], 'mid': vals[1], 'max': vals[2], 'effect': eff}, None
+    # Digital roll — the server rolls; the client only picks WHICH dice.
+    powers = mode_info.get('powers') or {}
+    pname = str((pool or {}).get('power') or '')
+    qname = str((pool or {}).get('quality') or '')
+    pdie = die_size_of(powers.get(pname) or power_quality_die(row, 'Power', pname))
+    qdie = die_size_of(powers.get(qname) or power_quality_die(row, 'Quality', qname))
+    sdie = (die_size_of((token or {}).get('currentDie'))
+            or die_size_of(row.get('GreenStatusDie')))
+    if not pdie or not qdie or not sdie:
+        return None, 'digital roll needs a known power and quality'
+    rolls = sorted(random.randint(1, d) for d in (pdie, qdie, sdie))
+    # Effect die defaults to Mid; an ability DieSource of Max/Min overrides.
+    src = str((pool or {}).get('effectDie') or '').strip().lower()
+    eff = rolls[2] if src == 'max' else rolls[0] if src == 'min' else rolls[1]
+    return {'min': rolls[0], 'mid': rolls[1], 'max': rolls[2], 'effect': eff,
+            'powerDie': 'd' + str(pdie), 'qualityDie': 'd' + str(qdie),
+            'statusDie': 'd' + str(sdie)}, None
+
+
+def log_scene_activity(scene, actor, action: str, target, result: str, details=None,
+                       counts_as_turn: bool = True):
+    """Append to the scene's activity log in the exact shape app.js
+    logActivity() writes, so the board's Activity Log stays the single source."""
+    if not isinstance(scene.get('activityLog'), list):
+        scene['activityLog'] = []
+    det = dict(details or {})
+    det['countsAsTurn'] = bool(counts_as_turn)
+    scene['activityLog'].append({
+        'id': 'log-' + secrets.token_hex(4),
+        'timestamp': time.time(),
+        'round': scene.get('round') or 1,
+        'actor': actor,
+        'action': action,
+        'target': target,
+        'result': result,
+        'details': det,
+    })
+
+
+def assign_player_turn(scene, token):
+    """Port of app.js assignTurnNumber for player-initiated actions: the token
+    gets the next turn number; when every living combatant has acted the round
+    advances (maybeEndRound). Uses token.turnNumber as the persistent marks."""
+    if not token or token.get('ko'):
+        return None
+    if token.get('kind') not in ('hero', 'villain', 'minion', 'lieutenant'):
+        return None
+    if scene.get('round') is None or (scene.get('round') or 0) < 1:
+        scene['round'] = 1
+    cur = token.get('turnNumber')
+    if not cur:
+        taken = [t.get('turnNumber') for t in scene.get('tokens') or [] if t.get('turnNumber')]
+        nxt = (max([n for n in taken if isinstance(n, int)] or [0])) + 1
+        token['turnNumber'] = nxt
+    # maybeEndRound runs on every turn-counting action, even a repeat actor's
+    living = [t for t in scene.get('tokens') or []
+              if not t.get('ko') and t.get('kind') in ('hero', 'villain', 'minion', 'lieutenant')]
+    if living and all(t.get('turnNumber') for t in living):
+        n = scene.get('round') or 1
+        for t in scene.get('tokens') or []:
+            t.pop('turnNumber', None)
+        scene['round'] = n + 1
+        log_scene_activity(scene, None, 'End of Round', None,
+                           'Round ' + str(n) + ' ended', {'roundEnded': n},
+                           counts_as_turn=False)
+    return token.get('turnNumber')
+
+
+def actor_ref(token):
+    if not token:
+        return None
+    return {'id': token.get('id'), 'name': token.get('name'), 'kind': token.get('kind')}
+
+
+def target_ref(token):
+    return actor_ref(token)
+
+
+def ensure_scene_mods(scene) -> list:
+    if not isinstance(scene.get('mods'), list):
+        scene['mods'] = []
+    return scene['mods']
+
+
+def pending_mods_for(scene, token_id) -> list:
+    """Boost/Hinder mods the token is the beneficiary of (creator chose them as
+    the affected party) that are not yet consumed — the affected character (or
+    the GM for villains/minions/lieutenants) decides when each use happens."""
+    return [m for m in ensure_scene_mods(scene)
+            if not m.get('consumed') and m.get('targetId') == token_id
+            and m.get('kind') in ('boost', 'hinder')]
+
+
+def spend_player_mods(scene, token, mod_ids, kind_wanted):
+    """Validate + sum mods the actor spends on one roll. Boost adds, Hinder
+    subtracts. Each spend consumes one use (a two-use mod from a minor twist
+    survives the first spend). Returns (delta, err)."""
+    delta = 0
+    ids = [str(i) for i in (mod_ids or [])]
+    if len(ids) > 6:
+        return 0, 'too many mods in one roll'
+    mods = ensure_scene_mods(scene)
+    for mid in ids:
+        m = next((x for x in mods if str(x.get('id') or '') == mid), None)
+        if m is None:
+            return 0, 'unknown mod: ' + mid
+        if m.get('targetId') != token.get('id'):
+            return 0, 'mod not on this hero: ' + mid
+        if m.get('consumed'):
+            return 0, 'mod already used: ' + mid
+        if m.get('kind') not in ('boost', 'hinder'):
+            return 0, 'only Boost/Hinder mods can be spent'
+        val = int(m.get('value') or 0)
+        delta += val if m.get('kind') == 'boost' else -val
+        if m.get('kind') == kind_wanted or kind_wanted is None:
+            pass
+        uses = int(m.get('uses') or 1)
+        if uses > 1:
+            m['uses'] = uses - 1
+        else:
+            m['consumed'] = True
+    return delta, None
+
+
+def defend_total_on(scene, token) -> int:
+    """Defend mods auto-apply to incoming damage (and are consumed by it)."""
+    return sum(int(m.get('value') or 0) for m in ensure_scene_mods(scene)
+               if not m.get('consumed') and m.get('kind') == 'defend'
+               and m.get('targetId') == token.get('id'))
+
+
+def consume_defend_mods(scene, token):
+    for m in ensure_scene_mods(scene):
+        if (not m.get('consumed') and m.get('kind') == 'defend'
+                and m.get('targetId') == token.get('id')):
+            m['consumed'] = True
+
+
+def apply_player_attack(scene, actor, target, dmg: int, ability_name: str, effect: int):
+    """Port of applyBoardAttack: heroes/villains lose Health; minions fail =
+    defeated outright (house rule); lieutenants instant-KO at >= 2x current die,
+    else step down one size."""
+    result = ''
+    if dmg <= 0:
+        result = ability_name + ': 0 damage to ' + str(target.get('name')) + ' (blocked)'
+    elif target.get('kind') in ('hero', 'villain'):
+        max_h = int(target.get('maxHealth') or 0) or int(target.get('currentHealth') or 0)
+        target['currentHealth'] = max(0, (int(target.get('currentHealth') or 0)) - dmg)
+        result = (ability_name + ': ' + str(dmg) + ' damage to ' + str(target.get('name'))
+                  + ' (Health ' + str(target.get('currentHealth')) + ')')
+    elif target.get('kind') == 'minion':
+        die = int(target.get('currentDie') or 4)
+        roll = random.randint(1, max(1, die))
+        failed = roll < dmg
+        if failed:
+            target['ko'] = True
+        result = (ability_name + ': ' + str(dmg) + ' vs minion save ' + str(roll)
+                  + ' — ' + ('defeated' if failed else 'held'))
+    elif target.get('kind') == 'lieutenant':
+        die = int(target.get('currentDie') or 4)
+        if dmg >= die * 2:
+            target['ko'] = True
+            result = (ability_name + ': ' + str(dmg) + ' ≥ double d' + str(die)
+                      + ' — instant KO')
+        else:
+            roll = random.randint(1, max(1, die))
+            if roll < dmg:
+                nxt = degrade_die_size(die)
+                if nxt is None:
+                    target['ko'] = True
+                    result = (ability_name + ': save ' + str(roll) + ' vs ' + str(dmg)
+                              + ' — defeated')
+                else:
+                    target['currentDie'] = nxt
+                    result = (ability_name + ': save ' + str(roll) + ' vs ' + str(dmg)
+                              + ' — now d' + str(nxt))
+            else:
+                result = (ability_name + ': save ' + str(roll) + ' vs ' + str(dmg)
+                          + ' — held')
+    return result
+
+
+def apply_player_action(campaign: Path, hero: str, payload: dict):
+    """Validate + apply one player action. Returns (http_status, response dict).
+    All clamping/validation happens here; the client is never trusted."""
+    row = hero_csv_row(campaign, hero)
+    if row is None:
+        return 404, {'error': 'hero not found'}
+    scene, spath = load_active_scene(campaign)
+    if scene is None:
+        return 400, {'error': 'no active scene'}
+    tok = next((t for t in scene.get('tokens') or []
+                if t.get('kind') == 'hero' and (t.get('slug') or '').strip() == hero), None)
+    if tok is None:
+        return 400, {'error': 'hero not on board'}
+
+    mode_info = hero_mode_for(campaign, hero, tok)
+    locked = mode_locked_actions(mode_info)
+    abilities = hero_ability_rows(campaign, hero)
+    mode_change = payload.get('modeChange') or {}
+    mode_change_pos = str(mode_change.get('position') or '')
+    if payload.get('kind') == 'emergency-switch':
+        return _apply_emergency_switch(campaign, scene, spath, tok, mode_info,
+                                       payload, row)
+    if mode_change and mode_change_pos not in ('pre', 'post'):
+        return 400, {'error': 'modeChange.position must be pre or post'}
+    if mode_change:
+        mc_mode = str(mode_change.get('mode') or '')
+        known = {str(m.get('slug') or '').strip() for m in hero_modes_md(campaign, hero)}
+        known.add('default')
+        if mc_mode not in known:
+            return 400, {'error': 'unknown mode'}
+    actions = payload.get('actions')
+    if not isinstance(actions, list) or not (1 <= len(actions) <= 3):
+        return 400, {'error': 'actions must be a list of 1-3 actions'}
+
+    def set_mode():
+        tok['currentMode'] = str(mode_change.get('mode') or 'default')
+        mname = next((str(m.get('name') or m.get('slug')) for m in hero_modes_md(campaign, hero)
+                      if str(m.get('slug') or '') == str(mode_change.get('mode'))),
+                     str(mode_change.get('mode')))
+        log_scene_activity(scene, actor_ref(tok), 'Mode Change',
+                           {'name': mname},
+                           str(tok.get('name')) + ': mode → ' + mname
+                           + ' (' + str(payload.get('abilityName') or 'Switch') + ')',
+                           {'mode': str(mode_change.get('mode')),
+                            'ability': payload.get('abilityName') or ''},
+                           counts_as_turn=False)
+
+    # Quick Switch 'pre': destroy one bonus on this hero, change mode, THEN act
+    # in the new mode (locked ordering from commitBoardAction).
+    if mode_change and mode_change_pos == 'pre':
+        mods = ensure_scene_mods(scene)
+        idx = next((i for i, m in enumerate(mods)
+                    if m.get('kind') == 'boost' and m.get('targetId') == tok.get('id')
+                    and not m.get('consumed')), None)
+        if idx is not None:
+            mods.pop(idx)
+            log_scene_activity(scene, actor_ref(tok), 'Quick Switch',
+                               {'name': tok.get('name')},
+                               str(tok.get('name')) + ': destroyed one bonus on themselves (Quick Switch)',
+                               {}, counts_as_turn=False)
+        set_mode()
+
+    outcomes = []
+    for a in actions:
+        status, resp = _apply_one_player_action(campaign, scene, tok, row, mode_info,
+                                                locked, abilities, a,
+                                                str(payload.get('abilityName') or ''))
+        if status != 200:
+            return status, resp
+        outcomes.append(resp)
+    if mode_change and mode_change_pos == 'post':
+        set_mode()
+    spath.write_text(json.dumps(scene, indent=2), encoding='utf-8')
+    return 200, {'ok': True, 'outcomes': outcomes, 'round': scene.get('round') or 1,
+                 'currentMode': tok.get('currentMode') or 'default'}
+
+
+def _apply_emergency_switch(campaign, scene, spath, tok, mode_info, payload, row):
+    """Reaction: change to any mode + take Min-die damage (entered or rolled
+    from the Min die) or a minor twist."""
+    modes = hero_modes_md(campaign, hero := str(tok.get('slug') or ''))
+    mode = str(payload.get('mode') or '')
+    known = {str(m.get('slug') or '').strip() for m in modes}
+    known.add('default')
+    if mode not in known:
+        return 400, {'error': 'unknown mode'}
+    cost = str(payload.get('cost') or 'damage')
+    mname = next((str(m.get('name') or m.get('slug')) for m in modes
+                  if str(m.get('slug') or '') == mode), mode)
+    tok['currentMode'] = mode
+    if cost == 'twist':
+        cost_txt = 'took a minor twist'
+    else:
+        try:
+            dmg = int(payload.get('damage') or 0)
+        except (TypeError, ValueError):
+            dmg = 0
+        dmg = max(0, min(50, dmg))
+        if dmg > 0:
+            tok['currentHealth'] = max(0, (int(tok.get('currentHealth') or 0)) - dmg)
+        cost_txt = 'took ' + str(dmg) + ' extra damage'
+    log_scene_activity(scene, actor_ref(tok), 'Emergency Switch', {'name': mname},
+                       str(tok.get('name')) + ': Emergency Switch → ' + mname
+                       + '; ' + cost_txt, {'mode': mode}, counts_as_turn=False)
+    record_sheet_activity(campaign, str(tok.get('slug') or ''), 'Emergency Switch',
+                          '→ ' + mname + '; ' + cost_txt)
+    spath.write_text(json.dumps(scene, indent=2), encoding='utf-8')
+    return 200, {'ok': True, 'outcomes': [{'type': 'Emergency Switch', 'result': cost_txt}],
+                 'currentMode': mode}
+
+
+def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abilities,
+                             a, ability_name):
+    atype = str((a or {}).get('type') or '').strip()
+    if atype not in PLAYER_ACTIONS:
+        return 400, {'error': 'unknown action type: ' + atype}
+    if atype.lower() in locked:
+        return 400, {'error': atype + ' is locked in this mode'}
+    if atype == 'Recover' and not (hero_has_recover_ability(abilities)
+                                   or scene_is_montage(scene)):
+        return 400, {'error': 'Recover needs an ability that grants it'
+                              + ('' if not scene_is_montage(scene) else '')}
+
+    # ---- target ----
+    target = None
+    target_label = ''
+    if atype == 'Overcome':
+        target_label = str(a.get('targetLabel') or '').strip() or 'scene object'
+    elif atype == 'Recover':
+        tid = str(a.get('targetId') or tok.get('id') or '')
+        target = next((t for t in scene.get('tokens') or [] if t.get('id') == tid), tok)
+        if target is None:
+            return 400, {'error': 'recover target not found'}
+        if target.get('kind') not in ('hero', 'villain'):
+            return 400, {'error': 'Recover only works on heroes and villains'}
+    else:
+        tid = str(a.get('targetId') or '')
+        target = next((t for t in scene.get('tokens') or [] if t.get('id') == tid), None)
+        if target is None:
+            return 400, {'error': atype + ' needs a valid target'}
+        if target.get('id') == tok.get('id') and atype == 'Attack':
+            return 400, {'error': 'you cannot attack yourself'}
+        if (target.get('locationId') or '') != (tok.get('locationId') or ''):
+            return 400, {'error': 'target must be in your location'}
+        if target.get('ko'):
+            return 400, {'error': 'target is out'}
+
+    # ---- dice pool ----
+    vals, err = resolve_pool(row, tok, mode_info, a.get('roll') or {})
+    if err:
+        return 400, {'error': err}
+    effect = int(vals['effect'])
+
+    # ---- mod spends (the affected decides when a Boost/Hinder happens) ----
+    spend_delta, err = spend_player_mods(scene, tok, a.get('spendMods'), None)
+    if err:
+        return 400, {'error': err}
+
+    # ---- Boost/Hinder: optional minor twist for a second use ----
+    uses = 1
+    twist_txt = ''
+    if atype in ('Boost', 'Hinder'):
+        bt = a.get('boostTwist') or {}
+        if bt:
+            try:
+                pi = int(bt.get('principle') or 0)
+            except (TypeError, ValueError):
+                pi = 0
+            if pi not in (1, 2):
+                return 400, {'error': 'boostTwist.principle must be 1 or 2'}
+            twist_txt = str(row.get('Principle' + str(pi) + 'MinorTwist') or '')
+            if not twist_txt:
+                return 400, {'error': 'that principle has no Minor Twist question'}
+            uses = 2
+
+    details = {'effect': effect, 'ability': ability_name}
+    if 'powerDie' in vals:
+        details['roll'] = vals
+
+    result = ''
+    outcome = {'type': atype, 'effect': effect, 'roll': vals}
+    if atype == 'Attack':
+        defend = defend_total_on(scene, target)
+        dmg = max(0, effect + spend_delta - defend)
+        if defend:
+            consume_defend_mods(scene, target)
+            details['defend'] = defend
+        details['dmg'] = dmg
+        result = apply_player_attack(scene, tok, target, dmg, ability_name or 'Attack', effect)
+        outcome['target'] = {'id': target.get('id'), 'name': target.get('name'),
+                             'kind': target.get('kind')}
+        outcome['dmg'] = dmg
+        if defend:
+            outcome['defended'] = defend
+    elif atype in ('Boost', 'Hinder'):
+        value = bh_mod_value(effect + spend_delta)
+        if value <= 0:
+            result = (ability_name or atype) + ': no mod created'
+            outcome['value'] = 0
+        else:
+            mod = {'id': 'mod-' + secrets.token_hex(4), 'kind': atype.lower(),
+                   'value': value, 'creatorId': tok.get('id'), 'targetId': target.get('id'),
+                   'exclusivePersistent': False, 'uses': uses}
+            if twist_txt:
+                mod['twist'] = twist_txt
+            ensure_scene_mods(scene).append(mod)
+            details['value'] = value
+            result = ((ability_name or atype) + ': ' + atype.lower() + ' ' + str(value)
+                      + ' → ' + str(target.get('name'))
+                      + (' (2 uses — minor twist taken)' if uses == 2 else ''))
+            outcome.update({'value': value, 'uses': uses,
+                            'target': {'id': target.get('id'), 'name': target.get('name'),
+                                       'kind': target.get('kind')}})
+    elif atype == 'Defend':
+        value = max(0, effect + spend_delta)
+        ensure_scene_mods(scene).append({'id': 'mod-' + secrets.token_hex(4),
+                                         'kind': 'defend', 'value': value,
+                                         'creatorId': tok.get('id'),
+                                         'targetId': target.get('id'),
+                                         'exclusivePersistent': False, 'uses': 1})
+        details['value'] = value
+        result = ((ability_name or 'Defend') + ': defend ' + str(value) + ' → '
+                  + str(target.get('name')))
+        outcome.update({'value': value,
+                        'target': {'id': target.get('id'), 'name': target.get('name'),
+                                   'kind': target.get('kind')}})
+    elif atype == 'Recover':
+        heal = max(0, effect + spend_delta)
+        if target.get('kind') in ('hero', 'villain'):
+            max_h = int(target.get('maxHealth') or 0) or int(target.get('currentHealth') or 0)
+            target['currentHealth'] = min(max_h, (int(target.get('currentHealth') or 0)) + heal)
+        details['heal'] = heal
+        result = ((ability_name or 'Recover') + ': Recover ' + str(heal) + ' → '
+                  + str(target.get('name')) + ' (Health ' + str(target.get('currentHealth')) + ')')
+        outcome.update({'heal': heal, 'health': target.get('currentHealth')})
+    elif atype == 'Overcome':
+        total = effect + spend_delta
+        details['total'] = total
+        result = ((ability_name or 'Overcome') + ': Overcome ' + str(total) + ' vs '
+                  + target_label + ' — ' + overcome_result_text(total))
+        outcome.update({'total': total, 'targetLabel': target_label,
+                        'outcome': overcome_result_text(total)})
+
+    if twist_txt:
+        details['minorTwist'] = twist_txt
+
+    counts = atype in ('Attack', 'Defend', 'Boost', 'Hinder', 'Recover', 'Overcome')
+    log_scene_activity(scene, actor_ref(tok), atype, outcome.get('target')
+                       or ({'name': target_label} if target_label else None),
+                       result, details, counts_as_turn=counts)
+    if counts:
+        assign_player_turn(scene, tok)
+    record_sheet_activity(campaign, str(tok.get('slug') or ''),
+                          ability_name if ability_name else atype, result)
+    outcome['result'] = result
+    return 200, outcome
 
 
 def save_built_hero(campaign: Path, payload: dict, obsidian_heroes: Path | None = None) -> dict:
@@ -1631,6 +2244,24 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                                   if str(m.get('slug') or '').strip() == mode), mode)
                 record_sheet_activity(campaign, hero, 'Mode changed', '→ ' + mode_name)
                 return self._send_text(json.dumps({'ok': True, 'currentMode': mode}), 200, 'application/json')
+            if path == '/api/player-action':
+                # Player-driven actions (Phase 2): Defend / Recover / Boost /
+                # Hinder / Attack / Overcome / ability use with self or targeted
+                # effects, plus the Switch family. Key-gated; the scene JSON is
+                # mutated here in Python — NEVER a scene PUT. Every action was
+                # staged through the sheet's "Are You Sure?" popup first; this
+                # endpoint is the confirm side and applies server-side.
+                try:
+                    payload = json.loads(self._read_body_text() or '{}')
+                except Exception:
+                    return self._send_text(json.dumps({'error': 'bad json'}), 400, 'application/json')
+                hero = str(payload.get('hero') or '').strip()
+                if not is_safe_slug(hero):
+                    return self._send_text(json.dumps({'error': 'hero required'}), 400, 'application/json')
+                if not sheet_key_valid(campaign, hero, str(payload.get('key') or '')):
+                    return self._send_text(json.dumps({'error': 'invalid key'}), 403, 'application/json')
+                status, resp = apply_player_action(campaign, hero, payload)
+                return self._send_text(json.dumps(resp), status, 'application/json')
             if path == '/api/alerts':
                 # GM compose/delete; player dismiss (key-gated).
                 # {op:'compose', targets:'all'|[slugs], text} |

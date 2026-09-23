@@ -69,7 +69,10 @@ class TestBoardDisplayFixes(unittest.TestCase):
         self.assertIn('listSel.value = prevSlug', body)
 
     def test_health_opens_recover_not_defend(self):
-        self.assertIn("openBoardAction('${t.id}','Recover',null)", APP)
+        # Recover is gated: heroRecoverOrExplain checks heroCanRecover()
+        # (ability grants it, or Montage) before opening the Recover action.
+        self.assertIn("heroRecoverOrExplain('${t.id}')", APP)
+        self.assertIn('function heroCanRecover', APP)
         self.assertNotIn("openModCreate('${t.id}','defend')", APP)
         self.assertNotIn("openModCreate('${t.id}','recover')", APP)
 
