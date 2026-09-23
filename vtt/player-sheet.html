@@ -614,6 +614,10 @@ async function dismissAlert(id) {
 }
 
 async function tick() {
+  // Don't re-render while the abilities filter dropdown is open — replacing
+  // the DOM would close it every 3s. Data catches up on the next tick.
+  const sel = document.querySelector('.abil-filter select');
+  if (sel && document.activeElement === sel) return;
   const r = await fetchSheet();
   const p = r.body || {};
   if (r.status === 403) {
