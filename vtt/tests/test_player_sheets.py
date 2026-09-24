@@ -226,6 +226,35 @@ class TestSheetPayloadSceneData(ServerTestCase):
     def test_npc_type_lookup(self):
         self.assertEqual(srv.npc_type_for(self.campaign, 'nobody'), '')
 
+    def test_minion_display_names_numbered_in_payload(self):
+        """Minions get per-name numbers in the payload occupants (feeds the
+        sheets' target dropdowns); heroes/villains/lieutenants are untouched."""
+        tokens = [
+            {'id': 'h1', 'kind': 'hero', 'slug': 'test-hero', 'name': 'Test Hero', 'locationId': 'loc1'},
+            {'id': 'm1', 'kind': 'minion', 'slug': 'thug', 'name': 'Thug', 'spawnIndex': 1, 'locationId': 'loc1'},
+            {'id': 'm2', 'kind': 'minion', 'slug': 'thug', 'name': 'Thug', 'spawnIndex': 2, 'locationId': 'loc1'},
+            {'id': 'm3', 'kind': 'minion', 'slug': 'thug', 'name': 'Thug', 'locationId': 'loc1'},
+            {'id': 'm2', 'kind': 'minion', 'slug': 'cop', 'name': 'Cop', 'locationId': 'loc1'},
+        ]
+        self.assertEqual(srv.token_display_name(tokens[1], tokens), 'Thug #1')
+        self.assertEqual(srv.token_display_name(tokens[2], tokens), 'Thug #2')
+        # legacy unstamped minion falls back to the lowest unused index
+        self.assertEqual(srv.token_display_name(tokens[3], tokens), 'Thug #3')
+        self.assertEqual(srv.token_display_name(tokens[4], tokens), 'Cop #1')
+        self.assertEqual(srv.token_display_name(tokens[0], tokens), 'Test Hero')
+        # freeing #2 recycles it for the next spawn
+        self.assertEqual(srv.token_display_name({'id': 'm3', 'kind': 'minion', 'slug': 'thug', 'name': 'Thug'}, tokens[:2] + tokens[3:]), 'Thug #2')
+
+        seed_hero(self.campaign)
+        seed_scene(self.campaign, tokens=tokens)
+        srv._save_json_file(self.campaign / 'sheet-keys.json', {'test-hero': 'k123'})
+        _, data = self.request('GET', '/api/player-sheet?hero=test-hero&key=k123')
+        payload = json.loads(data)
+        names = {o['id']: o['name'] for o in payload['occupants']}
+        self.assertEqual(names['m1'], 'Thug #1')
+        self.assertEqual(names['m2'], 'Cop #1')
+        self.assertEqual(names['h1'], 'Test Hero')
+
 
 class TestPlayerActionAuthAndValidation(ServerTestCase):
     def seed_action_scene(self):

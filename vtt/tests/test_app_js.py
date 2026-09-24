@@ -107,6 +107,18 @@ class TestAppJsContracts(unittest.TestCase):
         html = (Path(__file__).resolve().parent.parent / 'index.html').read_text(encoding='utf-8')
         self.assertLess(html.index('collapseAllTokensBtn'), html.index('resetLtDiceBtn'))
 
+    def test_minions_are_numbered_on_board(self):
+        """spawnToken stamps spawnIndex on minion tokens; names render as
+        'Name #n' on the GM plate and in board target dropdowns."""
+        self.assertIn('function tokenDisplayName', self.src)
+        self.assertIn('function minionSpawnIndex', self.src)
+        spawn = self.src[self.src.index('function spawnToken'):
+                         self.src.index('function addAllPCsToScene')]
+        self.assertIn('minionSpawnIndex', spawn)
+        plate = self.src[self.src.index('function renderToken'):self.src.index('function toggleToken')]
+        self.assertIn('tokenDisplayName(t)', plate)
+        self.assertIn("escHtml(tokenDisplayName(x))", self.src)  # board target dropdowns
+
     def test_scene_notes_fetches_only_current_scene(self):
         """Panel fetches /api/scene-notes/<slug> for the active scene, not all notes."""
         start = self.src.index('async function renderSceneNotesPanel')

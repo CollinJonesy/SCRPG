@@ -1628,7 +1628,7 @@ function openBoardAction(tokenId, action, ability) {
   document.getElementById('abilitiesModalTitle').textContent = title;
   const combat = healthOrDieTargets();
   const combatOpts = combat.map(x =>
-    `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(x.name)} (${x.kind})</option>`
+    `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(tokenDisplayName(x))} (${x.kind})</option>`
   ).join('');
   const blocks = types.map((k, i) => {
     const typeName = String(k || action || '').trim() || 'Action';
@@ -3469,7 +3469,7 @@ function renderToken(t, small) {
       ${tokenMoveOptionsHtml(t)}
     </select>`;
   let body = `${state.turnMarks && state.turnMarks[t.id] ? `<div class="turn-badge">${state.turnMarks[t.id]}</div>` : ''}
-    <div class="mvc-plate token-header" onclick="toggleToken(this)" style="cursor:pointer;"><span>${escHtml(t.name)}</span>
+    <div class="mvc-plate token-header" onclick="toggleToken(this)" style="cursor:pointer;"><span>${escHtml(tokenDisplayName(t))}</span>
       <div class="token-controls" onclick="event.stopPropagation()">
         ${moveCtl}
         <button type="button" title="Remove from scene" onclick="event.stopImmediatePropagation();removeToken('${t.id}')">✕</button>
@@ -3545,6 +3545,24 @@ function rollTokenDie(id) { const t = findTok(id); toast(`${t.name}: rolled d${t
 function rollLabeledDie(dieStr, label) { toast(`${label || 'Status die'}: rolled ${dieStr} → ${rollDie(Number(dieStr.replace('d','')))}`); }
 function findTok(id) { return state.scene.tokens.find(t => t.id === id); }
 
+function tokenDisplayName(t, tokens) {
+  // Minions spawn in packs — number them per name ("Thug #2") so the GM board,
+  // PD and player sheets can tell them apart. spawnIndex is stamped at spawn
+  // time (sticky across moves/re-renders); legacy tokens fall back to the
+  // lowest index not already used by a stamped peer.
+  const list = tokens || (state.scene && state.scene.tokens) || [];
+  if (!t || t.kind !== 'minion') return (t && t.name) || '';
+  const peers = list.filter(x => x.kind === 'minion' && (x.name || '') === (t.name || ''));
+  const used = new Set(peers.map(x => Number(x.spawnIndex)).filter(n => Number.isInteger(n) && n > 0));
+  let idx = Number(t.spawnIndex);
+  const stampedPeer = peers.find(x => Number(x.spawnIndex) === idx);
+  if (!Number.isInteger(idx) || idx <= 0 || (used.has(idx) && stampedPeer !== t)) {
+    idx = 1;
+    while (used.has(idx)) idx++;
+  }
+  return (t.name || '') + ' #' + idx;
+}
+
 function spawnToken() {
   const type = document.getElementById('spawnType').value;
   const slug = document.getElementById('spawnSelect').value;
@@ -3583,9 +3601,22 @@ function spawnToken() {
     };
   }
   state.scene.tokens.push(tok);
+  if (tok.kind === 'minion') tok.spawnIndex = minionSpawnIndex(state.scene.tokens, tok);
   saveSceneDebounced();
   renderTokens();
   // Keep Issue roster selection (do not reset spawnSelect).
+}
+
+// Lowest index not already taken by a same-name stamped minion. Deleting a
+// minion returns its number to the pool; existing numbers never reshuffle.
+function minionSpawnIndex(tokens, tok) {
+  const used = new Set(tokens
+    .filter(x => x !== tok && x.kind === 'minion' && (x.name || '') === (tok.name || ''))
+    .map(x => Number(x.spawnIndex))
+    .filter(n => Number.isInteger(n) && n > 0));
+  let idx = 1;
+  while (used.has(idx)) idx++;
+  return idx;
 }
 
 function addAllPCsToScene() {
@@ -3787,7 +3818,7 @@ function openModCreate(tokenId, kind) {
     return;
   }
   const targetOpts = targetPool.map(x =>
-    `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(x.name)}${x.id === t.id ? ' (self)' : ''}</option>`
+    `<option value="${x.id}" ${x.id === t.id ? 'selected' : ''}>${escHtml(tokenDisplayName(x))}${x.id === t.id ? ' (self)' : ''}</option>`
   ).join('');
   const existing = kind === 'defend' ? modsOnTarget(state.scene, t.id, 'defend') : modsCreatedBy(state.scene, t.id, kind);
   const heroRow = state.heroes.find(h => h.Slug === (t.slug || '')) || {};
@@ -3804,7 +3835,7 @@ function openModCreate(tokenId, kind) {
     ? `<div class="mod-list">${existing.map(m => {
         const who = findTok(m.targetId);
         const tag = m.exclusivePersistent ? 'Exclusive & Persistent' : 'one-off';
-        return `<div>${m.kind} ${m.value} → ${escHtml(who ? who.name : '?')} <small>(${tag})</small>
+        return `<div>${m.kind} ${m.value} → ${escHtml(who ? tokenDisplayName(who) : '?')} <small>(${tag})</small>
           <button class="btn btn-small btn-ghost" type="button" onclick="consumeMod('${m.id}')">Clear</button></div>`;
       }).join('')}</div>`
     : '<p class="empty-hint">None yet.</p>';

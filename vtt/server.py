@@ -784,6 +784,35 @@ def bhd_display_totals(scene, token) -> dict:
     }
 
 
+def token_display_name(t: dict, tokens: list) -> str:
+    """Minions are numbered per name ("Thug #2") so players can target the
+    right one from their sheets. Mirrors tokenDisplayName() in app.js/display.js:
+    spawnIndex is stamped at spawn time; legacy tokens fall back to the lowest
+    index not already used by a stamped peer."""
+    name = str(t.get('name') or '')
+    if t.get('kind') != 'minion':
+        return name
+    peers = [x for x in tokens
+             if x.get('kind') == 'minion' and str(x.get('name') or '') == name]
+    used = set()
+    for x in peers:
+        try:
+            n = int(x.get('spawnIndex'))
+            used.add(n)
+        except (TypeError, ValueError):
+            pass
+    try:
+        idx = int(t.get('spawnIndex'))
+    except (TypeError, ValueError):
+        idx = 0
+    stamped_peer = next((x for x in peers if str(x.get('spawnIndex') or '') == str(idx)), None) if idx else None
+    if idx <= 0 or idx in used and stamped_peer is not t:
+        idx = 1
+        while idx in used:
+            idx += 1
+    return f"{name} #{idx}"
+
+
 def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
     """Full read-only sheet payload for one hero — everything the player device
     may see. Hiding rules mirror the Player Display: no villain health numbers,
@@ -828,7 +857,7 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
                     'id': t.get('id') or '',
                     'kind': t.get('kind') or '',
                     'slug': t.get('slug') or '',
-                    'name': t.get('name') or '',
+                    'name': token_display_name(t, scene.get('tokens') or []),
                     'currentDie': die_label(t.get('currentDie')),
                     'ko': bool(t.get('ko')),
                 }
@@ -1280,17 +1309,19 @@ def consume_defend_mods(scene, token):
             m['consumed'] = True
 
 
-def apply_player_attack(scene, actor, target, dmg: int, ability_name: str, effect: int):
+def apply_player_attack(scene, actor, target, dmg: int, ability_name: str, effect: int,
+                        target_name=None):
     """Port of applyBoardAttack: heroes/villains lose Health; minions fail =
     defeated outright (house rule); lieutenants instant-KO at >= 2x current die,
-    else step down one size."""
+    else step down one size. target_name = numbered display name for the result."""
+    tname = str(target_name if target_name is not None else (target.get('name') if target else ''))
     result = ''
     if dmg <= 0:
-        result = ability_name + ': 0 damage to ' + str(target.get('name')) + ' (blocked)'
+        result = ability_name + ': 0 damage to ' + tname + ' (blocked)'
     elif target.get('kind') in ('hero', 'villain'):
         max_h = int(target.get('maxHealth') or 0) or int(target.get('currentHealth') or 0)
         target['currentHealth'] = max(0, (int(target.get('currentHealth') or 0)) - dmg)
-        result = (ability_name + ': ' + str(dmg) + ' damage to ' + str(target.get('name'))
+        result = (ability_name + ': ' + str(dmg) + ' damage to ' + tname
                   + ' (Health ' + str(target.get('currentHealth')) + ')')
     elif target.get('kind') == 'minion':
         die = int(target.get('currentDie') or 4)
@@ -1500,6 +1531,9 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
         if target.get('ko'):
             return 400, {'error': 'target is out'}
 
+    # Player-facing display name (numbered minions, same as GM board/PD)
+    tname = token_display_name(target or tok, scene.get('tokens') or [])
+
     # ---- dice pool ----
     pool = dict(a.get('roll') or {})
     fp, fq = forced_dice_for(row, mode_info, game_text)
@@ -1570,8 +1604,8 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
         if flags['noReactions']:
             details['noReactions'] = True
         details['dmg'] = dmg
-        result = apply_player_attack(scene, tok, target, dmg, ability_name or 'Attack', effect)
-        outcome['target'] = {'id': target.get('id'), 'name': target.get('name'),
+        result = apply_player_attack(scene, tok, target, dmg, ability_name or 'Attack', effect, tname)
+        outcome['target'] = {'id': target.get('id'), 'name': tname,
                              'kind': target.get('kind')}
         outcome['dmg'] = dmg
         if defend:
@@ -1590,10 +1624,10 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
             ensure_scene_mods(scene).append(mod)
             details['value'] = value
             result = ((ability_name or atype) + ': ' + atype.lower() + ' ' + str(value)
-                      + ' → ' + str(target.get('name'))
+                      + ' → ' + tname
                       + (' (2 uses — minor twist taken)' if uses == 2 else ''))
             outcome.update({'value': value, 'uses': uses,
-                            'target': {'id': target.get('id'), 'name': target.get('name'),
+                            'target': {'id': target.get('id'), 'name': tname,
                                        'kind': target.get('kind')}})
     elif atype == 'Defend':
         value = max(0, effect + spend_delta)
@@ -1603,10 +1637,9 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
                                          'targetId': target.get('id'),
                                          'exclusivePersistent': False, 'uses': 1})
         details['value'] = value
-        result = ((ability_name or 'Defend') + ': defend ' + str(value) + ' → '
-                  + str(target.get('name')))
+        result = ((ability_name or 'Defend') + ': defend ' + str(value) + ' → ' + tname)
         outcome.update({'value': value,
-                        'target': {'id': target.get('id'), 'name': target.get('name'),
+                        'target': {'id': target.get('id'), 'name': tname,
                                    'kind': target.get('kind')}})
     elif atype == 'Recover':
         heal = max(0, effect + spend_delta)
@@ -1615,7 +1648,7 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
             target['currentHealth'] = min(max_h, (int(target.get('currentHealth') or 0)) + heal)
         details['heal'] = heal
         result = ((ability_name or 'Recover') + ': Recover ' + str(heal) + ' → '
-                  + str(target.get('name')) + ' (Health ' + str(target.get('currentHealth')) + ')')
+                  + tname + ' (Health ' + str(target.get('currentHealth')) + ')')
         outcome.update({'heal': heal, 'health': target.get('currentHealth')})
     elif atype == 'Overcome':
         total = effect + spend_delta

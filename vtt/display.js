@@ -489,7 +489,7 @@ function renderScene(scene) {
       ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars, pl ? pl.groupCols : null, budget)}
     </section>`;
   }).join('')
-    + (ko.length ? `<div class="mvc-ko"${layoutInfo ? ' style="grid-column:1 / -1;"' : ''}>Out: ${ko.map(t => escHtml(t.name)).join(', ')}</div>` : '');
+    + (ko.length ? `<div class="mvc-ko"${layoutInfo ? ' style="grid-column:1 / -1;"' : ''}>Out: ${ko.map(t => escHtml(tokenDisplayName(t, scene))).join(', ')}</div>` : '');
 
   const chalEl = document.getElementById('displayChallenges');
   const visible = scene.challenges || [];
@@ -701,6 +701,22 @@ function lieutenantHealthBar(startingDie, currentDie) {
   if (!hit) return { pct: 0, band: 'out' };
   return { pct: hit[0], band: hit[1] };
 }
+function tokenDisplayName(t, scene) {
+  // Minions are numbered per name ("Thug #2") — same rule as the GM board.
+  // spawnIndex is stamped at spawn time; legacy tokens fall back to the
+  // lowest index not already used by a stamped peer.
+  if (!t || t.kind !== 'minion') return (t && t.name) || '';
+  const list = (scene && scene.tokens) || [];
+  const peers = list.filter(x => x.kind === 'minion' && (x.name || '') === (t.name || ''));
+  const used = new Set(peers.map(x => Number(x.spawnIndex)).filter(n => Number.isInteger(n) && n > 0));
+  let idx = Number(t.spawnIndex);
+  const stampedPeer = peers.find(x => Number(x.spawnIndex) === idx);
+  if (!Number.isInteger(idx) || idx <= 0 || (used.has(idx) && stampedPeer !== t)) {
+    idx = 1;
+    while (used.has(idx)) idx++;
+  }
+  return (t.name || '') + ' #' + idx;
+}
 function renderFighterCard(t, scene, hideHealthBars = false) {
   let meter = null;
   if (!hideHealthBars) {
@@ -727,7 +743,7 @@ function renderFighterCard(t, scene, hideHealthBars = false) {
   return `<div class="mvc-card ${t.kind}">
     <div class="mvc-art"><img src="${backgroundUrl(portraitKey(t.kind, t.slug))}" alt="" onerror="this.style.opacity='0.15'">${modeBadge}</div>
     ${bar}
-    <div class="mvc-plate">${escHtml(t.name)}</div>${bhdRowHtml(t, scene)}
+    <div class="mvc-plate">${escHtml(tokenDisplayName(t, scene))}</div>${bhdRowHtml(t, scene)}
   </div>`;
 }
 
