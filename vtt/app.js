@@ -473,7 +473,9 @@ function degradeDie(size) {
 }
 function debounce(fn, ms) {
   let t;
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  const d = (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  d.cancel = () => clearTimeout(t);
+  return d;
 }
 function escAttr(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
 function escHtml(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
@@ -2497,14 +2499,28 @@ function syncTurnMarksFromTokens() {
     if (Number(t.turnNumber) > 0) state.turnMarks[t.id] = Number(t.turnNumber);
   });
 }
+// End-of-Turn save: flush everything to the server the moment a turn is
+// marked. Cancels the pending debounce first so the same state isn't PUT
+// twice, then writes an immediate, coalesced scene save.
+function saveSceneNow(reason) {
+  const slug = state.scene && state.scene.__slug;
+  if (!slug) return Promise.resolve();
+  saveSceneDebounced.cancel();
+  return apiSaveScene(slug, state.scene).then(() => {
+    const status = document.getElementById('sceneSaveStatus');
+    if (status) status.textContent = reason ? ('Saved ✓ ' + reason) : 'Saved ✓';
+  }).catch(e => { console.error('End-of-turn save failed', e); });
+}
 function markTokenGone(tokenId) {
   const tok = findTok(tokenId);
   if (!tok || tok.ko) return;
   const n = assignTurnNumber(tok);
-  saveSceneDebounced();
   renderTokens();
   renderRdTrackPanel();
   if (n) toast(`${tokenDisplayName(tok)} has gone (#${n}).`);
+  // End of Turn: save immediately (not debounced) so the turn boundary is on
+  // disk before the next action can fire.
+  saveSceneNow('End of Turn');
 }
 function clearTokenGone(tokenId) {
   const tok = findTok(tokenId);

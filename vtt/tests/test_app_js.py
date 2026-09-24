@@ -144,6 +144,14 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('mergeExternalTokenState(fresh)', stale)
         self.assertIn("['locationId', 'ko', 'currentHealth'", stale)
 
+    def test_end_of_turn_saves_immediately(self):
+        """Marking a turn gone triggers an immediate End-of-Turn flush
+        (saveSceneNow, which cancels the debounce) instead of a debounced PUT."""
+        gone = self.src[self.src.index('function saveSceneNow'):
+                        self.src.index('function clearTokenGone')]
+        self.assertIn("saveSceneDebounced.cancel()", gone)
+        self.assertIn("saveSceneNow('End of Turn')", gone)
+
     def test_scene_notes_fetches_only_current_scene(self):
         """Panel fetches /api/scene-notes/<slug> for the active scene, not all notes."""
         start = self.src.index('async function renderSceneNotesPanel')
