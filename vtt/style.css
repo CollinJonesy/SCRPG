@@ -1162,6 +1162,9 @@ table.lib-table .roll-type-row label {
   overflow: hidden;
   margin-bottom: 12px;
 }
+/* All panels collapsed: shrink the box to just its heading(s) instead of
+   holding a full flex share as an empty bordered box. */
+.challenges-sidebar.panel-collapsed { flex: 0 0 auto; }
 
 #sceneNotesPanel {
   flex: 1 1 auto;

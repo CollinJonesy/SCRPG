@@ -3092,6 +3092,13 @@ function toggleCollapsible(el) {
   content.style.display = isHidden ? 'block' : 'none';
   const indicator = el.querySelector('span, button');
   if (indicator) indicator.textContent = isHidden ? '−' : '+';
+  // When every panel in this sidebar box is collapsed, shrink the box to just
+  // its heading(s) — otherwise flex: 1 1 0 keeps a large empty bordered box.
+  if (parent) {
+    const anyVisible = [...parent.querySelectorAll('.collapsible-content')]
+      .some(c => c.style.display !== 'none');
+    parent.classList.toggle('panel-collapsed', !anyVisible);
+  }
 }
 
 async function renderEmptyBoardWithIssues() {
