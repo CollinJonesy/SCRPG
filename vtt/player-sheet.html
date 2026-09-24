@@ -196,8 +196,6 @@
         border: 1px solid var(--line); border-radius: 6px; padding: 7px; font-size: 14px; }
   .ays .dice-row { display: flex; gap: 8px; }
   .ays .dice-row > div { flex: 1; }
-  .ays .roll-mode-stack { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
-  .ays .roll-mode-stack .radio-line { margin: 0; white-space: nowrap; font-size: 13px; }
   .ays .pq-selects { margin-top: 8px; align-items: flex-end; }
   .ays .pq-selects > div { min-width: 0; }
   .ays .blk { border-left: 3px solid var(--accent); padding-left: 10px; margin: 12px 0; }
@@ -718,7 +716,7 @@ async function dismissAlert(id) {
 }
 
 // ================= Player actions (Phase 2) =================
-// Every action stages here first: full breakdown → Manual or Digital roll →
+// Every action stages here first: full breakdown → Manual roll →
 // confirm → POST /api/player-action (server computes the outcome and mutates
 // the scene). The 3s poll pauses while ANY decision surface is open.
 
@@ -890,9 +888,9 @@ function forcedDiceFromText(gt, row) {
   return out;
 }
 
-// Min/Mid/Max inputs with Manual/Digital stacked on the right (the Effect Die
-// field is gone — the ability's effect die is an internal calculation), then
-// the Power/Quality dropdowns (locked when the ability forces them) and the
+// Min/Mid/Max inputs (always manual — the Digital option was removed; the
+// Effect Die field is gone — the ability's effect die is an internal
+// calculation), then the Power/Quality dropdowns (locked when the ability forces them) and the
 // current Status die beside them.
 function diceBlockHtml(p, i) {
   const row = p.row || {};
@@ -937,20 +935,8 @@ function diceBlockHtml(p, i) {
       <div><label>Min</label><input type="number" id="aysMin_${i}" min="0" value="0"></div>
       <div><label>Mid</label><input type="number" id="aysMid_${i}" min="0" value="0"></div>
       <div><label>Max</label><input type="number" id="aysMax_${i}" min="0" value="0"></div>
-      <div class="roll-mode-stack">
-        <label class="radio-line"><input type="radio" name="rollMode_${i}" value="manual" checked onchange="aysToggleRoll(${i})">Manual Roll</label>
-        <label class="radio-line"><input type="radio" name="rollMode_${i}" value="digital" onchange="aysToggleRoll(${i})">Digital Roll</label>
-      </div>
     </div>
-    <div class="fineprint" id="aysDigitalNote_${i}" style="display:none;">Digital Roll: the server rolls your chosen Power + Quality + Status dice and computes Min/Mid/Max and the effect die itself.</div>
   </div>`;
-}
-
-function aysToggleRoll(i) {
-  const manual = document.querySelector(`input[name="rollMode_${i}"]:checked`).value === 'manual';
-  const row = document.getElementById('aysManualRow_' + i);
-  if (row) row.style.opacity = manual ? '' : '.35';
-  document.querySelectorAll(`#aysManualRow_${i} input[type=number]`).forEach(inp => { inp.disabled = !manual; });
 }
 
 function modTwistHtml(p, idx) {
@@ -1064,26 +1050,17 @@ function showAys(title, bodyHtml) {
 
 function closeAys() { aysState = null; aysInFlight = false; const el = document.getElementById('aysBackdrop'); if (el) el.remove(); }
 
-function aysToggleRoll(i) {
-  const manual = document.querySelector(`input[name="rollMode_${i}"]:checked`).value === 'manual';
-  document.getElementById('aysManual_' + i).style.display = manual ? '' : 'none';
-  document.getElementById('aysDigital_' + i).style.display = manual ? 'none' : '';
-}
-
 function aysBlockPayload(p, types) {
   const blocks = [];
   const errs = [];
   // ONE shared dice pool for the whole ability (all basic actions of one roll
   // share the same Min/Mid/Max + Power + Quality); only targets differ.
   const sharedRoll = (() => {
-    const manual = document.querySelector('input[name="rollMode_0"]:checked').value === 'manual';
-    if (manual) {
-      const g = id => Number((document.getElementById(id) || {}).value) || 0;
-      // No Effect Die entry — the ability (or Mid default) determines it server-side.
-      return { manual: { min: g('aysMin_0'), mid: g('aysMid_0'), max: g('aysMax_0') } };
-    }
-    return { power: (document.getElementById('aysPower_0') || {}).value || '',
-             quality: (document.getElementById('aysQuality_0') || {}).value || '' };
+    // Manual roll only — the Digital option was removed; the player always
+    // types their own Min/Mid/Max.
+    const g = id => Number((document.getElementById(id) || {}).value) || 0;
+    // No Effect Die entry — the ability (or Mid default) determines it server-side.
+    return { manual: { min: g('aysMin_0'), mid: g('aysMid_0'), max: g('aysMax_0') } };
   })();
   types.forEach((t, i) => {
     const block = { type: t, roll: JSON.parse(JSON.stringify(sharedRoll)) };
@@ -1139,8 +1116,8 @@ async function confirmAys() {
       out.innerHTML = `<div class="outcome err"><b>Not applied:</b> ${esc(j.error || ('HTTP ' + r.status))}</div>`;
     } else {
       const lines = (j.outcomes || []).map(o => `<div>✅ ${esc(o.result || o.type)}</div>`).join('');
-      // A Digital Roll's server-computed Min/Mid/Max lands back in the fields
-      // that normally hold manual entry, so the roll is on the record.
+      // The server's resolved pool lands back in the fields that normally
+      // hold manual entry, so the roll is on the record.
       const roll = (j.outcomes || [])[0] && (j.outcomes || [])[0].roll;
       if (roll && roll.min != null) {
         const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
