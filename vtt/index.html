@@ -82,31 +82,30 @@
         <span id="spawnHint" class="empty-hint"></span>
       </div>
       <div class="scene-actions">
+        <button id="collapseAllTokensBtn" type="button" class="btn btn-ghost" onclick="collapseAllTokens()" title="Shrink every token card to its name plate (click a name to re-expand)">Collapse All Tokens</button>
         <button id="resetLtDiceBtn" class="btn btn-ghost">Reset Lieutenant Dice</button>
         <button id="clearSceneBtn" class="btn btn-ghost">Clear Tokens</button>
       </div>
     </div>
 
     <div class="board-main-grid">
-      <aside class="challenges-sidebar" id="sceneNotesSidebar">
-        <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Twist Decision Matrix <span style="float:right;font-size:10px;">−</span></h3>
-        <div id="twistMatrixPanel" class="collapsible-content notes-panel"></div>
-        <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Scene Notes <span style="float:right;font-size:10px;">−</span></h3>
-        <div id="sceneNotesPanel" class="collapsible-content notes-panel"></div>
-      </aside>
       <div id="locationsRow" class="locations-row"></div>
       <div class="board-sidebar-stack">
         <aside class="challenges-sidebar" id="boardMovesPanel" style="display:none;">
           <h3 class="sidebar-heading" style="cursor:default;color:var(--gold, #ffd76a);">🚚 Move Requests</h3>
           <div id="boardMovesContent" class="collapsible-content"></div>
         </aside>
-        <aside class="challenges-sidebar">
-          <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Challenges <span style="float:right;font-size:10px;">−</span></h3>
-          <div id="challengesPanel" class="collapsible-content"></div>
-        </aside>
-        <aside class="challenges-sidebar" id="activityLogPanel">
-          <h3 onclick="toggleCollapsible(this)" class="sidebar-heading" style="cursor:pointer;">Activity Log <span style="float:right;font-size:10px;">−</span></h3>
-          <div id="activityLogContent" class="collapsible-content"></div>
+        <aside class="challenges-sidebar" id="rightPanelBox">
+          <div class="right-panel-tabs">
+            <button type="button" class="btn btn-small btn-ghost rp-tab active" data-rp="challenges" onclick="switchRightPanel('challenges')">Challenges</button>
+            <button type="button" class="btn btn-small btn-ghost rp-tab" data-rp="notes" onclick="switchRightPanel('notes')">Scene Notes</button>
+            <button type="button" class="btn btn-small btn-ghost rp-tab" data-rp="log" onclick="switchRightPanel('log')">Activity Log</button>
+            <button type="button" class="btn btn-small btn-ghost rp-tab" data-rp="matrix" onclick="switchRightPanel('matrix')">Twist Matrix</button>
+          </div>
+          <div id="challengesPanel" class="collapsible-content rp-pane"></div>
+          <div id="sceneNotesPanel" class="collapsible-content rp-pane notes-panel" style="display:none;"></div>
+          <div id="activityLogPanel" class="collapsible-content rp-pane" style="display:none;"></div>
+          <div id="twistMatrixPanel" class="collapsible-content rp-pane notes-panel" style="display:none;"></div>
         </aside>
       </div>
     </div>

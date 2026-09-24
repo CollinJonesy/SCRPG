@@ -1112,16 +1112,11 @@ table.lib-table .roll-type-row label {
 
 .board-main-grid {
   display: grid;
-  grid-template-columns: 280px 1fr 280px;
+  grid-template-columns: 1fr 310px;
   gap: 16px;
   align-items: stretch;
   flex: 1;
   min-height: 0;
-}
-#sceneNotesSidebar {
-  height: 100%;
-  min-height: 0;
-  margin-bottom: 0;
 }
 .board-sidebar-stack {
   display: flex;
@@ -1130,12 +1125,18 @@ table.lib-table .roll-type-row label {
   min-height: 0;
   height: 100%;
 }
-#activityLogPanel {
-  flex: 1;
-  min-height: 0;
+.right-panel-tabs {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
 }
+.rp-tab.active {
+  background: var(--accent);
+  color: var(--text-hi);
+  border-color: var(--accent);
+}
+.rp-pane { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .activity-log-list {
   flex: 1;
   min-height: 0;
@@ -1162,9 +1163,6 @@ table.lib-table .roll-type-row label {
   overflow: hidden;
   margin-bottom: 12px;
 }
-/* All panels collapsed: shrink the box to just its heading(s) instead of
-   holding a full flex share as an empty bordered box. */
-.challenges-sidebar.panel-collapsed { flex: 0 0 auto; }
 
 #sceneNotesPanel {
   flex: 1 1 auto;

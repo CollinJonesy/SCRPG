@@ -81,23 +81,36 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('flex-direction: row', villain_css)
         self.assertNotIn('flex-direction: column', villain_css)
 
-    def test_scene_notes_panel_is_left_sidebar(self):
-        """Scene Notes is a left column matching Challenges/Activity Log width."""
+    def test_board_right_panel_is_four_tab_surface(self):
+        """Left sidebar is gone; the right panel hosts Challenges, Scene Notes,
+        Activity Log and Twist Matrix behind 4 tab buttons above one pane."""
         html = (Path(__file__).resolve().parent.parent / 'index.html').read_text(encoding='utf-8')
         grid = html[html.index('board-main-grid'):html.index('id="rulesView"')]
-        self.assertLess(grid.index('sceneNotesSidebar'), grid.index('locationsRow'))
+        self.assertNotIn('sceneNotesSidebar', grid)
         self.assertLess(grid.index('locationsRow'), grid.index('board-sidebar-stack'))
-        self.assertNotIn('sceneNotesSidebar', grid[grid.index('board-sidebar-stack'):])
-        self.assertIn('id="sceneNotesPanel"', grid)
+        box = grid[grid.index('id="rightPanelBox"'):]
+        box = box[:box.index('</aside>')]
+        for pane in ('id="challengesPanel"', 'id="sceneNotesPanel"',
+                     'id="activityLogPanel"', 'id="twistMatrixPanel"'):
+            self.assertIn(pane, box)
+        for tab in ("switchRightPanel('challenges')", "switchRightPanel('notes')",
+                    "switchRightPanel('log')", "switchRightPanel('matrix')"):
+            self.assertIn(tab, box)
         css = (Path(__file__).resolve().parent.parent / 'style.css').read_text(encoding='utf-8')
         main = css[css.index('.board-main-grid {'):css.index('.board-sidebar-stack')]
-        self.assertIn('280px 1fr 280px', main)
+        self.assertIn('1fr 310px', main)
         self.assertIn('function renderSceneNotesPanel', self.src)
+        self.assertIn('function switchRightPanel', self.src)
+        self.assertIn('function collapseAllTokens', self.src)
+
+    def test_collapse_all_tokens_button_sits_left_of_reset_lieutenant_dice(self):
+        html = (Path(__file__).resolve().parent.parent / 'index.html').read_text(encoding='utf-8')
+        self.assertLess(html.index('collapseAllTokensBtn'), html.index('resetLtDiceBtn'))
 
     def test_scene_notes_fetches_only_current_scene(self):
         """Panel fetches /api/scene-notes/<slug> for the active scene, not all notes."""
         start = self.src.index('async function renderSceneNotesPanel')
-        end = self.src.index('function toggleCollapsible')
+        end = self.src.index('function switchRightPanel')
         body = self.src[start:end]
         self.assertIn('/api/scene-notes/', body)
         self.assertIn('encodeURIComponent', body)

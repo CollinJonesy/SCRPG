@@ -2528,9 +2528,9 @@ function renderActivityLog() {
   if (!el) return;
   const log = (state.scene && state.scene.activityLog) || [];
   const rnd = state.scene && state.scene.round ? state.scene.round : 1;
-  if (!log.length) { el.innerHTML = `<h3 class="sidebar-heading">Activity Log</h3><button type="button" class="btn btn-small btn-ghost" onclick="clearActivityLog()">Clear Activity Log</button><p class="empty-hint">Round ${rnd}. Nothing has happened yet.</p>`; return; }
+  if (!log.length) { el.innerHTML = `<button type="button" class="btn btn-small btn-ghost" onclick="clearActivityLog()">Clear Activity Log</button><p class="empty-hint">Round ${rnd}. Nothing has happened yet.</p>`; return; }
   const recent = log.slice(-200).slice().reverse();
-  let html = `<h3 class="sidebar-heading">Activity Log</h3><button type="button" class="btn btn-small btn-ghost" onclick="clearActivityLog()">Clear Activity Log</button><p class="empty-hint">Round ${rnd}</p><div class="activity-log-list">`;
+  let html = `<button type="button" class="btn btn-small btn-ghost" onclick="clearActivityLog()">Clear Activity Log</button><p class="empty-hint">Round ${rnd}</p><div class="activity-log-list">`;
   recent.forEach((e, i) => {
     const who = e.actor ? escHtml(e.actor.name) : '';
     const whom = e.target ? ' → ' + escHtml(e.target.name) : '';
@@ -3079,26 +3079,28 @@ async function renderSceneNotesPanel() {
   }
 }
 
-function toggleCollapsible(el) {
-  const parent = el.closest('.challenges-sidebar');
-  if (!parent) return;
-  // With multiple collapsible panels in one sidebar, toggle the content
-  // immediately after THIS heading — not the first panel in the container.
-  const content = el.nextElementSibling && el.nextElementSibling.classList.contains('collapsible-content')
-    ? el.nextElementSibling
-    : parent.querySelector('#challengesPanel, #activityLogContent, #sceneNotesPanel, .collapsible-content');
-  if (!content) return;
-  const isHidden = content.style.display === 'none';
-  content.style.display = isHidden ? 'block' : 'none';
-  const indicator = el.querySelector('span, button');
-  if (indicator) indicator.textContent = isHidden ? '−' : '+';
-  // When every panel in this sidebar box is collapsed, shrink the box to just
-  // its heading(s) — otherwise flex: 1 1 0 keeps a large empty bordered box.
-  if (parent) {
-    const anyVisible = [...parent.querySelectorAll('.collapsible-content')]
-      .some(c => c.style.display !== 'none');
-    parent.classList.toggle('panel-collapsed', !anyVisible);
-  }
+// Right panel is a 4-tab surface: Challenges | Scene Notes | Activity Log |
+// Twist Matrix — one large pane, the tab button picks what it shows.
+function switchRightPanel(name) {
+  const panes = { challenges: 'challengesPanel', notes: 'sceneNotesPanel',
+                  log: 'activityLogPanel', matrix: 'twistMatrixPanel' };
+  document.querySelectorAll('#rightPanelBox .rp-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.rp === name));
+  Object.entries(panes).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = key === name ? 'block' : 'none';
+  });
+}
+
+function collapseAllTokens() {
+  // Same effect as clicking each token's name plate: hide the body, dim the
+  // header. Only touches cards that are currently expanded.
+  document.querySelectorAll('#locationsRow .token-content').forEach(content => {
+    if (content.style.display === 'none') return;
+    content.style.display = 'none';
+    const header = content.parentElement.querySelector('.token-header');
+    if (header) header.style.opacity = '0.6';
+  });
 }
 
 async function renderEmptyBoardWithIssues() {
