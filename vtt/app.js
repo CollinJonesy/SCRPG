@@ -310,8 +310,9 @@ async function apiGetScene(slug) {
 }
 async function apiSaveScene(slug, scene) {
   const payload = JSON.parse(JSON.stringify(scene));
-  (payload.tokens || []).forEach(t => { delete t.turnNumber; });
-  await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(payload, null, 2) });
+  // token.turnNumber is now the persistent Round Track (written by both the
+  // GM board and player actions) — it must ride along on saves.
+  await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(payload, null, 2) });  await fetch(`/api/scenes/${encodeURIComponent(slug)}`, { method: 'PUT', body: JSON.stringify(payload, null, 2) });
   // This console just wrote the scene — update the stale-warning baseline so
   // its own save never fires the external-change banner.
   gmSceneBaseline(payload);
@@ -2482,7 +2483,71 @@ function assignTurnNumber(actor) {
   const taken = Object.values(state.turnMarks).map(Number);
   const next = (taken.length ? Math.max(0, ...taken) : 0) + 1;
   state.turnMarks[actor.id] = next;
+  // Persist on the token so the Round Track survives reloads and the player
+  // sheets see the same marks (player actions write the same field server-side).
+  actor.turnNumber = next;
+  const tok = findTok(actor.id);
+  if (tok) tok.turnNumber = next;
   return next;
+}
+// Rebuild the memory marks from the tokens' persisted turnNumber (scene load).
+function syncTurnMarksFromTokens() {
+  state.turnMarks = {};
+  (state.scene && state.scene.tokens || []).forEach(t => {
+    if (Number(t.turnNumber) > 0) state.turnMarks[t.id] = Number(t.turnNumber);
+  });
+}
+function markTokenGone(tokenId) {
+  const tok = findTok(tokenId);
+  if (!tok || tok.ko) return;
+  const n = assignTurnNumber(tok);
+  saveSceneDebounced();
+  renderTokens();
+  renderRdTrackPanel();
+  if (n) toast(`${tokenDisplayName(tok)} has gone (#${n}).`);
+}
+function clearTokenGone(tokenId) {
+  const tok = findTok(tokenId);
+  if (!tok || !tok.turnNumber) return;
+  delete tok.turnNumber;
+  if (state.turnMarks) delete state.turnMarks[tokenId];
+  saveSceneDebounced();
+  renderTokens();
+  renderRdTrackPanel();
+}
+function resetRoundTrack() {
+  if (!state.scene) return;
+  state.turnMarks = {};
+  (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
+  saveSceneDebounced();
+  renderTokens();
+  renderRdTrackPanel();
+}
+function renderRdTrackPanel() {
+  const el = document.getElementById('rdTrackPanel');
+  if (!el) return;
+  if (!state.scene) { el.innerHTML = '<p class="empty-hint">Load a scene first.</p>'; return; }
+  const living = (state.scene.tokens || []).filter(t =>
+    !t.ko && ['hero', 'villain', 'minion', 'lieutenant'].includes(t.kind));
+  const gone = living.filter(t => t.turnNumber).sort((a, b) => a.turnNumber - b.turnNumber);
+  const waiting = living.filter(t => !t.turnNumber)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
+  const chip = t => `<div class="rd-chip ${t.turnNumber ? 'gone' : ''}" draggable="${!t.turnNumber}"
+      data-tokid="${escAttr(t.id)}" ${t.turnNumber ? `onclick="clearTokenGone('${escAttr(t.id)}')" title="Click to un-mark"` : `title="Drag onto this panel (or click) to mark as gone"`}
+      ondragstart="event.dataTransfer.setData('text/plain', '${escAttr(t.id)}')">
+      <span class="rd-order">${t.turnNumber ? '#' + t.turnNumber : ''}</span>${escHtml(tokenDisplayName(t))}
+      <span class="rd-kind">${escHtml(t.kind)}</span></div>`;
+  const rnd = state.scene.round || 1;
+  el.innerHTML = `
+    <div class="rd-meta"><b>Round ${rnd}</b> — ${gone.length}/${living.length} have gone.
+      <button type="button" class="btn btn-small btn-ghost" onclick="resetRoundTrack()" title="Clear every mark (round stays the same)">Reset Track</button></div>
+    <div class="rd-pane" id="rdPane"
+      ondragover="event.preventDefault()"
+      ondrop="event.preventDefault(); const id = event.dataTransfer.getData('text/plain'); if (id) markTokenGone(id);">
+      ${gone.length ? `<div class="rd-group-label">Gone (click to undo)</div><div class="rd-list">${gone.map(chip).join('')}</div>` : ''}
+      ${waiting.length ? `<div class="rd-group-label">Waiting (drag onto this panel or click)</div><div class="rd-list">${waiting.map(chip).join('')}</div>` : ''}
+      ${!living.length ? '<p class="empty-hint">No living combatants on the board.</p>' : ''}
+    </div>`;
 }
 function maybeEndRound() {
   const need = livingCombatants();
@@ -3013,6 +3078,7 @@ async function renderBoard() {
   renderTwistMatrixPanel();
   fetchHeroPoints().then(renderTokens);
   renderSceneNotesPanel();
+  renderRdTrackPanel();
   loadSceneRoster().then(() => refreshSpawnOptions());
 }
 
@@ -3083,7 +3149,8 @@ async function renderSceneNotesPanel() {
 // Twist Matrix — one large pane, the tab button picks what it shows.
 function switchRightPanel(name) {
   const panes = { challenges: 'challengesPanel', notes: 'sceneNotesPanel',
-                  log: 'activityLogPanel', matrix: 'twistMatrixPanel' };
+                  log: 'activityLogPanel', matrix: 'twistMatrixPanel',
+                  track: 'rdTrackPanel' };
   document.querySelectorAll('#rightPanelBox .rp-tab').forEach(b =>
     b.classList.toggle('active', b.dataset.rp === name));
   Object.entries(panes).forEach(([key, id]) => {
@@ -3360,7 +3427,8 @@ function renderTokens() {
   });
   const koEl = document.getElementById('mvcKo');
   const ko = state.scene.tokens.filter(t => t.ko);
-  if (koEl) koEl.textContent = ko.length ? ('Out: ' + ko.map(t => t.name).join(', ')) : '';
+  if (koEl) koEl.textContent = ko.length ? ('Out: ' + ko.map(t => tokenDisplayName(t)).join(', ')) : '';
+  renderRdTrackPanel();
 }
 
 /* ---------------- Hero Points (issue-scoped, earn-only, max 5 — SCRPG p.31) ---------------- */
@@ -3468,7 +3536,7 @@ function renderToken(t, small) {
   const moveCtl = immobile ? '' : `<select class="token-move-select" title="Move to another location" onchange="event.stopPropagation();moveToken('${t.id}', this.value)">
       ${tokenMoveOptionsHtml(t)}
     </select>`;
-  let body = `${state.turnMarks && state.turnMarks[t.id] ? `<div class="turn-badge">${state.turnMarks[t.id]}</div>` : ''}
+  let body = `${t.turnNumber ? `<div class="turn-badge">${t.turnNumber}</div>` : ''}
     <div class="mvc-plate token-header" onclick="toggleToken(this)" style="cursor:pointer;"><span>${escHtml(tokenDisplayName(t))}</span>
       <div class="token-controls" onclick="event.stopPropagation()">
         ${moveCtl}
@@ -4081,8 +4149,8 @@ async function refreshBoardFromServer() {
     const fresh = await apiGetScene(state.activeSlug);
     if (fresh) {
       fresh.__slug = state.activeSlug;
-      (fresh.tokens || []).forEach(t => { delete t.turnNumber; });
       state.scene = fresh;
+      syncTurnMarksFromTokens();
       gmSceneBaseline(fresh);
     }
   }
@@ -4993,11 +5061,10 @@ async function init() {
   const active = await apiGetActiveScene();
   if (active.slug) {
     state.activeSlug = active.slug;
-    state.turnMarks = {};
     state.scene = await apiGetScene(active.slug);
     if (state.scene) {
       state.scene.__slug = active.slug;
-      (state.scene.tokens || []).forEach(t => { delete t.turnNumber; });
+      syncTurnMarksFromTokens();
     }
     gmSceneBaseline(state.scene);
   }

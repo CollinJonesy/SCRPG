@@ -81,6 +81,11 @@
   /* scene tracker + status dice */
   .track-status { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
   .tracker { display: flex; gap: 3px; align-items: center; }
+  .round-track { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .round-track .gone-tag { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); }
+  .round-track .gone-tag.yes { background: #14251a; border-color: var(--green); color: var(--green); }
+  .round-track .gone-tag.no { background: #2a2410; border-color: var(--gold); color: var(--gold); }
+  .round-track .gone-count { font-size: 11px; color: var(--text-lo); }
   .tracker .star { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--line); background: #0d0d16; opacity: .45; }
   .tracker .star.green { background: var(--green); } .tracker .star.yellow { background: var(--yellow); }
   .tracker .star.red { background: var(--red); }
@@ -379,6 +384,18 @@ function trackerColor(p) {
   return tr.stars[pos] || 'green';
 }
 
+function roundTrackHtml(p) {
+  // Round + gone status for this hero, from the same marks the GM board's
+  // Rd Track tab uses (persisted token.turnNumber on both sides).
+  const rnd = (p.scene && p.scene.round) || 1;
+  const mine = p.myToken && p.myToken.turnNumber;
+  const gone = (p.roundTurns || []).filter(t => t.turnNumber).length;
+  const total = (p.roundTurns || []).length;
+  return `<div class="round-track"><span class="track-label">Round ${esc(String(rnd))}</span>` +
+    (mine ? `<span class="gone-tag yes">You've gone (#${esc(String(mine))})</span>`
+          : `<span class="gone-tag no">You haven't gone</span>`) +
+    `<span class="gone-count">${gone}/${total} have gone</span></div>`;
+}
 function trackerHtml(p) {
   const tr = (p.tracker && p.tracker.stars) ? p.tracker : null;
   if (!tr || !tr.stars || !tr.stars.length) return '<span class="muted" style="font-size:12px;">No scene tracker.</span>';
@@ -637,6 +654,7 @@ function renderSheet(p) {
               <span class="health-nums">Current ${curHP != null ? curHP : '—'} / Max ${maxHP != null ? maxHP : '—'}</span>
             </div>
             <div class="track-status">
+              ${roundTrackHtml(p)}
               ${trackerHtml(p)}
               <div class="status-row">${statusRowHtml(p)}</div>
               <div class="status-row">${bhdRowHtml(p)}</div>

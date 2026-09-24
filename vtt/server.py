@@ -933,8 +933,17 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
             'currentHealth': (my_token or {}).get('currentHealth'),
             'maxHealth': (my_token or {}).get('maxHealth'),
             'currentDie': (my_token or {}).get('currentDie'),
+            'turnNumber': (my_token or {}).get('turnNumber'),
             'bhd': bhd_display_totals(scene, my_token) if my_token else (my_token or {}).get('bhdDelta') or {},
         },
+        # Round Track: which combatants have gone this round (order #). Names
+        # are public (PD shows them); used for the sheet's "you have/haven't
+        # gone" indicator.
+        'roundTurns': [{'id': t.get('id') or '',
+                        'name': token_display_name(t, scene.get('tokens') or []),
+                        'turnNumber': t.get('turnNumber')}
+                       for t in (scene or {}).get('tokens') or []
+                       if not t.get('ko') and t.get('kind') in ('hero', 'villain', 'minion', 'lieutenant')],
         'sceneType': str((scene or {}).get('sceneType') or ''),
         'recoverAllowed': bool(hero_has_recover_ability(abilities) or scene_is_montage(scene)),
         # Pending Boost/Hinder mods the affected hero decides when to spend

@@ -102,6 +102,7 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('function renderSceneNotesPanel', self.src)
         self.assertIn('function switchRightPanel', self.src)
         self.assertIn('function collapseAllTokens', self.src)
+        self.assertIn("track: 'rdTrackPanel'", self.src)
 
     def test_collapse_all_tokens_button_sits_left_of_reset_lieutenant_dice(self):
         html = (Path(__file__).resolve().parent.parent / 'index.html').read_text(encoding='utf-8')
@@ -118,6 +119,20 @@ class TestAppJsContracts(unittest.TestCase):
         plate = self.src[self.src.index('function renderToken'):self.src.index('function toggleToken')]
         self.assertIn('tokenDisplayName(t)', plate)
         self.assertIn("escHtml(tokenDisplayName(x))", self.src)  # board target dropdowns
+
+    def test_round_track_persists_turn_marks(self):
+        """Turn marks ride on the token (turnNumber) instead of memory-only:
+        saves keep them, loads rebuild memory marks, and the Rd Track tab
+        renders a drag/drop Round Tracker."""
+        self.assertIn('function renderRdTrackPanel', self.src)
+        self.assertIn('function markTokenGone', self.src)
+        self.assertIn('function resetRoundTrack', self.src)
+        save = self.src[self.src.index('async function apiSaveScene'):
+                        self.src.index('async function apiDeleteScene')]
+        self.assertNotIn('delete t.turnNumber', save)
+        html = (Path(__file__).resolve().parent.parent / 'index.html').read_text(encoding='utf-8')
+        self.assertIn("switchRightPanel('track')", html)
+        self.assertIn('id="rdTrackPanel"', html)
 
     def test_scene_notes_fetches_only_current_scene(self):
         """Panel fetches /api/scene-notes/<slug> for the active scene, not all notes."""
