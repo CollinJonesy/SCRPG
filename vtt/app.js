@@ -5361,8 +5361,36 @@ async function checkStaleBoardScene() {
   try {
     const fresh = await apiGetScene(state.activeSlug);
     if (!fresh) { warn.style.display = 'none'; return; }
-    warn.style.display = gmSceneFingerprint(fresh) === __gmSceneSig ? 'none' : 'block';
+    if (gmSceneFingerprint(fresh) === __gmSceneSig) { warn.style.display = 'none'; return; }
+    // External change. Instead of only banner-ing (the GM's next Rd Track
+    // mark would save our STALE copy and wipe the external edit — e.g. a
+    // hero's sheet-initiated location move), merge token-level state into
+    // the live board first, then re-baseline. Banner stays up only for
+    // non-token changes (GM notes, challenges...) that need a manual look.
+    mergeExternalTokenState(fresh);
+    // Re-baseline from the MERGED live board: a token-only external change
+    // (sheet move, KO, health tick) now matches, so the banner stays hidden
+    // and the GM's next save writes the merged state, not a stale copy.
+    __gmSceneSig = gmSceneFingerprint(state.scene);
+    if (__gmSceneSig === gmSceneFingerprint(fresh)) { warn.style.display = 'none'; return; }
+    warn.style.display = 'block';
   } catch (e) { warn.style.display = 'none'; }
+}
+// Adopt token-level state (location, KO, health, die, turn marks) from the
+// server scene into state.scene by token id. Memory turn marks rebuild from
+// the merged field. Interaction-safe: chips/chips-only re-render via renderTokens.
+function mergeExternalTokenState(fresh) {
+  if (!state.scene || !fresh) return;
+  const mine = new Map((state.scene.tokens || []).map(t => [t.id, t]));
+  (fresh.tokens || []).forEach(ft => {
+    const lt = mine.get(ft.id);
+    if (!lt) return;
+    ['locationId', 'ko', 'currentHealth', 'maxHealth', 'currentDie',
+     'currentMode', 'spawnIndex', 'turnNumber', 'bhdDelta'].forEach(k => {
+      if (JSON.stringify(ft[k]) !== JSON.stringify(lt[k])) lt[k] = ft[k];
+    });
+  });
+  syncTurnMarksFromTokens();
 }
 function reloadBoardFromWarn() {
   const warn = document.getElementById('staleSceneWarn');

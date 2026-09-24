@@ -134,6 +134,16 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn("switchRightPanel('track')", html)
         self.assertIn('id="rdTrackPanel"', html)
 
+    def test_external_token_changes_merge_into_gm_board(self):
+        """Sheet-initiated edits (hero location move) merge into the GM's live
+        board on SSE instead of only banner-ing — otherwise the GM's next
+        Rd Track save writes the stale scene and un-moves the hero."""
+        self.assertIn('function mergeExternalTokenState', self.src)
+        stale = self.src[self.src.index('async function checkStaleBoardScene'):
+                         self.src.index('function reloadBoardFromWarn')]
+        self.assertIn('mergeExternalTokenState(fresh)', stale)
+        self.assertIn("['locationId', 'ko', 'currentHealth'", stale)
+
     def test_scene_notes_fetches_only_current_scene(self):
         """Panel fetches /api/scene-notes/<slug> for the active scene, not all notes."""
         start = self.src.index('async function renderSceneNotesPanel')
