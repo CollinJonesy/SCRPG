@@ -380,6 +380,13 @@ const state = {
   heroPoints: {},       // {issueSlug: {heroSlug: count}} — issue-scoped, max 5 per hero (SCRPG p.31)
   editingSlug: null,    // slug currently open in the Scene Editor (may differ from activeSlug)
   turnMarks: {},        // tokenId -> round order; memory only, not saved
+  // Token collapse view state (memory only — never saved with the scene):
+  // allCollapsed = "Collapse All Tokens" was clicked; expandedTokens holds the
+  // ids the GM re-opened individually while the all-collapse is active.
+  // collapsedTokens holds individually-collapsed ids when allCollapsed is off.
+  allCollapsed: false,
+  collapsedTokens: new Set(),
+  expandedTokens: new Set(),
 };
 
 let currentLibTab = 'heroes';
@@ -3205,15 +3212,37 @@ function switchRightPanel(name) {
   });
 }
 
+function tokenIsCollapsed(t) {
+  if (state.allCollapsed) return !state.expandedTokens.has(t.id);
+  return state.collapsedTokens.has(t.id);
+}
+
 function collapseAllTokens() {
-  // Same effect as clicking each token's name plate: hide the body, dim the
-  // header. Only touches cards that are currently expanded.
-  document.querySelectorAll('#locationsRow .token-content').forEach(content => {
-    if (content.style.display === 'none') return;
-    content.style.display = 'none';
-    const header = content.parentElement.querySelector('.token-header');
-    if (header) header.style.opacity = '0.6';
-  });
+  const btn = document.getElementById('collapseAllTokensBtn');
+  if (!state.allCollapsed) {
+    // Collapse every token card — and make it STICK: renderToken() re-applies
+    // this state on every board re-render, so health ticks, HP updates, token
+    // moves, etc. no longer undo it.
+    state.allCollapsed = true;
+    state.expandedTokens.clear();
+    state.collapsedTokens.clear();
+    document.querySelectorAll('#locationsRow .token-content').forEach(content => {
+      content.style.display = 'none';
+      const header = content.parentElement.querySelector('.token-header');
+      if (header) header.style.opacity = '0.6';
+    });
+    if (btn) btn.textContent = 'Expand All Tokens';
+  } else {
+    state.allCollapsed = false;
+    state.expandedTokens.clear();
+    state.collapsedTokens.clear();
+    document.querySelectorAll('#locationsRow .token-content').forEach(content => {
+      content.style.display = 'block';
+      const header = content.parentElement.querySelector('.token-header');
+      if (header) header.style.opacity = '1';
+    });
+    if (btn) btn.textContent = 'Collapse All Tokens';
+  }
 }
 
 async function renderEmptyBoardWithIssues() {
@@ -3591,7 +3620,11 @@ function renderToken(t, small) {
     </div>`;
   const content = document.createElement('div');
   content.className = 'token-content';
-  content.style.display = 'block'; // default expanded
+  // Respect the persistent collapse state ("Collapse All Tokens" toggle and
+  // per-token plate clicks) so re-renders don't revert the view.
+  const startCollapsed = tokenIsCollapsed(t);
+  content.style.display = startCollapsed ? 'none' : 'block';
+  card.dataset.tokenId = t.id;
   if (t.kind === 'hero' || t.kind === 'villain') content.innerHTML += renderHealthBlock(t, heroRow);
   if (t.kind === 'hero') content.innerHTML += renderHeroPointsHtml(t);
   if ((t.kind === 'minion' || t.kind === 'lieutenant') && !isNonCombatNpc(t)) content.innerHTML += renderDieBlock(t);
@@ -3616,6 +3649,15 @@ function toggleToken(header) {
   const hidden = content.style.display === 'none';
   content.style.display = hidden ? 'block' : 'none';
   header.style.opacity = hidden ? '1' : '0.6';
+  // Record the change so re-renders preserve it (see tokenIsCollapsed).
+  const id = card.dataset.tokenId;
+  if (id) {
+    if (state.allCollapsed) {
+      if (hidden) state.expandedTokens.add(id); else state.expandedTokens.delete(id);
+    } else {
+      if (!hidden) state.collapsedTokens.add(id); else state.collapsedTokens.delete(id);
+    }
+  }
 }
 
 function renderHealthBlock(t, heroRow) {
