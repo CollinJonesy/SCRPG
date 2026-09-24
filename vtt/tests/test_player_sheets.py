@@ -240,6 +240,13 @@ class TestSheetPayloadSceneData(ServerTestCase):
         self.assertEqual(srv.token_display_name(tokens[2], tokens), 'Thug #2')
         # legacy unstamped minion falls back to the lowest unused index
         self.assertEqual(srv.token_display_name(tokens[3], tokens), 'Thug #3')
+        # TWO unstamped same-name minions must coordinate (not both "#1")
+        pair = [
+            {'id': 'a', 'kind': 'minion', 'slug': 'x', 'name': 'Bandit'},
+            {'id': 'b', 'kind': 'minion', 'slug': 'x', 'name': 'Bandit'},
+        ]
+        self.assertEqual(srv.token_display_name(pair[0], pair), 'Bandit #1')
+        self.assertEqual(srv.token_display_name(pair[1], pair), 'Bandit #2')
         self.assertEqual(srv.token_display_name(tokens[4], tokens), 'Cop #1')
         self.assertEqual(srv.token_display_name(tokens[0], tokens), 'Test Hero')
         # freeing #2 recycles it for the next spawn

@@ -708,14 +708,20 @@ function tokenDisplayName(t, scene) {
   if (!t || t.kind !== 'minion') return (t && t.name) || '';
   const list = (scene && scene.tokens) || [];
   const peers = list.filter(x => x.kind === 'minion' && (x.name || '') === (t.name || ''));
-  const used = new Set(peers.map(x => Number(x.spawnIndex)).filter(n => Number.isInteger(n) && n > 0));
-  let idx = Number(t.spawnIndex);
-  const stampedPeer = peers.find(x => Number(x.spawnIndex) === idx);
-  if (!Number.isInteger(idx) || idx <= 0 || (used.has(idx) && stampedPeer !== t)) {
-    idx = 1;
-    while (used.has(idx)) idx++;
-  }
-  return (t.name || '') + ' #' + idx;
+  // Walk peers in board order so two unstamped same-name minions coordinate
+  // instead of both claiming "#1".
+  const used = new Set();
+  const assigned = new Map();
+  peers.forEach(x => {
+    let n = parseInt(String(x.spawnIndex), 10);
+    if (!Number.isInteger(n) || n <= 0 || used.has(n)) {
+      n = 1;
+      while (used.has(n)) n++;
+    }
+    used.add(n);
+    assigned.set(x.id, n);
+  });
+  return (t.name || '') + ' #' + (assigned.get(t.id) || 1);
 }
 function renderFighterCard(t, scene, hideHealthBars = false) {
   let meter = null;

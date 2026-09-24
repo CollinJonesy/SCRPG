@@ -267,9 +267,12 @@ function portraitUrl(kind, slug) {
 function occGroup(t) {
   const k = t.kind || '';
   if (k === 'villain') return 0;
+  // npcType arrives for ANY slug in npcs.csv (bystander NPC tokens carry
+  // kind 'minion' on the board), so check it regardless of token kind.
+  if (t.npcType === 'Bystander') return 3;
   if (k === 'lieutenant' || (k === 'npc' && t.npcType === 'Lieutenant')) return 1;
   if (k === 'minion' || (k === 'npc' && t.npcType === 'Minion')) return 2;
-  if (k === 'npc' && t.npcType === 'Bystander') return 3;
+  if (k === 'npc' && t.npcType === 'Lieutenant') return 1;
   return 4;
 }
 const OCC_GROUP_CLASS = { 0: 'villain', 1: 'lieutenant', 2: 'minion', 3: 'npc', 4: 'hero' };
@@ -779,6 +782,7 @@ function openBasicAction(t) { openActionStaged([t], null); }
 function targetOptionsFor(p, type) {
   let list = (p.occupants || [])
     .filter(t => !t.ko)
+    .filter(t => t.npcType !== 'Bystander')
     .filter(t => !(t.kind === 'npc' && t.npcType === 'Bystander'));
   if (type === 'Attack') {
     list = list.filter(t => !(t.kind === 'hero' && t.slug === HERO));

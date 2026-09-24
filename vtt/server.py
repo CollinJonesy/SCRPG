@@ -794,23 +794,41 @@ def token_display_name(t: dict, tokens: list) -> str:
         return name
     peers = [x for x in tokens
              if x.get('kind') == 'minion' and str(x.get('name') or '') == name]
+    # Walk peers in board order; each takes the lowest index not already used
+    # by a stamped peer OR an earlier fallback assignment. This is what keeps
+    # two unstamped same-name minions from both claiming "#1".
     used = set()
+    assigned = {}
     for x in peers:
         try:
             n = int(x.get('spawnIndex'))
-            used.add(n)
         except (TypeError, ValueError):
-            pass
-    try:
-        idx = int(t.get('spawnIndex'))
-    except (TypeError, ValueError):
-        idx = 0
-    stamped_peer = next((x for x in peers if str(x.get('spawnIndex') or '') == str(idx)), None) if idx else None
-    if idx <= 0 or idx in used and stamped_peer is not t:
-        idx = 1
-        while idx in used:
-            idx += 1
-    return f"{name} #{idx}"
+            n = 0
+        if n <= 0 or n in used:
+            n = 1
+            while n in used:
+                n += 1
+        used.add(n)
+        assigned[str(x.get('id') or '')] = n
+    return f"{name} #{assigned.get(str(t.get('id') or ''), 0) or (min(set(range(1, len(peers) + 2)) - used, default=1))}"
+
+
+def visible_combatants(campaign: Path, scene: dict) -> list:
+    """Round-track scope (mirrors livingCombatants() in app.js): living
+    combatants that are not Bystander NPCs and are IN VIEW — in a location
+    occupied by at least one PC hero. Tokens alone in another location are
+    off-screen and don't gate the round."""
+    tokens = scene.get('tokens') or []
+    pc_slugs = {(r.get('Slug') or '').strip()
+                for r in _csv_rows(campaign / 'players.csv', HEROES_HEADERS)}
+    hero_locs = {t.get('locationId') or '' for t in tokens
+                 if t.get('kind') == 'hero' and not t.get('ko')
+                 and (t.get('slug') or '').strip() in pc_slugs}
+    return [t for t in tokens
+            if not t.get('ko')
+            and t.get('kind') in ('hero', 'villain', 'minion', 'lieutenant')
+            and npc_type_for(campaign, str(t.get('slug') or '')) != 'Bystander'
+            and (t.get('locationId') or '') in hero_locs]
 
 
 def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
@@ -851,7 +869,9 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
             loc_id = my_token.get('locationId')
             location = next((l for l in scene.get('locations') or [] if l.get('id') == loc_id), None)
             for t in scene.get('tokens') or []:
-                if t.get('locationId') != loc_id:
+                if t.get('locationId') != loc_id or t.get('ko'):
+                    # KO'd tokens are off the board — the Location card must
+                    # not show a Bystander that isn't there anymore.
                     continue
                 occ = {
                     'id': t.get('id') or '',
@@ -860,6 +880,11 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
                     'name': token_display_name(t, scene.get('tokens') or []),
                     'currentDie': die_label(t.get('currentDie')),
                     'ko': bool(t.get('ko')),
+                    # NPC type (Bystander/Minion/Lieutenant/Hero) — looked up for
+                    # ANY token whose slug is in npcs.csv, because bystander NPC
+                    # tokens carry kind 'minion' on the board. Drives the sheet's
+                    # occupant sorting and target filtering.
+                    'npcType': npc_type_for(campaign, str(t.get('slug') or '')),
                 }
                 if t.get('kind') == 'hero':
                     occ['currentHealth'] = t.get('currentHealth')
@@ -869,9 +894,6 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
                     occ['currentHealth'] = t.get('currentHealth')
                     occ['maxHealth'] = t.get('maxHealth')
                 elif (t.get('kind') or '') == 'npc':
-                    # NPC sheet type (Bystander/Minion/Lieutenant/Hero) drives the
-                    # player sheet's occupant sorting.
-                    occ['npcType'] = npc_type_for(campaign, occ['slug'])
                     if occ['npcType'] in ('Minion', 'Lieutenant'):
                         occ['currentHealth'] = t.get('currentHealth')
                         occ['maxHealth'] = t.get('maxHealth')
@@ -936,14 +958,14 @@ def player_sheet_payload(campaign: Path, hero: str) -> dict | None:
             'turnNumber': (my_token or {}).get('turnNumber'),
             'bhd': bhd_display_totals(scene, my_token) if my_token else (my_token or {}).get('bhdDelta') or {},
         },
-        # Round Track: which combatants have gone this round (order #). Names
-        # are public (PD shows them); used for the sheet's "you have/haven't
-        # gone" indicator.
+        # Round Track: which combatants have gone this round (order #) — same
+        # visibility rules as the GM board's Rd Track: no Bystander NPCs, and
+        # only tokens in a PC-occupied location. Names are public (the PD
+        # shows them); used for the sheet's "you have/haven't gone" indicator.
         'roundTurns': [{'id': t.get('id') or '',
                         'name': token_display_name(t, scene.get('tokens') or []),
                         'turnNumber': t.get('turnNumber')}
-                       for t in (scene or {}).get('tokens') or []
-                       if not t.get('ko') and t.get('kind') in ('hero', 'villain', 'minion', 'lieutenant')],
+                       for t in visible_combatants(campaign, scene or {})],
         'sceneType': str((scene or {}).get('sceneType') or ''),
         'recoverAllowed': bool(hero_has_recover_ability(abilities) or scene_is_montage(scene)),
         # Pending Boost/Hinder mods the affected hero decides when to spend
@@ -1219,7 +1241,7 @@ def log_scene_activity(scene, actor, action: str, target, result: str, details=N
     })
 
 
-def assign_player_turn(scene, token):
+def assign_player_turn(campaign, scene, token):
     """Port of app.js assignTurnNumber for player-initiated actions: the token
     gets the next turn number; when every living combatant has acted the round
     advances (maybeEndRound). Uses token.turnNumber as the persistent marks."""
@@ -1235,8 +1257,8 @@ def assign_player_turn(scene, token):
         nxt = (max([n for n in taken if isinstance(n, int)] or [0])) + 1
         token['turnNumber'] = nxt
     # maybeEndRound runs on every turn-counting action, even a repeat actor's
-    living = [t for t in scene.get('tokens') or []
-              if not t.get('ko') and t.get('kind') in ('hero', 'villain', 'minion', 'lieutenant')]
+    # (same visibility rules as the Rd Track — no bystanders, in-view only)
+    living = visible_combatants(campaign, scene)
     if living and all(t.get('turnNumber') for t in living):
         n = scene.get('round') or 1
         for t in scene.get('tokens') or []:
@@ -1675,7 +1697,7 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
                        or ({'name': target_label} if target_label else None),
                        result, details, counts_as_turn=counts)
     if counts:
-        assign_player_turn(scene, tok)
+        assign_player_turn(campaign, scene, tok)
     record_sheet_activity(campaign, str(tok.get('slug') or ''),
                           ability_name if ability_name else atype, result)
     outcome['result'] = result

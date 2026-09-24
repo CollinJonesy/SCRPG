@@ -2473,8 +2473,17 @@ function ensureRoundState() {
   if (!state.scene.round || state.scene.round < 1) state.scene.round = 1;
 }
 function livingCombatants() {
+  // Round-track scope: living combatants that are (a) NOT bystander NPCs
+  // (Bank Teller, Branch Manager — non-combat by design) and (b) IN VIEW,
+  // i.e. in a location occupied by at least one PC hero. Tokens alone in
+  // another location are off-screen and don't gate the round.
+  const heroLocs = new Set((state.scene.tokens || [])
+    .filter(t => isPcHeroTokenGm(t) && !t.ko)
+    .map(t => t.locationId || ''));
   return (state.scene.tokens || []).filter(t =>
-    !t.ko && (t.kind === 'hero' || t.kind === 'villain' || t.kind === 'minion' || t.kind === 'lieutenant'));
+    !t.ko && (t.kind === 'hero' || t.kind === 'villain' || t.kind === 'minion' || t.kind === 'lieutenant')
+    && !isNonCombatNpc(t)
+    && heroLocs.has(t.locationId || ''));
 }
 function assignTurnNumber(actor) {
   if (!state.scene || !actor || actor.ko) return null;
@@ -2543,8 +2552,7 @@ function renderRdTrackPanel() {
   const el = document.getElementById('rdTrackPanel');
   if (!el) return;
   if (!state.scene) { el.innerHTML = '<p class="empty-hint">Load a scene first.</p>'; return; }
-  const living = (state.scene.tokens || []).filter(t =>
-    !t.ko && ['hero', 'villain', 'minion', 'lieutenant'].includes(t.kind));
+  const living = livingCombatants();
   const gone = living.filter(t => t.turnNumber).sort((a, b) => a.turnNumber - b.turnNumber);
   const waiting = living.filter(t => !t.turnNumber)
     .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
@@ -3659,14 +3667,20 @@ function tokenDisplayName(t, tokens) {
   const list = tokens || (state.scene && state.scene.tokens) || [];
   if (!t || t.kind !== 'minion') return (t && t.name) || '';
   const peers = list.filter(x => x.kind === 'minion' && (x.name || '') === (t.name || ''));
-  const used = new Set(peers.map(x => Number(x.spawnIndex)).filter(n => Number.isInteger(n) && n > 0));
-  let idx = Number(t.spawnIndex);
-  const stampedPeer = peers.find(x => Number(x.spawnIndex) === idx);
-  if (!Number.isInteger(idx) || idx <= 0 || (used.has(idx) && stampedPeer !== t)) {
-    idx = 1;
-    while (used.has(idx)) idx++;
-  }
-  return (t.name || '') + ' #' + idx;
+  // Walk peers in board order so two unstamped same-name minions coordinate
+  // instead of both claiming "#1".
+  const used = new Set();
+  const assigned = new Map();
+  peers.forEach(x => {
+    let n = parseInt(String(x.spawnIndex), 10);
+    if (!Number.isInteger(n) || n <= 0 || used.has(n)) {
+      n = 1;
+      while (used.has(n)) n++;
+    }
+    used.add(n);
+    assigned.set(x.id, n);
+  });
+  return (t.name || '') + ' #' + (assigned.get(t.id) || 1);
 }
 
 function spawnToken() {

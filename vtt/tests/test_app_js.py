@@ -144,6 +144,16 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn('mergeExternalTokenState(fresh)', stale)
         self.assertIn("['locationId', 'ko', 'currentHealth'", stale)
 
+    def test_round_track_excludes_bystanders_and_hidden_tokens(self):
+        """Rd Track scope: no Bystander NPCs, and only tokens in a location
+        with a PC hero present (out-of-view tokens don't gate the round)."""
+        self.assertIn('heroLocs', self.src)
+        living = self.src[self.src.index('function livingCombatants'):
+                          self.src.index('function assignTurnNumber')]
+        self.assertIn('isPcHeroTokenGm', living)
+        self.assertIn('isNonCombatNpc(t)', living)
+        self.assertIn("heroLocs.has(t.locationId || '')", living)
+
     def test_end_of_turn_saves_immediately(self):
         """Marking a turn gone triggers an immediate End-of-Turn flush
         (saveSceneNow, which cancels the debounce) instead of a debounced PUT."""
