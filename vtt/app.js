@@ -2548,22 +2548,43 @@ function renderRdTrackPanel() {
   const gone = living.filter(t => t.turnNumber).sort((a, b) => a.turnNumber - b.turnNumber);
   const waiting = living.filter(t => !t.turnNumber)
     .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
-  const chip = t => `<div class="rd-chip ${t.turnNumber ? 'gone' : ''}" draggable="${!t.turnNumber}"
-      data-tokid="${escAttr(t.id)}" ${t.turnNumber ? `onclick="clearTokenGone('${escAttr(t.id)}')" title="Click to un-mark"` : `title="Drag onto this panel (or click) to mark as gone"`}
-      ondragstart="event.dataTransfer.setData('text/plain', '${escAttr(t.id)}')">
+  const chip = t => `<div class="rd-chip ${t.turnNumber ? 'gone' : ''}"
+      data-tokid="${escAttr(t.id)}" ${t.turnNumber ? `onclick="clearTokenGone('${escAttr(t.id)}')" title="Click to un-mark"` : `onclick="markTokenGone('${escAttr(t.id)}')" title="Click (or drag here) to mark as gone"`}>
       <span class="rd-order">${t.turnNumber ? '#' + t.turnNumber : ''}</span>${escHtml(tokenDisplayName(t))}
       <span class="rd-kind">${escHtml(t.kind)}</span></div>`;
   const rnd = state.scene.round || 1;
   el.innerHTML = `
     <div class="rd-meta"><b>Round ${rnd}</b> — ${gone.length}/${living.length} have gone.
       <button type="button" class="btn btn-small btn-ghost" onclick="resetRoundTrack()" title="Clear every mark (round stays the same)">Reset Track</button></div>
-    <div class="rd-pane" id="rdPane"
-      ondragover="event.preventDefault()"
-      ondrop="event.preventDefault(); const id = event.dataTransfer.getData('text/plain'); if (id) markTokenGone(id);">
+    <div class="rd-pane">
       ${gone.length ? `<div class="rd-group-label">Gone (click to undo)</div><div class="rd-list">${gone.map(chip).join('')}</div>` : ''}
-      ${waiting.length ? `<div class="rd-group-label">Waiting (drag onto this panel or click)</div><div class="rd-list">${waiting.map(chip).join('')}</div>` : ''}
+      ${waiting.length ? `<div class="rd-group-label">Waiting (click to mark as gone)</div><div class="rd-list">${waiting.map(chip).join('')}</div>` : ''}
       ${!living.length ? '<p class="empty-hint">No living combatants on the board.</p>' : ''}
     </div>`;
+}
+// The WHOLE right panel is the drop target while the Rd Track tab is active —
+// from just below the tab buttons to the bottom of the panel. Bound at the
+// sidebar level so chips inside the pane still receive their own clicks
+// (chips are no longer draggable; clicking one marks it gone).
+function wireRdTrackDrop() {
+  const zone = document.getElementById('rdTrackPanel');
+  const box = document.getElementById('rightPanelBox');
+  if (!zone || !box || zone.dataset.dropWired) return;
+  zone.dataset.dropWired = '1';
+  box.addEventListener('dragover', e => {
+    if (switchRightPanel.current !== 'track') return;
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  box.addEventListener('dragleave', e => {
+    if (e.target === box) zone.classList.remove('drag-over');
+  });
+  box.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const id = e.dataTransfer.getData('text/plain');
+    if (id) markTokenGone(id);
+  });
 }
 function maybeEndRound() {
   const need = livingCombatants();
@@ -3167,6 +3188,7 @@ function switchRightPanel(name) {
   const panes = { challenges: 'challengesPanel', notes: 'sceneNotesPanel',
                   log: 'activityLogPanel', matrix: 'twistMatrixPanel',
                   track: 'rdTrackPanel' };
+  switchRightPanel.current = name;
   document.querySelectorAll('#rightPanelBox .rp-tab').forEach(b =>
     b.classList.toggle('active', b.dataset.rp === name));
   Object.entries(panes).forEach(([key, id]) => {
@@ -5086,6 +5108,7 @@ async function init() {
   }
   renderBoard();
   connectGmEvents();
+  wireRdTrackDrop();
   maybeRenderBoardMoves();
 
   // TV Mode toggle (defaults ON, updates the Player Display link)

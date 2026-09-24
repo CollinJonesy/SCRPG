@@ -1144,11 +1144,15 @@ table.lib-table .roll-type-row label {
 .rd-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .rd-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--ink);
   border: 1px solid var(--line); border-radius: 14px; padding: 4px 10px; font-size: 12px;
-  font-family: var(--font-body); color: var(--text-hi); cursor: grab; user-select: none; }
+  font-family: var(--font-body); color: var(--text-hi); cursor: pointer; user-select: none; }
 .rd-chip.gone { opacity: .55; cursor: pointer; border-color: var(--accent); }
 .rd-chip.gone::before { content: '✔'; color: var(--accent); font-size: 11px; }
 .rd-order { font-weight: 700; color: var(--yellow); }
 .rd-kind { font-size: 10px; color: var(--text-lo); text-transform: uppercase; }
+/* Whole-panel drop zone (Rd Track active): highlight the pane when dragging */
+.rd-drop-zone.drag-over { outline: 3px dashed var(--accent); outline-offset: -6px; }
+.rd-drop-zone.drag-over::after { content: 'Drop to mark as gone'; display: block;
+  text-align: center; color: var(--accent); font-size: 13px; padding: 10px 0; font-family: var(--font-body); }
 .activity-log-list {
   flex: 1;
   min-height: 0;

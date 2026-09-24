@@ -152,6 +152,17 @@ class TestAppJsContracts(unittest.TestCase):
         self.assertIn("saveSceneDebounced.cancel()", gone)
         self.assertIn("saveSceneNow('End of Turn')", gone)
 
+    def test_rd_track_whole_panel_is_drop_target(self):
+        """The drop target is the entire right panel (rightPanelBox), not a
+        small inner box; waiting chips are click-to-mark, not drag sources."""
+        self.assertIn('function wireRdTrackDrop', self.src)
+        wire = self.src[self.src.index('function wireRdTrackDrop'):
+                        self.src.index('function maybeEndRound')]
+        self.assertIn("getElementById('rightPanelBox')", wire)
+        self.assertIn("switchRightPanel.current !== 'track'", wire)
+        html = (Path(__file__).resolve().parent.parent / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('rd-drop-zone', html)
+
     def test_scene_notes_fetches_only_current_scene(self):
         """Panel fetches /api/scene-notes/<slug> for the active scene, not all notes."""
         start = self.src.index('async function renderSceneNotesPanel')
