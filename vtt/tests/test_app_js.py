@@ -98,7 +98,7 @@ class TestAppJsContracts(unittest.TestCase):
             self.assertIn(tab, box)
         css = (Path(__file__).resolve().parent.parent / 'style.css').read_text(encoding='utf-8')
         main = css[css.index('.board-main-grid {'):css.index('.board-sidebar-stack')]
-        self.assertIn('1fr 310px', main)
+        self.assertIn('1fr 410px', main)
         self.assertIn('function renderSceneNotesPanel', self.src)
         self.assertIn('function switchRightPanel', self.src)
         self.assertIn('function collapseAllTokens', self.src)
