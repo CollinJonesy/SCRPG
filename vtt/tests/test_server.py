@@ -381,6 +381,15 @@ class TestRulesApi(ServerTestCase):
         self.assertEqual(len(items), expected_count)
         self.assertGreater(expected_count, 0)
 
+    def test_numbered_rule_files_are_naturally_sorted(self):
+        status, data = self.request('GET', '/api/rules')
+        self.assertEqual(status, 200)
+        hero_chapter = [item['slug'] for item in json.loads(data)
+                        if item['slug'].startswith('Ch 3 - Creating Heroes--')]
+        numbers = [int(slug.split('--', 1)[1].split('.', 1)[0])
+                   for slug in hero_chapter]
+        self.assertEqual(numbers, sorted(numbers))
+
     def test_title_extracted_from_first_heading(self):
         status, data = self.request('GET', '/api/rules')
         items = json.loads(data)

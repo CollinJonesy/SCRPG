@@ -96,11 +96,17 @@ def _atomic_write_text(path: Path, text: str):
     _atomic_write_bytes(path, text.encode('utf-8'))
 
 
+def rule_sort_key(path: Path):
+    """Sort rule paths naturally, so numbered chapters read 0, 1, 2 … 10."""
+    return [int(part) if part.isdigit() else part.casefold()
+            for part in re.split(r'(\d+)', path.as_posix())]
+
+
 def iter_rule_files():
     """Nested markdown under rules/. Slug is relative path with / → --."""
     if not RULES_DIR.exists():
         return
-    for f in sorted(RULES_DIR.rglob('*.md')):
+    for f in sorted(RULES_DIR.rglob('*.md'), key=lambda p: rule_sort_key(p.relative_to(RULES_DIR))):
         if not f.is_file():
             continue
         if f.name.lower() == 'readme.md':
