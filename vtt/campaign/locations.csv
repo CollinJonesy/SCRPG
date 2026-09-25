@@ -1,4 +1,9 @@
-Slug,Name,EnvironmentSlug
-bank-lobby-offices,Bank Lobby & Offices,
-vault-back-offices,Vault & Back Offices,
-the-cozy-thimble-main,The Cozy Thimble,
+Slug,Name,EnvironmentSlug,Active
+bank-lobby-offices,Bank Lobby & Offices,,
+vault-back-offices,Vault & Back Offices,,
+the-cozy-thimble-main,The Cozy Thimble,,
+first-occidia-bank,First Occidia Bank,,true
+main-warehouse-floor,Main Warehouse Floor,the-drowned-angler-territory,true
+admin-area,Admin Area,the-drowned-angler-territory,true
+crew-facilities-bunks,Crew Facilities / Bunks,the-drowned-angler-territory,true
+safehouse,Safehouse,,true

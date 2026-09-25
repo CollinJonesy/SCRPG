@@ -5,11 +5,11 @@
   "tracker": {
     "stars": [
       "green",
+      "green",
       "yellow",
       "yellow",
       "yellow",
-      "red",
-      "red",
+      "yellow",
       "red",
       "red"
     ],
@@ -18,17 +18,18 @@
   "locations": [
     {
       "id": "loc-jk4pvnp2",
-      "name": "Prefab & Inventory/Supply Area"
+      "name": "Main Warehouse Floor",
+      "locationSlug": "main-warehouse-floor"
     },
     {
       "id": "loc-i7o4s5xx",
-      "name": "Fleet & Heavy Equipment Staging",
-      "locationSlug": ""
+      "name": "Admin Area",
+      "locationSlug": "admin-area"
     },
     {
       "id": "loc-qnq3lxlx",
-      "name": "Administrative & Crew Facilities",
-      "locationSlug": ""
+      "name": "Crew Facilities / Bunks",
+      "locationSlug": "crew-facilities-bunks"
     }
   ],
   "background": "drowned-warehouse-bg",
@@ -70,5 +71,41 @@
   "gmNotes": "",
   "activityLog": [],
   "round": 1,
-  "__slug": "drowned-warehouse"
+  "__slug": "drowned-warehouse",
+  "layout": {
+    "cols": 12,
+    "rows": 8,
+    "placements": [
+      {
+        "location": "loc-jk4pvnp2",
+        "col": 1,
+        "row": 1,
+        "colSpan": 7,
+        "rowSpan": 8,
+        "cols": {
+          "bystanders": 0
+        }
+      },
+      {
+        "location": "loc-i7o4s5xx",
+        "col": 8,
+        "row": 1,
+        "colSpan": 5,
+        "rowSpan": 4,
+        "cols": {
+          "bystanders": 0
+        }
+      },
+      {
+        "location": "loc-qnq3lxlx",
+        "col": 8,
+        "row": 5,
+        "colSpan": 5,
+        "rowSpan": 4,
+        "cols": {
+          "bystanders": 0
+        }
+      }
+    ]
+  }
 }

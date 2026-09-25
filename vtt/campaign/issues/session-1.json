@@ -40,6 +40,15 @@
   "locationSlugs": [
     "bank-lobby-offices",
     "vault-back-offices",
-    "the-cozy-thimble-main"
+    "the-cozy-thimble-main",
+    "new-entry",
+    "first-occidia-bank",
+    "prefab-inventory-supply-area",
+    "fleet-heavy-equipment-staging",
+    "administrative-crew-facilities",
+    "safehouse",
+    "main-warehouse-floor",
+    "admin-area",
+    "crew-facilities-bunks"
   ]
 }

@@ -126,7 +126,9 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('#displayChallenges:empty { display: none; }', self.html)
 
     def test_pd_scene_layout_grid_rendering(self):
-        """Per-scene layout: grid placement, clamped boxes, KO row spans full width, legacy stack default."""
+        """Per-scene layout: grid placement, clamped boxes, legacy stack default.
+        KO'd tokens are NOT rendered on the PD at all (no Out list — GM-side
+        Rd Track owns that; Collin closed this 2026-09)."""
         self.assertIn('function sceneLayoutFor', self.src)
         self.assertIn('function clampInt', self.src)
         render = self.src[self.src.index('function renderScene'):self.src.index('function pathDisplayOutcome')]
@@ -134,7 +136,7 @@ class TestDisplayJsContracts(unittest.TestCase):
         self.assertIn('sceneLayoutFor(scene, locs)', render)
         self.assertIn('grid-column:${pl.col} / span ${pl.colSpan}', render)
         self.assertIn('grid-row:${pl.row} / span ${pl.rowSpan}', render)
-        self.assertIn("grid-column:1 / -1", render)  # KO row spans all columns in grid mode
+        self.assertNotIn('mvc-ko', render)  # Out list deliberately removed from PD
         self.assertIn('layout: scene.layout', self.src)  # layout change must re-render
         self.assertIn('.locations-row.layout-grid', self.html)
         # Validation: unknown/duplicate locations ignored, boxes clamped into the grid.

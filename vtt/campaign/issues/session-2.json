@@ -16,5 +16,6 @@
   "minionSlugs": [
     "bank-teller",
     "diesel"
-  ]
+  ],
+  "locationSlugs": []
 }

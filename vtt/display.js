@@ -456,7 +456,8 @@ function renderScene(scene) {
     row.style.gridTemplateColumns = '';
     row.style.gridTemplateRows = '';
   }
-  const ko = scene.tokens.filter(t => t.ko);
+  // KO'd tokens are intentionally not rendered on the PD at all — no Out list.
+  // The GM board's Rd Track tab tracks them; players see nothing.
   const at = (locId) => scene.tokens.filter(t => !t.ko && (t.locationId || '') === (locId || ''));
   row.innerHTML = locs.map(loc => {
     const here = at(loc.id);
@@ -488,8 +489,9 @@ function renderScene(scene) {
       <div class="location-header"><span class="location-name-display">${escHtml(loc.name)}</span></div>
       ${pdMvcStageHtml(allies, neutrals, enemies, scene, hideHealthBars, pl ? pl.groupCols : null, budget)}
     </section>`;
-  }).join('')
-    + (ko.length ? `<div class="mvc-ko"${layoutInfo ? ' style="grid-column:1 / -1;"' : ''}>Out: ${ko.map(t => escHtml(tokenDisplayName(t, scene))).join(', ')}</div>` : '');
+  }).join('');
+  // KO'd tokens are intentionally NOT shown on the PD — not even a name list.
+  // The GM board tracks Out tokens in its Rd Track tab; players get nothing.
 
   const chalEl = document.getElementById('displayChallenges');
   const visible = scene.challenges || [];
@@ -776,7 +778,14 @@ function heroModeBadge(t) {
   if (t.kind !== 'hero' || !cur || cur === 'default') return '';
   const modes = pdModesCache[(t.slug || '').trim()];
   const m = Array.isArray(modes) ? modes.find(x => (x.slug || '') === cur) : null;
-  const label = (m && m.name) || cur;
+  // ONE word on the token: "Debilitator", "Stalwart", "Powerless" — never the
+  // raw slug ("modular-debilitator") and never "Debilitator Mode".
+  const label = String((m && m.name) || cur)
+    .replace(/\s*Mode\s*$/i, '')
+    .replace(/^modular[-_\s]+/i, '')
+    .replace(/[-_]+/g, ' ')
+    .trim()
+    .replace(/^\w/, c => c.toUpperCase());
   return `<div class="mode-badge">${escHtml(label)}</div>`;
 }
 
