@@ -107,9 +107,9 @@ Unchanged from before — `notion_import.py` still reshapes Notion CSV exports (
 ## Rules encoded so far
 
 - **Hero/Villain Health**: GYRO band coloring, Heroes off the printed 17-40 chart, Villains off per-entry Green/Yellow/Red floors you set.
-- **Minions**: roll their own die as a save. Fail → defeated outright (your house rule). Succeed → no change.
+- **Minions**: roll their own die as a save. Fail → knocked out. Success → degrade one step. A d4 that saves stays (last stand).
 - **Lieutenants**: roll their own die as a save. Fail → degrade one step. Succeed → no change. Damage ≥ 2× die size → instant KO, no save.
-- **Scene Tracker**: real preset star counts, custom builder, click-to-set or Advance/Retreat marker.
+- **Scene Tracker**: Standard 2 green / 4 yellow / 2 red, Prolonged 3/5/3, Epic 1/3/4. Presets only — no custom stars. Click a star or Advance/Retreat.
 - **Scene Difficulty**: real page 185-188 table shown as reference.
 - **Challenges**: all 6 types, path/success-counter model, Timed and Doomsday Device mechanics from pages 191 and 197-198.
 - **Hidden info**: Challenge solutions + GM Notes withheld from Player Display until revealed.

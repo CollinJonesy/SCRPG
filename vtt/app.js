@@ -333,6 +333,15 @@ async function apiPutRevealedRoll(rollData) {
 async function apiClearRevealedRoll() {
   await fetch('/api/revealed-roll', { method: 'PUT', body: 'null' });
 }
+function publishGmRoll(tokenName, value, label) {
+  apiPutRevealedRoll({
+    tokenName: tokenName || 'GM',
+    min: value, mid: value, max: value,
+    effectLabel: label || 'GM roll',
+    effectValue: value,
+    timestamp: Date.now(),
+  });
+}
 async function apiUploadBackground(key, file) {
   await fetch(`/api/backgrounds/${encodeURIComponent(key)}`, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
 }
@@ -1842,12 +1851,21 @@ function applyBoardAttack(actor, target, effect, abilityName) {
   if (target.kind === 'minion') {
     const roll = rollDie(target.currentDie);
     const failed = roll < dmg;
-    if (failed) target.ko = true;
+    let label;
+    if (failed) {
+      target.ko = true;
+      label = 'defeated';
+    } else {
+      const next = degradeDie(target.currentDie);
+      if (next == null) label = 'last stand, stays d' + target.currentDie;
+      else { target.currentDie = next; label = 'now d' + next; }
+    }
     saveSceneDebounced();
     logActivity({ id: actor.id, name: actor.name, kind: actor.kind }, 'Attack',
       { id: target.id, name: target.name, kind: target.kind },
-      `${abilityName}: ${dmg} vs minion save ${roll} — ${failed ? 'defeated' : 'held'}`, { effect, dmg, roll, ability: abilityName });
-    toast(`${abilityName}: minion rolled ${roll} vs ${dmg} — ${failed ? 'defeated' : 'held'}`);
+      `${abilityName}: ${dmg} vs minion save ${roll} — ${label}`, { effect, dmg, roll, ability: abilityName });
+    toast(`${abilityName}: minion rolled ${roll} vs ${dmg} — ${label}`);
+    publishGmRoll(target.name, roll, 'Minion save');
     return;
   }
   if (target.kind === 'lieutenant') {
@@ -1877,6 +1895,7 @@ function applyBoardAttack(actor, target, effect, abilityName) {
         `${abilityName}: save ${roll} vs ${dmg} — held`, { effect, dmg, roll, ability: abilityName });
       toast(`${abilityName}: lieutenant held`);
     }
+    publishGmRoll(target.name, roll, 'Lieutenant save');
   }
 }
 function closeAbilities() {
@@ -2821,17 +2840,11 @@ function applyTrackerPreset(key) {
   saveSceneDebounced();
   renderTrackerEditor();
 }
-function addTrackerStar(color) {
-  state.scene.tracker.stars.push(color);
-  saveSceneDebounced();
-  renderTrackerEditor();
+function addTrackerStar() {
+  toast('Custom scene trackers are not used. Pick Standard, Prolonged, or Epic.');
 }
 function removeLastTrackerStar() {
-  if (state.scene.tracker.stars.length <= 1) return;
-  state.scene.tracker.stars.pop();
-  state.scene.tracker.position = Math.min(state.scene.tracker.position, state.scene.tracker.stars.length - 1);
-  saveSceneDebounced();
-  renderTrackerEditor();
+  toast('Custom scene trackers are not used. Pick Standard, Prolonged, or Epic.');
 }
 function setTrackerPosition(i) {
   state.scene.tracker.position = i;
@@ -3151,8 +3164,8 @@ function renderTwistMatrixPanel() {
     </table>
     <div class="twist-matrix-notes">
       <p><b>Twist source, in order:</b> ① acting hero's own Principle question (see ▸ on their token) · ② this scene Environment's twist for the current tracker color · ③ generic Twist Library.</p>
-      <p><b>Hero Points:</b> whenever ANY hero uses a Principle in an Overcome — success or not — <b>every hero earns 1 HP</b> (max 5/Issue). Meaningful social scene: all heroes +1 HP, once per scene. Convert to exclusive bonuses at Issue end.</p>
-      <p><b>Villains/minions:</b> villains never take Major Twists (they fail instead); a minion succeeding with a minor twist knocks itself out; a Lieutenant steps down (house rule: minion save = outright defeat).</p>
+      <p><b>Hero Points:</b> a Principle Overcome gives every hero 1 HP (max 5/Issue). A social scene gives 1 HP to every hero, once — even if a Principle Overcome also happens — and not again this Issue for the same heroes.</p>
+      <p><b>Villains/minions:</b> villains never take Major Twists (they fail instead); a minion succeeding with a minor twist knocks itself out. Minion damage save: fail = knocked out, success = degrade one step, d4 last stand. Lieutenant save: fail = step down, success = no change, damage at least double the die = instant KO.</p>
       <p><b>Twist effects, by severity</b> (Bullpen "Creating Twists" — pick the dice from the hero's own roll): Hinder one hero — Minor: Max die (or persistent-exclusive Min die) · Major: persistent-exclusive Max+Min, or Max die on all heroes in the hero's location. Damage — Minor: Mid die one hero (or Min die all heroes same location) · Major: Max+Min one hero, Mid die all heroes in location, or Mid die everyone in the scene. Boost enemies — Minor: Max die (or persistent-exclusive Min) · Major: persistent-exclusive Max+Min, or Max to all villains/minions. Defend enemies — Minor: Max die one nearby enemy · Major: Mid+Max one, or Max all nearby. Add threats: about Min die worth of minions (Minor), Mid die worth (Major). May also: create a challenge, advance the scene tracker, or drop a story complication / "Meanwhile…" for later — twists never undo the success itself.</p>
     </div>`;
 }
@@ -3554,23 +3567,29 @@ async function adjustHeroPoint(heroSlug, delta) {
   } catch (e) { toast('Hero Point update failed.'); console.error(e); }
 }
 
-async function awardHeroPointAll(delta, reason) {
+async function awardHeroPointAll(reason) {
+  if (reason == null || typeof reason === 'number') reason = 'principle';
   const issue = hpIssueSlug();
   if (!issue) { toast('Load a scene that belongs to an Issue first — Hero Points are tracked per Issue.'); return; }
-  // RAW p.31: whenever ANY hero uses a Principle in an Overcome (success or
-  // not), EACH hero on the team earns one hero point. Social scenes: 1 each.
-  const heroes = state.heroes.filter(h => String(h.Active ?? '').toLowerCase() !== 'false');
+  const heroes = state.heroes.filter(h => String(h.Active ?? '').toLowerCase() !== 'false').map(h => h.Slug).filter(Boolean);
   if (!heroes.length) { toast('No heroes in the Library.'); return; }
+  const drivers = (state.scene.tokens || []).filter(t => t.kind === 'hero' && !t.ko).map(t => t.slug).filter(Boolean).sort();
   try {
-    for (const h of heroes) {
-      const res = await fetch('/api/hero-points', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ issue, hero: h.Slug, delta })
-      });
-      if (res.ok) state.heroPoints = await res.json() || {};
-    }
+    const res = await fetch('/api/hero-points', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        issue, awardTeam: true, reason,
+        scene: state.activeSlug || (state.scene && state.scene.__slug) || '',
+        sceneType: (state.scene && state.scene.sceneType) || '',
+        drivers, heroes
+      })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(body.error || 'Hero Point update failed.'); return; }
+    state.heroPoints = body || {};
     renderTokens();
-    toast(reason ? `${reason} — all heroes +1 HP` : 'All heroes +1 HP');
+    const note = reason === 'social' ? 'Social scene' : 'Principle Overcome';
+    toast(note + ' — all heroes +1 HP');
   } catch (e) { toast('Hero Point update failed.'); console.error(e); }
 }
 
@@ -3954,7 +3973,7 @@ function openAttack(tokenId) {
   } else if (t.kind === 'minion') {
     body.innerHTML = `<label>Damage dealt to this minion group<input type="number" id="atkDamage" min="0" value="0"></label>
       ${attackModPickerHtml(t)}
-      <p style="color:#555;">House rule: Minions are defeated outright on a failed save (no step-down).</p>
+      <p style="color:#555;">Fail = knocked out. Success = degrade one step. A d4 that saves stays (last stand).</p>
       <button class="btn btn-accent" onclick="resolveMinionSave('${t.id}')">Roll Save &amp; Resolve</button><div class="attack-result" id="atkResult"></div>`;
   } else if (t.kind === 'lieutenant') {
     body.innerHTML = `<label>Damage dealt to this lieutenant<input type="number" id="atkDamage" min="0" value="0"></label>
@@ -4150,13 +4169,28 @@ function resolveMinionSave(id) {
   const dmg = applyStackedAttack(t, raw).dmg;
   const roll = rollDie(t.currentDie);
   const resultEl = document.getElementById('atkResult');
-  if (roll < dmg) {
-    resultEl.innerHTML = `<div class="attack-roll-display">🎲 ${roll}</div>Save FAILED vs ${dmg}. Minion group is <b>defeated</b>.
-      <br><button class="btn btn-danger btn-small" onclick="confirmMinionKo('${t.id}')">Confirm Defeated</button>`;
+  const failed = roll < dmg;
+  if (failed) {
+    resultEl.innerHTML = `<div class="attack-roll-display">🎲 ${roll}</div>Save FAILED vs ${dmg}. Minion is <b>knocked out</b>.
+      <br><button class="btn btn-danger btn-small" onclick="confirmMinionKo('${t.id}')">Confirm Knocked Out</button>`;
   } else {
-    resultEl.innerHTML = `<div class="attack-roll-display">🎲 ${roll}</div>Save SUCCEEDED vs ${dmg}. No change.`;
+    const next = degradeDie(t.currentDie);
+    if (next == null) {
+      resultEl.innerHTML = `<div class="attack-roll-display">🎲 ${roll}</div>Save SUCCEEDED vs ${dmg}. d4 last stand — stays d4.
+        <br><button class="btn btn-small btn-ghost" onclick="closeAttack()">OK</button>`;
+    } else {
+      resultEl.innerHTML = `<div class="attack-roll-display">🎲 ${roll}</div>Save SUCCEEDED vs ${dmg}. Degrades to d${next}.
+        <br><button class="btn btn-accent btn-small" onclick="confirmMinionDegrade('${t.id}', ${next})">Confirm Degrade to d${next}</button>`;
+    }
   }
-  logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Save', null, `Rolled ${roll} vs ${dmg} — ${roll < dmg ? 'failed' : 'succeeded'}`, { roll, dmg });
+  logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Save', null,
+    `Rolled ${roll} vs ${dmg} — ${failed ? 'failed' : 'succeeded'}`, { roll, dmg });
+  publishGmRoll(t.name, roll, 'Minion save');
+}
+function confirmMinionDegrade(id, next) {
+  const t = findTok(id);
+  t.currentDie = next; saveSceneDebounced(); renderTokens(); closeAttack();
+  logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Degraded', null, `Degraded to d${next}`, { next });
 }
 function confirmMinionKo(id) {
   const t = findTok(id);
@@ -4175,6 +4209,7 @@ function resolveLieutenantSave(id) {
     return;
   }
   const roll = rollDie(t.currentDie);
+  publishGmRoll(t.name, roll, 'Lieutenant save');
   if (roll < dmg) {
     const next = degradeDie(t.currentDie);
     if (next === null) {
@@ -4743,23 +4778,36 @@ function onAbilitySelected(value) {
   renderDiceRollerBody();
 }
 
+function abilityUsesOneDie(ability) {
+  if (!ability) return false;
+  const type = String(ability.Type || '').trim().toUpperCase();
+  const zone = String(ability.Zone || '').trim().toLowerCase();
+  return type === 'R' || zone === 'out';
+}
 function rollDicePool() {
   const rs = rollerState;
   const power = rs.powers[rs.pIdx], quality = rs.qualities[rs.qIdx];
-  const pSize = Number((power.die || 'd6').replace('d', ''));
-  const qSize = Number((quality.die || 'd6').replace('d', ''));
   const sSize = Number((rs.statusDie || 'd8').replace('d', ''));
   if (!rs.statusDie) { toast('No Status die set for this token -- fill it in on the Library first.'); return; }
-
-  const dice = [
-    { source: 'Power (' + power.name + ')', size: pSize, value: rollDie(pSize) },
-    { source: 'Quality (' + quality.name + ')', size: qSize, value: rollDie(qSize) },
-    { source: 'Status', size: sSize, value: rollDie(sSize) },
-  ];
-  const sorted = [...dice].sort((a, b) => a.value - b.value); // ties keep original (Power,Quality,Status) order
-  const [min, mid, max] = sorted;
+  const ability = (rs.abilityIdx !== '' && rs.abilityIdx != null && rs.abilities)
+    ? rs.abilities[Number(rs.abilityIdx)] : null;
+  let dice;
+  if (abilityUsesOneDie(ability)) {
+    const one = { source: 'Single die (Reaction / Out)', size: sSize, value: rollDie(sSize) };
+    dice = [one, one, one];
+  } else {
+    const pSize = Number((power.die || 'd6').replace('d', ''));
+    const qSize = Number((quality.die || 'd6').replace('d', ''));
+    dice = [
+      { source: 'Power (' + power.name + ')', size: pSize, value: rollDie(pSize) },
+      { source: 'Quality (' + quality.name + ')', size: qSize, value: rollDie(qSize) },
+      { source: 'Status', size: sSize, value: rollDie(sSize) },
+    ].sort((a, b) => a.value - b.value);
+  }
+  const [min, mid, max] = dice;
   rs.lastRoll = { power, quality, statusDie: rs.statusDie, min, mid, max, effectKey: rs.pendingEffectKey || 'mid' };
   renderRollerResult();
+  revealCurrentRoll();
   const t = findTok(rs.tokenId);
   if (t) {
     logActivity({ id: t.id, name: t.name, kind: t.kind }, 'Roll', null,
@@ -4807,7 +4855,7 @@ function renderRollerResult() {
         <span class="die-row-label">Max (${escHtml(max.source)})</span>
       </div>
       <label class="field-label">Effect Die</label>
-      <select id="rollerEffectSelect" onchange="rollerState.lastRoll.effectKey=this.value; renderRollerResult();">
+      <select id="rollerEffectSelect" onchange="rollerState.lastRoll.effectKey=this.value; renderRollerResult(); revealCurrentRoll();">
         ${EFFECT_DIE_OPTIONS.map(o => `<option value="${o.key}" ${o.key === rs.lastRoll.effectKey ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select>
       <div class="attack-roll-display" style="margin-top:8px;">Effect Die = ${effVal}</div>
@@ -4817,7 +4865,7 @@ function renderRollerResult() {
         <b>Boost/Hinder:</b> ${boostHinderMod(effVal)}
       </div>
       <div style="margin-top:12px;display:flex;gap:8px;">
-        <button class="btn btn-small btn-accent" onclick="revealCurrentRoll()">Reveal to Players</button>
+        <button class="btn btn-small btn-ghost" onclick="revealCurrentRoll()">Show again</button>
         <button class="btn btn-small btn-ghost" onclick="clearRevealedRollUI()">Hide from Players</button>
       </div>
     </div>`;

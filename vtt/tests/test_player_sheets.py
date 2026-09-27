@@ -363,13 +363,25 @@ class TestPlayerActionAuthAndValidation(ServerTestCase):
         self.assertEqual(villain['currentHealth'], h_before - 2)
         self.assertTrue(all(m.get('consumed') for m in scene['mods'] if m['kind'] == 'defend'))
 
-    def test_minion_house_rules(self):
+    def test_minion_raw_save(self):
         self.seed_action_scene()
-        # dmg 1 never defeats (save roll >= 1)
+        # dmg 1 vs d6 always saves (roll >= 1) → degrade d6 to d4
         parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't3',
                                               'roll': {'manual': {'min': 1, 'mid': 1, 'max': 1, 'effect': 1}}}]))
-        self.assertIn('held', parsed['outcomes'][0]['result'])
-        # dmg 7 vs d6 always defeats outright (house rule: no step-down)
+        self.assertIn('now d4', parsed['outcomes'][0]['result'])
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        grunt = next(t for t in scene['tokens'] if t['id'] == 't3')
+        self.assertEqual(grunt['currentDie'], 4)
+        self.assertFalse(grunt.get('ko'))
+        # d4 last stand: dmg 1 always saves, die stays d4
+        parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't3',
+                                              'roll': {'manual': {'min': 1, 'mid': 1, 'max': 1, 'effect': 1}}}]))
+        self.assertIn('last stand', parsed['outcomes'][0]['result'])
+        scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
+        grunt = next(t for t in scene['tokens'] if t['id'] == 't3')
+        self.assertEqual(grunt['currentDie'], 4)
+        self.assertFalse(grunt.get('ko'))
+        # dmg 7 vs d4 always fails → knocked out
         parsed = self.act(self.base(actions=[{'type': 'Attack', 'targetId': 't3',
                                               'roll': {'manual': {'min': 1, 'mid': 2, 'max': 3, 'effect': 7}}}]))
         self.assertIn('defeated', parsed['outcomes'][0]['result'])
@@ -668,18 +680,11 @@ class TestPlayerActionAuthAndValidation(ServerTestCase):
         self.assertEqual(scene['round'], 2)
         self.assertNotIn('turnNumber', next(t for t in scene['tokens'] if t['id'] == 't1'))
 
-    def test_digital_roll(self):
+    def test_digital_roll_refused(self):
         self.seed_action_scene()
         parsed = self.act(self.base(actions=[
             {'type': 'Attack', 'targetId': 't2', 'roll': {'power': 'Strength', 'quality': 'Fitness'}}]))
-        self.assertTrue(parsed['ok'], parsed)
-        roll = parsed['outcomes'][0]['roll']
-        self.assertIn('powerDie', roll)
-        self.assertGreaterEqual(roll['effect'], 1)
-        # unknown power refused
-        parsed = self.act(self.base(actions=[
-            {'type': 'Attack', 'targetId': 't2', 'roll': {'power': 'Nope', 'quality': 'Fitness'}}]))
-        self.assertIn('error', parsed)
+        self.assertIn('physical', parsed['error'])
 
     def test_effect_die_from_game_text(self):
         self.seed_action_scene()
@@ -727,19 +732,15 @@ class TestPlayerActionAuthAndValidation(ServerTestCase):
         self.assertIn('error', parsed)
         self.assertIn('ignores', parsed['error'])
 
-    def test_forced_die_digital_roll(self):
+    def test_forced_die_digital_roll_refused(self):
         self.seed_action_scene()
-        # [Awareness] is a QUALITY on the seeded hero — digital roll must use it
         rows = [{h: '' for h in srv.ABILITIES_HEADERS} | {
             'Slug': 'test-hero', 'Name': 'Sense Attack', 'Type': 'R',
             'GameText': 'Defend using [Fitness].', 'RollType': 'Defend'}]
         srv._write_csv(self.campaign / 'abilities.csv', srv.ABILITIES_HEADERS, rows)
         parsed = self.act(self.base(abilityName='Sense Attack', actions=[
             {'type': 'Defend', 'targetId': 't1', 'roll': {'power': 'Strength', 'quality': 'Fitness'}}]))
-        self.assertTrue(parsed['ok'])
-        self.assertEqual(parsed['outcomes'][0]['roll']['qualityDie'], 'd8')
-        self.assertEqual(parsed['outcomes'][0]['roll']['powerDie'], 'd8')  # forced Power=Strength? No: only quality forced
-        # the server used the client-chosen power since the bracket only names Fitness
+        self.assertIn('physical', parsed['error'])
 
     def test_reminders_endpoint(self):
         self.seed_action_scene()
@@ -1051,7 +1052,7 @@ class TestAttackTargetingPolish(ServerTestCase):
         scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
         self.assertIn('(Health 34)', scene['activityLog'][-1]['result'])
 
-    def test_digital_roll_with_spent_mods(self):
+    def test_digital_roll_with_spent_mods_refused(self):
         self.seed_polish_scene()
         scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
         scene['mods'] = [{'id': 'mb', 'kind': 'boost', 'value': 2,
@@ -1060,12 +1061,10 @@ class TestAttackTargetingPolish(ServerTestCase):
         status, parsed = self.act(self.base(actions=[
             {'type': 'Attack', 'targetId': 't2', 'spendMods': ['mb'],
              'roll': {'power': 'Strength', 'quality': 'Fitness'}}]))
-        self.assertEqual(status, 200, parsed)
-        roll = parsed['outcomes'][0]['roll']
-        self.assertGreaterEqual(roll['effect'], 1)
-        self.assertEqual(parsed['outcomes'][0]['dmg'], roll['effect'] + 2)
+        self.assertEqual(status, 400, parsed)
+        self.assertIn('physical', parsed['error'])
         scene = json.loads((self.campaign / 'scenes' / 'sc-1.json').read_text(encoding='utf-8'))
-        self.assertTrue(next(m for m in scene['mods'] if m['id'] == 'mb')['consumed'])
+        self.assertFalse(next(m for m in scene['mods'] if m['id'] == 'mb').get('consumed'))
 
     def test_ko_target_refused(self):
         self.seed_polish_scene()

@@ -288,6 +288,38 @@ class TestHeroPointsApi(ServerTestCase):
         status, _ = self.request('POST', '/api/hero-points', body=json.dumps({'hero': 'lumen', 'delta': 1}).encode('utf-8'))
         self.assertEqual(status, 400)
 
+    def test_social_hero_point_once_per_scene_and_hero_set(self):
+        body = {
+            'issue': 'iss-1', 'awardTeam': True, 'reason': 'social',
+            'scene': 'talk', 'sceneType': 'Social',
+            'drivers': ['muse', 'legacy'], 'heroes': ['muse', 'legacy'],
+        }
+        status, data = self.request('POST', '/api/hero-points', body=json.dumps(body).encode('utf-8'))
+        self.assertEqual(status, 200)
+        parsed = json.loads(data)
+        self.assertEqual(parsed['iss-1']['muse'], 1)
+        self.assertEqual(parsed['iss-1']['legacy'], 1)
+        status, data = self.request('POST', '/api/hero-points', body=json.dumps(body).encode('utf-8'))
+        self.assertEqual(status, 409)
+        self.assertIn('already awarded', json.loads(data)['error'])
+        other = dict(body, scene='talk-2')
+        status, data = self.request('POST', '/api/hero-points', body=json.dumps(other).encode('utf-8'))
+        self.assertEqual(status, 409)
+        self.assertIn('combination', json.loads(data)['error'])
+        mixed = dict(body, scene='talk-3', drivers=['muse', 'tachyon'])
+        status, data = self.request('POST', '/api/hero-points', body=json.dumps(mixed).encode('utf-8'))
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(data)['iss-1']['muse'], 2)
+
+    def test_scene_rejects_two_environments(self):
+        body = json.dumps({'name': 'Dock', 'environments': ['a', 'b']}).encode('utf-8')
+        status, data = self.request('PUT', '/api/scenes/dock', body=body)
+        self.assertEqual(status, 400)
+        self.assertIn('one environment', json.loads(data)['error'])
+        ok = json.dumps({'name': 'Dock', 'environment': 'dockside'}).encode('utf-8')
+        status, _ = self.request('PUT', '/api/scenes/dock', body=ok)
+        self.assertEqual(status, 200)
+
 
 class TestSceneNotesApi(ServerTestCase):
     def _make_scene(self, slug, name):

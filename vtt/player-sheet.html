@@ -803,6 +803,12 @@ function modSpendHtml(p, idx, ignorePenalties) {
       `${m.uses > 1 ? ` — ${m.uses} uses (minor twist: “${esc(m.twist)}”)` : ''}</label></div>`).join('') + `</div>`;
 }
 
+function abilityUsesOneDie(ability) {
+  if (!ability) return false;
+  const type = String(ability.Type || '').trim().toUpperCase();
+  const zone = String(ability.Zone || '').trim().toLowerCase();
+  return type === 'R' || zone === 'out';
+}
 function openActionStaged(types, ability) {
   const p = lastPayload;
   if (!p) return;
@@ -810,6 +816,7 @@ function openActionStaged(types, ability) {
     return openEmergencySwitchStaged(p, ability);
   }
   aysState = { types: types.slice(), ability };
+  aysState.singleDie = abilityUsesOneDie(ability);
   aysState.actionChoice = isActionChoiceAbility(ability);
   if (aysState.actionChoice) aysState.types = ['Attack', 'Defend'];
   types = aysState.types;
@@ -944,6 +951,12 @@ function diceBlockHtml(p, i) {
     const col = { g: 'GreenStatusDie', y: 'YellowStatusDie', r: 'RedStatusDie', o: 'GreenStatusDie' }[bandL];
     return dieTag(row[col]) || '—';
   })();
+  if (aysState && aysState.singleDie) {
+    return `<div class="bd-row dice-block">
+      <div class="fineprint">This Reaction or Out ability uses one die. Roll it physically and type the result.</div>
+      <div class="dice-row dice-entries"><div><label>Result</label><input type="number" id="aysSingle_0" min="0" value="0"></div></div>
+    </div>`;
+  }
   return `<div class="bd-row dice-block">
     <div class="dice-row pq-selects">
       <div><label>Power</label>${selP}</div>
@@ -1081,7 +1094,10 @@ function aysBlockPayload(p, types) {
     // Manual roll only — the Digital option was removed; the player always
     // types their own Min/Mid/Max.
     const g = id => Number((document.getElementById(id) || {}).value) || 0;
-    // No Effect Die entry — the ability (or Mid default) determines it server-side.
+    if (aysState && aysState.singleDie) {
+      const v = g('aysSingle_0');
+      return { manual: { min: v, mid: v, max: v } };
+    }
     return { manual: { min: g('aysMin_0'), mid: g('aysMid_0'), max: g('aysMax_0') } };
   })();
   types.forEach((t, i) => {

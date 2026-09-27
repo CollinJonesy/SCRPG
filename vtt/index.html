@@ -53,7 +53,8 @@
             <option>Action</option><option>Social</option><option>Montage</option>
           </select>
           <span id="boardSceneDifficulty" class="token-type-chip villain"></span>
-          <button id="heroPointAllBtn" type="button" class="btn btn-small btn-ghost" onclick="awardHeroPointAll(1, 'Principle used in an Overcome')" title="A hero used a Principle in an Overcome action — every hero earns 1 Hero Point (max 5/issue, SCRPG p.31)">+1 HP All</button>
+          <button id="heroPointAllBtn" type="button" class="btn btn-small btn-ghost" onclick="awardHeroPointAll('principle')" title="A hero used a Principle in an Overcome — every hero earns 1 Hero Point (max 5/issue). In a Social scene this is the one Hero Point that scene can pay.">+1 HP Principle</button>
+          <button id="heroPointSocialBtn" type="button" class="btn btn-small btn-ghost" onclick="awardHeroPointAll('social')" title="Meaningful social scene: one Hero Point for the team. Not again this Issue for the same heroes, and not if this scene already paid.">+1 HP Social</button>
           <button id="heroPointResetBtn" type="button" class="btn btn-small btn-ghost" onclick="resetHeroPointsForIssue()" title="Clear this Issue's Hero Point counters (use when starting a new Issue)">Reset HP</button>
           <button id="nextSceneBtn" type="button" class="btn btn-small btn-accent" onclick="nextSceneInIssue()" title="Load the next scene in this Issue's order" disabled>Next Scene →</button>
           <button id="recalibrateLayoutBtn" type="button" class="btn btn-small btn-ghost" onclick="recalibrateSceneLayout()" title="Re-fit the Player Display location boxes to current token occupancy (persists to the scene)">Recalibrate Layout</button>

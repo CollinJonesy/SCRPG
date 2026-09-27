@@ -666,7 +666,7 @@ def resolve_pending_move(campaign: Path, move_id: str, decision: str) -> tuple:
                                 'fromId': (entry.get('from') or {}).get('id'),
                                 'toId': entry['to']['id'],
                                 'approvedFromSheet': True},
-                               counts_as_turn=False)
+                               counts_as_turn=False, campaign=campaign)
             _atomic_write_text(spath, json.dumps(scene, indent=2))
             feed_action = 'Location move approved'
         else:
@@ -1195,47 +1195,31 @@ def resolve_pool(row, token, mode_info, pool):
     computes the outcome — entry is NOT display-only); otherwise a digital roll:
     the server rolls the hero's chosen power + quality + current status die."""
     manual = pool.get('manual') if isinstance(pool, dict) else None
-    if isinstance(manual, dict):
+    if not isinstance(manual, dict):
+        return None, 'player rolls are physical — type the dice'
+    try:
+        vals = sorted(int(manual.get(k) or 0) for k in ('min', 'mid', 'max'))
+    except (TypeError, ValueError):
+        return None, 'manual roll needs numeric min/mid/max'
+    eff = None
+    if manual.get('effect') not in (None, ''):
         try:
-            vals = sorted(int(manual.get(k) or 0) for k in ('min', 'mid', 'max'))
+            eff = int(manual.get('effect'))
         except (TypeError, ValueError):
-            return None, 'manual roll needs numeric min/mid/max'
-        eff = None
-        if manual.get('effect') not in (None, ''):
-            try:
-                eff = int(manual.get('effect'))
-            except (TypeError, ValueError):
-                return None, 'effect die must be a number'
-        return {'min': vals[0], 'mid': vals[1], 'max': vals[2], 'effect': eff}, None
-    # Digital roll — the server rolls; the client only picks WHICH dice
-    # (a bracketed ability like [Awareness] forces the die server-side).
-    powers = mode_info.get('powers') or {}
-    pname = str((pool or {}).get('forcedPower') or (pool or {}).get('power') or '')
-    qname = str((pool or {}).get('forcedQuality') or (pool or {}).get('quality') or '')
-    pdie = die_size_of(powers.get(pname) or power_quality_die(row, 'Power', pname))
-    qdie = die_size_of(powers.get(qname) or power_quality_die(row, 'Quality', qname))
-    sdie = (die_size_of((token or {}).get('currentDie'))
-            or die_size_of(row.get('GreenStatusDie')))
-    if not pdie or not qdie or not sdie:
-        return None, 'digital roll needs a known power and quality'
-    rolls = sorted(random.randint(1, d) for d in (pdie, qdie, sdie))
-    # Effect die defaults to Mid; an ability DieSource of Max/Min overrides.
-    src = str((pool or {}).get('effectDie') or '').strip().lower()
-    eff = rolls[2] if src == 'max' else rolls[0] if src == 'min' else rolls[1]
-    return {'min': rolls[0], 'mid': rolls[1], 'max': rolls[2], 'effect': eff,
-            'powerDie': 'd' + str(pdie), 'qualityDie': 'd' + str(qdie),
-            'statusDie': 'd' + str(sdie)}, None
+            return None, 'effect die must be a number'
+    return {'min': vals[0], 'mid': vals[1], 'max': vals[2], 'effect': eff}, None
 
 
 def log_scene_activity(scene, actor, action: str, target, result: str, details=None,
-                       counts_as_turn: bool = True):
+                       counts_as_turn: bool = True, campaign: Path = None):
     """Append to the scene's activity log in the exact shape app.js
-    logActivity() writes, so the board's Activity Log stays the single source."""
+    logActivity() writes, so the board's Activity Log stays the single source.
+    Also appends one JSONL line under campaign/sessions/<issue>/events.jsonl."""
     if not isinstance(scene.get('activityLog'), list):
         scene['activityLog'] = []
     det = dict(details or {})
     det['countsAsTurn'] = bool(counts_as_turn)
-    scene['activityLog'].append({
+    entry = {
         'id': 'log-' + secrets.token_hex(4),
         'timestamp': time.time(),
         'round': scene.get('round') or 1,
@@ -1244,7 +1228,101 @@ def log_scene_activity(scene, actor, action: str, target, result: str, details=N
         'target': target,
         'result': result,
         'details': det,
-    })
+    }
+    scene['activityLog'].append(entry)
+    if campaign is not None:
+        append_issue_event(campaign, entry)
+
+
+def append_issue_event(campaign: Path, entry: dict):
+    """Issue-wide backlog. Scene slug comes from active_scene.json; the Issue
+    is whichever issue lists that scene. Unscoped events still get a file."""
+    scene_slug = ''
+    try:
+        active = json.loads((campaign / 'active_scene.json').read_text(encoding='utf-8'))
+        scene_slug = str((active or {}).get('slug') or '')
+    except Exception:
+        scene_slug = ''
+    issue_slug = ''
+    issues = campaign / 'issues'
+    if scene_slug and issues.is_dir():
+        for p in sorted(issues.glob('*.json')):
+            try:
+                data = json.loads(p.read_text(encoding='utf-8'))
+            except Exception:
+                continue
+            if scene_slug in (data.get('sceneSlugs') or []):
+                issue_slug = p.stem
+                break
+    if not issue_slug or '/' in issue_slug or '\\' in issue_slug:
+        issue_slug = '_unscoped'
+    dest = campaign / 'sessions' / issue_slug
+    dest.mkdir(parents=True, exist_ok=True)
+    line = dict(entry)
+    line['scene'] = scene_slug
+    with (dest / 'events.jsonl').open('a', encoding='utf-8') as f:
+        f.write(json.dumps(line, ensure_ascii=False) + '\n')
+
+
+def award_team_hero_points(data: dict, issue: str, payload: dict):
+    """+1 to every listed hero. Social scenes (reason social, or the scene
+    itself is Social) may pay at most one hero point, and a later social
+    scene in the same Issue driven by the same heroes pays nothing.
+    Returns (status, error) or (None, None)."""
+    reason = str(payload.get('reason') or 'other').strip().lower()
+    scene_slug = str(payload.get('scene') or '').strip()
+    scene_type = str(payload.get('sceneType') or '').strip().lower()
+    drivers = sorted({str(x).strip() for x in (payload.get('drivers') or []) if str(x).strip()})
+    heroes = [str(x).strip() for x in (payload.get('heroes') or []) if str(x).strip()]
+    if not heroes:
+        return 400, 'heroes required'
+    social = reason == 'social' or scene_type == 'social'
+    issue_data = data.get(issue)
+    if not isinstance(issue_data, dict):
+        issue_data = {}
+        data[issue] = issue_data
+    meta = issue_data.get('_meta')
+    if not isinstance(meta, dict):
+        meta = {}
+    social_scenes = meta.get('socialScenes') if isinstance(meta.get('socialScenes'), dict) else {}
+    driver_sets = [str(x) for x in (meta.get('driverSets') or [])]
+    key = '|'.join(drivers)
+    if social:
+        if scene_slug and social_scenes.get(scene_slug):
+            return 409, 'this social scene already awarded a hero point'
+        if key and key in driver_sets:
+            return 409, 'that combination of heroes already earned a social hero point this Issue'
+        if scene_slug:
+            social_scenes[scene_slug] = {'drivers': drivers, 'reason': reason}
+        if key:
+            driver_sets.append(key)
+        meta['socialScenes'] = social_scenes
+        meta['driverSets'] = driver_sets
+        issue_data['_meta'] = meta
+    for hero in heroes:
+        cur = int(issue_data.get(hero) or 0)
+        issue_data[hero] = max(0, min(5, cur + 1))
+    return None, None
+
+
+def scene_rejects_second_environment(scene: dict):
+    env = scene.get('environment')
+    envs = scene.get('environments')
+    if isinstance(env, list):
+        return True
+    if isinstance(envs, list) and len([e for e in envs if e]) > 1:
+        return True
+    return False
+
+
+def append_new_scene_events(campaign: Path, prev_log, new_log):
+    seen = {str(e.get('id')) for e in (prev_log or []) if isinstance(e, dict)}
+    for entry in new_log or []:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get('id') or '') in seen:
+            continue
+        append_issue_event(campaign, entry)
 
 
 def assign_player_turn(campaign, scene, token):
@@ -1272,7 +1350,7 @@ def assign_player_turn(campaign, scene, token):
         scene['round'] = n + 1
         log_scene_activity(scene, None, 'End of Round', None,
                            'Round ' + str(n) + ' ended', {'roundEnded': n},
-                           counts_as_turn=False)
+                           counts_as_turn=False, campaign=campaign)
     return token.get('turnNumber')
 
 
@@ -1348,9 +1426,9 @@ def consume_defend_mods(scene, token):
 
 def apply_player_attack(scene, actor, target, dmg: int, ability_name: str, effect: int,
                         target_name=None):
-    """Port of applyBoardAttack: heroes/villains lose Health; minions fail =
-    defeated outright (house rule); lieutenants instant-KO at >= 2x current die,
-    else step down one size. target_name = numbered display name for the result."""
+    """Heroes and villains lose Health. Minions (RAW): fail = knocked out;
+    success = degrade one step; a d4 that saves stays (last stand).
+    Lieutenants: fail = step down; damage >= 2x current die = instant KO."""
     tname = str(target_name if target_name is not None else (target.get('name') if target else ''))
     result = ''
     if dmg <= 0:
@@ -1363,11 +1441,19 @@ def apply_player_attack(scene, actor, target, dmg: int, ability_name: str, effec
     elif target.get('kind') == 'minion':
         die = int(target.get('currentDie') or 4)
         roll = random.randint(1, max(1, die))
-        failed = roll < dmg
-        if failed:
+        if roll < dmg:
             target['ko'] = True
-        result = (ability_name + ': ' + str(dmg) + ' vs minion save ' + str(roll)
-                  + ' — ' + ('defeated' if failed else 'held'))
+            result = (ability_name + ': ' + str(dmg) + ' vs minion save ' + str(roll)
+                      + ' — defeated')
+        else:
+            nxt = degrade_die_size(die)
+            if nxt is None:
+                result = (ability_name + ': ' + str(dmg) + ' vs minion save ' + str(roll)
+                          + ' — last stand, stays d' + str(die))
+            else:
+                target['currentDie'] = nxt
+                result = (ability_name + ': ' + str(dmg) + ' vs minion save ' + str(roll)
+                          + ' — now d' + str(nxt))
     elif target.get('kind') == 'lieutenant':
         die = int(target.get('currentDie') or 4)
         if dmg >= die * 2:
@@ -1446,7 +1532,7 @@ def _apply_player_action_body(campaign: Path, hero: str, payload: dict):
                            + ' (' + str(payload.get('abilityName') or 'Switch') + ')',
                            {'mode': str(mode_change.get('mode')),
                             'ability': payload.get('abilityName') or ''},
-                           counts_as_turn=False)
+                           counts_as_turn=False, campaign=campaign)
 
     # Quick Switch 'pre': destroy one bonus on this hero, change mode, THEN act
     # in the new mode (locked ordering from commitBoardAction).
@@ -1460,7 +1546,7 @@ def _apply_player_action_body(campaign: Path, hero: str, payload: dict):
             log_scene_activity(scene, actor_ref(tok), 'Quick Switch',
                                {'name': tok.get('name')},
                                str(tok.get('name')) + ': destroyed one bonus on themselves (Quick Switch)',
-                               {}, counts_as_turn=False)
+                               {}, counts_as_turn=False, campaign=campaign)
         set_mode()
 
     outcomes = []
@@ -1504,7 +1590,7 @@ def _apply_emergency_switch(campaign, scene, spath, tok, mode_info, payload, row
         cost_txt = 'took ' + str(dmg) + ' extra damage'
     log_scene_activity(scene, actor_ref(tok), 'Emergency Switch', {'name': mname},
                        str(tok.get('name')) + ': Emergency Switch → ' + mname
-                       + '; ' + cost_txt, {'mode': mode}, counts_as_turn=False)
+                       + '; ' + cost_txt, {'mode': mode}, counts_as_turn=False, campaign=campaign)
     record_sheet_activity(campaign, str(tok.get('slug') or ''), 'Emergency Switch',
                           '→ ' + mname + '; ' + cost_txt)
     _atomic_write_text(spath, json.dumps(scene, indent=2))
@@ -1701,7 +1787,7 @@ def _apply_one_player_action(campaign, scene, tok, row, mode_info, locked, abili
     counts = atype in ('Attack', 'Defend', 'Boost', 'Hinder', 'Recover', 'Overcome')
     log_scene_activity(scene, actor_ref(tok), atype, outcome.get('target')
                        or ({'name': target_label} if target_label else None),
-                       result, details, counts_as_turn=counts)
+                       result, details, counts_as_turn=counts, campaign=campaign)
     if counts:
         assign_player_turn(campaign, scene, tok)
     record_sheet_activity(campaign, str(tok.get('slug') or ''),
@@ -2661,6 +2747,10 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                         data = {}
                     if payload.get('reset'):
                         data.pop(issue, None)
+                    elif payload.get('awardTeam'):
+                        status, err = award_team_hero_points(data, issue, payload)
+                        if err:
+                            return self._send_text(json.dumps({'error': err}), status, 'application/json')
                     else:
                         hero = str(payload.get('hero') or '').strip()
                         if not hero:
@@ -2927,7 +3017,24 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 slug = path.rsplit('/', 1)[-1]
                 body = self._read_body_text()
                 scenes_dir.mkdir(parents=True, exist_ok=True)
-                _atomic_write_text(scenes_dir / (slug + '.json'), body)
+                dest = scenes_dir / (slug + '.json')
+                prev_log = []
+                try:
+                    scene_obj = json.loads(body)
+                except Exception:
+                    scene_obj = None
+                if isinstance(scene_obj, dict) and scene_rejects_second_environment(scene_obj):
+                    return self._send_text(
+                        json.dumps({'error': 'a scene may have only one environment'}),
+                        400, 'application/json')
+                if dest.exists():
+                    try:
+                        prev_log = json.loads(dest.read_text(encoding='utf-8')).get('activityLog') or []
+                    except Exception:
+                        prev_log = []
+                _atomic_write_text(dest, body)
+                if isinstance(scene_obj, dict):
+                    append_new_scene_events(campaign, prev_log, scene_obj.get('activityLog') or [])
                 return self._send_text('ok')
 
             if path.startswith('/api/issues/'):

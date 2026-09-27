@@ -38,14 +38,15 @@ campaigns.
 
 ## Confirmed game mechanics (verified against the physical book — treat as ground truth)
 
-- **Dice pool**: always exactly 3 dice — 1 Power + 1 Quality + 1 Status. Sort into
+- **Dice pool**: a normal action is exactly 3 dice — 1 Power + 1 Quality + 1 Status. Sort into
   Min/Mid/Max by *rolled value*, not die size. Effect Die defaults to Mid, overridable
-  (abilities can specify Max, Max+Min, etc.).
+  (abilities can specify Max, Max+Min, etc.). Reactions and Out abilities roll a single die.
+  Players type physical dice. The GM Console's roller is digital and shows on the TV immediately.
 - **Overcome table**: 0-=spectacular fail, 1-3=fail or major twist, 4-7=minor twist
   success, 8-11=complete success, 12+=success beyond expectations.
 - **Boost/Hinder table**: 0-=no mod, 1-3=±1, 4-7=±2, 8-11=±3, 12+=±4.
-- **Minion save** (my house rule, deliberate deviation from RAW): fail = defeated outright,
-  no step-down.
+- **Minion save** (RAW): fail = knocked out. Success = degrade one step (d12→d10→d8→d6→d4).
+  A d4 that saves stays — last stand. Only a failed save removes it.
 - **Lieutenant save**: fail = step down one die size (d12→d10→d8→d6→d4→KO). Instant KO if
   damage ≥ 2× current die size.
 - **Scene Tracker** confirmed star counts: Standard 2G/4Y/2R, Prolonged 3G/5Y/3R, Epic
@@ -74,8 +75,7 @@ GM Console always shows everything. Player Display deliberately hides:
 - Environment **Twists** (Environment *name* still shows).
 - Exact Health **numbers** for Villains specifically — bar shows, number doesn't. Hero
   numbers **do** show (asymmetric on purpose).
-- Dice rolls, unless the GM explicitly clicks "Reveal to Players" (pushes to
-  `/api/revealed-roll`, which Player Display polls). GM clears it with "Hide from Players."
+- Dice rolls the GM makes are public on the Player Display as soon as they resolve.
 
 Conversely, Player Display **does** show the Villain's Status Die (not hidden) — deliberate
 choice, gives players a tactical read on what makes a villain stronger/weaker without

@@ -1493,6 +1493,17 @@ table.rules-table td { border: 1px solid #C9C3AF; padding: 4px 8px; }
   .rules-sidebar { max-height: 240px; }
 }
 
+/* Chromebook GM console: keep the same controls, stop the page from being one long scroll. */
+@media (max-width: 1400px), (max-height: 820px) {
+  .app-header { position: sticky; top: 0; z-index: 30; }
+  .board-scene-header { position: sticky; top: 52px; z-index: 20; background: var(--ink); }
+  .board-toolbar { flex-wrap: wrap; }
+  .board-scene-meta { flex-wrap: wrap; }
+  #boardView .btn, #boardView .btn-small, #boardView select { min-height: 40px; }
+  .locations-row { max-height: calc(100vh - 230px); overflow: auto; }
+  .board-main-grid { align-items: start; }
+}
+
 
 /* Scene-level background (Player Display full bleed) */
 .scene-bg-host {
