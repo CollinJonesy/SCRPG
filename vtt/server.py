@@ -237,6 +237,7 @@ STATIC_FILES = {
     '/villain-builder.html': ('villain-builder.html', 'text/html; charset=utf-8'),
     '/builder-hub.html': ('builder-hub.html', 'text/html; charset=utf-8'),
     '/issue-builder.html': ('issue-builder.html', 'text/html; charset=utf-8'),
+    '/scene-builder.html': ('scene-builder.html', 'text/html; charset=utf-8'),
     '/minion-builder.html': ('minion-builder.html', 'text/html; charset=utf-8'),
     '/environment-builder.html': ('environment-builder.html', 'text/html; charset=utf-8'),
     '/scene-layout-builder.html': ('scene-layout-builder.html', 'text/html; charset=utf-8'),
@@ -1313,6 +1314,26 @@ def scene_rejects_second_environment(scene: dict):
     if isinstance(envs, list) and len([e for e in envs if e]) > 1:
         return True
     return False
+
+
+# Book scene trackers only. Position may move; the star list may not.
+TRACKER_PRESETS = (
+    ('green', 'green', 'yellow', 'yellow', 'yellow', 'yellow', 'red', 'red'),
+    ('green', 'green', 'green', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'red', 'red', 'red'),
+    ('green', 'yellow', 'yellow', 'yellow', 'red', 'red', 'red', 'red'),
+)
+
+
+def scene_rejects_custom_tracker(scene: dict):
+    if 'tracker' not in scene:
+        return False
+    tracker = scene.get('tracker')
+    if not isinstance(tracker, dict):
+        return True
+    stars = tracker.get('stars')
+    if not isinstance(stars, list):
+        return True
+    return tuple(stars) not in TRACKER_PRESETS
 
 
 def append_new_scene_events(campaign: Path, prev_log, new_log):
@@ -3026,6 +3047,10 @@ def make_handler(campaign: Path, obsidian_heroes: Path | None = None):
                 if isinstance(scene_obj, dict) and scene_rejects_second_environment(scene_obj):
                     return self._send_text(
                         json.dumps({'error': 'a scene may have only one environment'}),
+                        400, 'application/json')
+                if isinstance(scene_obj, dict) and scene_rejects_custom_tracker(scene_obj):
+                    return self._send_text(
+                        json.dumps({'error': 'scene tracker must be Standard, Prolonged, or Epic'}),
                         400, 'application/json')
                 if dest.exists():
                     try:

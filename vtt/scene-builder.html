@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCRPG Scene Builder</title>
+<style>
+  :root{--ink:#1a1a2e;--card:#fff;--bg:#eef1f6;--line:#d4d9e3;--accent:#3d5a80;}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0}
+  header{background:linear-gradient(120deg,#1b3a4b,#3d5a80);color:#fff;padding:16px 22px}
+  header h1{margin:0;font-size:1.35rem}
+  header p{margin:4px 0 0;opacity:.9;font-size:.85rem}
+  .wrap{max-width:960px;margin:0 auto;padding:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  label{font-size:.83rem;display:block;margin:8px 0 3px;font-weight:600}
+  input,textarea,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  textarea{min-height:72px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row > *{flex:1;min-width:140px}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer}
+  .ghost{background:#fff;border:1px solid var(--accent);color:var(--accent)}
+  .tiny{padding:6px 8px;font-size:.8rem}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .muted{color:#666;font-size:.8rem}
+  .ok{color:#2e7d32}
+  .bad{color:#a32020}
+  table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:8px}
+  th,td{border:1px solid var(--line);padding:4px 6px;text-align:left}
+  .pick{display:flex;gap:6px;flex-wrap:wrap}
+  .pick button.sel{background:var(--accent);color:#fff}
+  @media (max-width:900px){ .wrap{padding:10px} header{padding:12px} }
+</style>
+</head>
+<body>
+<header>
+  <p style="margin:0 0 8px"><a href="/builder-hub.html" style="color:#d6e8ff;font-size:.8rem;text-decoration:none">← All builders</a></p>
+  <h1>Scene Builder</h1>
+  <p>One environment. Tracker is Standard, Prolonged, or Epic. Difficulty numbers are the book’s guide, not a lock. Tokens already on the scene are left alone.</p>
+</header>
+<div class="wrap">
+  <div class="panel">
+    <label>Name</label>
+    <input id="name" placeholder="Angler Warehouse">
+    <div class="row">
+      <div>
+        <label>Type</label>
+        <select id="sceneType">
+          <option>Action</option>
+          <option>Social</option>
+          <option>Montage</option>
+        </select>
+      </div>
+      <div>
+        <label>Difficulty</label>
+        <select id="difficulty">
+          <option>Easy</option>
+          <option selected>Moderate</option>
+          <option>Difficult</option>
+        </select>
+      </div>
+      <div>
+        <label>Slug</label>
+        <input id="slug" placeholder="auto from name">
+      </div>
+    </div>
+    <p class="muted" id="diffHint"></p>
+    <table>
+      <thead><tr><th>Tier</th><th>Challenges</th><th>Minions</th><th>Lieutenants</th><th>Villains</th><th>Environment</th></tr></thead>
+      <tbody>
+        <tr><td>Easy</td><td>1–2 successes, or 1 plus an advanced challenge</td><td>H×d6</td><td>½H×d8</td><td>None</td><td>None</td></tr>
+        <tr><td>Moderate</td><td>3–4 successes, or 1–2 plus advanced</td><td>H×d8</td><td>½H×d10</td><td>Minor villain</td><td>Standard</td></tr>
+        <tr><td>Difficult</td><td>5+ successes, or 3–4 plus advanced</td><td>H×d10</td><td>½H×d12</td><td>Major villain</td><td>Hostile</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">H is the number of heroes in the scene. Two minions can be traded for one lieutenant of the next die size. A scene does not get a second environment.</p>
+  </div>
+
+  <div class="panel">
+    <label>Scene Tracker</label>
+    <div class="pick" id="trackerPick">
+      <button type="button" class="ghost tiny sel" data-tracker="standard">Standard (8)</button>
+      <button type="button" class="ghost tiny" data-tracker="prolonged">Prolonged (11)</button>
+      <button type="button" class="ghost tiny" data-tracker="epic">Epic (8)</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <label>Environment</label>
+    <select id="environment"><option value="">None</option></select>
+    <label>Locations</label>
+    <div id="locList"></div>
+    <button class="ghost tiny" type="button" onclick="addLocation()">+ Location</button>
+  </div>
+
+  <div class="panel">
+    <label>Challenges</label>
+    <p class="muted">Each challenge starts with one path. Open the scene in the Library editor for timers, doomsday speeds, and extra paths.</p>
+    <div id="chalList"></div>
+    <button class="ghost tiny" type="button" onclick="addChallenge()">+ Challenge</button>
+  </div>
+
+  <div class="panel">
+    <label>GM Notes <span class="muted">never shown on the Player Display</span></label>
+    <textarea id="gmNotes"></textarea>
+    <div class="actions">
+      <button class="btn" type="button" onclick="saveScene()">Save Scene</button>
+      <a class="ghost" id="issueBack" href="/issue-builder.html" style="text-decoration:none;padding:9px 14px">Back to Issue Builder</a>
+    </div>
+    <p id="msg" class="muted"></p>
+  </div>
+</div>
+<script>
+const PRESETS = {
+  standard: ['green','green','yellow','yellow','yellow','yellow','red','red'],
+  prolonged: ['green','green','green','yellow','yellow','yellow','yellow','yellow','red','red','red'],
+  epic: ['green','yellow','yellow','yellow','red','red','red','red'],
+};
+const TYPES = ['Simple','Linear','Multiple Solutions','Branching Outcomes','Timed','Doomsday Device'];
+const HINTS = {
+  Easy: 'Guide: challenges at 1–2 successes. No villain, no environment.',
+  Moderate: 'Guide: challenges at 3–4 successes. A minor villain or one standard environment fits this tier.',
+  Difficult: 'Guide: challenges at 5+ successes. A major villain, or an environment that is hostile to the heroes.',
+};
+const params = new URLSearchParams(location.search);
+const issueSlug = params.get('issue') || '';
+let trackerKey = 'standard';
+let locations = [];
+let challenges = [];
+let loaded = null;
+
+function uid(p){ return p + '-' + Math.random().toString(36).slice(2, 10); }
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c])); }
+function slugify(n){ return (n || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'scene'; }
+function parseRow(line){
+  const cells = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++){
+    const c = line[i];
+    if (q){
+      if (c === '"'){ if (line[i+1] === '"'){ cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ','){ cells.push(cur); cur = ''; }
+    else cur += c;
+  }
+  cells.push(cur);
+  return cells;
+}
+function parseCsv(text){
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.length);
+  if (!lines.length) return [];
+  const heads = parseRow(lines[0]);
+  return lines.slice(1).map(line => {
+    const cells = parseRow(line); const row = {};
+    heads.forEach((h, i) => { row[h] = cells[i] || ''; });
+    return row;
+  }).filter(r => r.Slug);
+}
+function sameStars(a, b){ return a.length === b.length && a.every((s, i) => s === b[i]); }
+function presetKey(stars){
+  return Object.keys(PRESETS).find(k => sameStars(PRESETS[k], stars || [])) || 'standard';
+}
+
+function renderTracker(){
+  document.querySelectorAll('#trackerPick button').forEach(btn => {
+    btn.classList.toggle('sel', btn.dataset.tracker === trackerKey);
+  });
+}
+document.getElementById('trackerPick').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  trackerKey = btn.dataset.tracker;
+  renderTracker();
+});
+document.getElementById('difficulty').addEventListener('change', () => {
+  document.getElementById('diffHint').textContent = HINTS[document.getElementById('difficulty').value] || '';
+});
+
+function renderLocations(){
+  document.getElementById('locList').innerHTML = locations.map((loc, i) => `
+    <div class="row" style="margin:4px 0">
+      <input data-loc="${i}" value="${esc(loc.name)}" oninput="locations[${i}].name=this.value">
+      <button class="ghost tiny" type="button" style="flex:0" onclick="removeLocation(${i})">Remove</button>
+    </div>`).join('') || '<p class="muted">No locations yet.</p>';
+}
+function addLocation(){ locations.push({ id: uid('loc'), name: 'Location' }); renderLocations(); }
+function removeLocation(i){
+  const id = locations[i] && locations[i].id;
+  const used = ((loaded && loaded.tokens) || []).some(t => t && t.locationId === id);
+  if (used){ setMsg('A token is still in that location. Move it on the Board before removing the location.', false); return; }
+  locations.splice(i, 1);
+  renderLocations();
+}
+
+function renderChallenges(){
+  document.getElementById('chalList').innerHTML = challenges.map((c, i) => `
+    <div class="panel" style="margin:8px 0;padding:10px">
+      <div class="row">
+        <input value="${esc(c.title)}" oninput="challenges[${i}].title=this.value" placeholder="Challenge name">
+        <select onchange="challenges[${i}].type=this.value">${TYPES.map(t => `<option ${c.type===t?'selected':''}>${t}</option>`).join('')}</select>
+        <button class="ghost tiny" type="button" style="flex:0" onclick="challenges.splice(${i},1);renderChallenges()">Remove</button>
+      </div>
+      ${(c.paths || []).map((p, pi) => `
+        <div class="row">
+          <input value="${esc(p.label)}" oninput="challenges[${i}].paths[${pi}].label=this.value" placeholder="Path">
+          <input type="number" min="1" value="${Number(p.successesNeeded) || 1}" oninput="challenges[${i}].paths[${pi}].successesNeeded=Math.max(1, parseInt(this.value,10)||1)" style="max-width:120px" title="Successes needed">
+        </div>`).join('')}
+    </div>`).join('') || '<p class="muted">No challenges yet.</p>';
+}
+function addChallenge(){
+  challenges.push({
+    id: uid('chal'), title: 'New Challenge', type: 'Simple',
+    paths: [{ label: 'Overcome', successesNeeded: 3, successesMarked: 0, hidden: false, failed: false }],
+    timerMode: 'turns', timerTurnsRemaining: 2, timerTriggerZone: 'red', consequence: '',
+    doomsdaySpeed: '1', outcome: '', impactScale: '',
+    solution: '', hidden: true,
+  });
+  renderChallenges();
+}
+
+function setMsg(text, ok){
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = ok ? 'ok' : 'bad';
+}
+
+async function loadEnvironments(current){
+  const sel = document.getElementById('environment');
+  let rows = [];
+  try {
+    const text = await fetch('/api/csv/environments').then(r => r.text());
+    rows = parseCsv(text);
+  } catch (e) { rows = []; }
+  const opts = ['<option value="">None</option>'].concat(rows.map(r => `<option value="${esc(r.Slug)}">${esc(r.Name || r.Slug)}</option>`));
+  if (current && !rows.some(r => r.Slug === current)) opts.push(`<option value="${esc(current)}">${esc(current)} (not in the library)</option>`);
+  sel.innerHTML = opts.join('');
+  sel.value = current || '';
+}
+
+async function init(){
+  document.getElementById('diffHint').textContent = HINTS.Moderate;
+  if (issueSlug) document.getElementById('issueBack').href = '/issue-builder.html';
+  const slug = params.get('slug') || '';
+  if (!slug){
+    locations = [{ id: uid('loc'), name: 'Main Location' }];
+    renderLocations();
+    renderChallenges();
+    renderTracker();
+    await loadEnvironments('');
+    return;
+  }
+  const res = await fetch('/api/scenes/' + encodeURIComponent(slug));
+  if (!res.ok){ setMsg('That scene was not found.', false); return; }
+  loaded = await res.json();
+  document.getElementById('name').value = loaded.name || '';
+  document.getElementById('slug').value = slug;
+  document.getElementById('slug').readOnly = true;
+  document.getElementById('sceneType').value = loaded.sceneType || 'Action';
+  document.getElementById('difficulty').value = loaded.difficulty || 'Moderate';
+  document.getElementById('gmNotes').value = loaded.gmNotes || '';
+  document.getElementById('diffHint').textContent = HINTS[loaded.difficulty] || HINTS.Moderate;
+  trackerKey = presetKey((loaded.tracker || {}).stars);
+  locations = (loaded.locations || []).map(l => ({ id: l.id, name: l.name || '' }));
+  challenges = (loaded.challenges || []).map(c => Object.assign({}, c, { paths: (c.paths || []).map(p => Object.assign({}, p)) }));
+  renderTracker();
+  renderLocations();
+  renderChallenges();
+  await loadEnvironments(loaded.environment || '');
+}
+
+async function saveScene(){
+  const name = document.getElementById('name').value.trim();
+  if (!name){ setMsg('A scene needs a name.', false); return; }
+  let slug = document.getElementById('slug').value.trim() || slugify(name);
+  slug = slugify(slug);
+  document.getElementById('slug').value = slug;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)){ setMsg('Slug may only use letters, numbers, and dashes.', false); return; }
+  if (!loaded){
+    const existing = await fetch('/api/scenes/' + encodeURIComponent(slug));
+    if (existing.ok){
+      setMsg('That slug already exists. Open it from the issue list instead of overwriting it.', false);
+      return;
+    }
+  }
+  const base = loaded ? Object.assign({}, loaded) : {
+    background: null, tokens: [], mods: [], activityLog: [], round: 1,
+  };
+  const prevStars = ((base.tracker || {}).stars) || [];
+  const stars = PRESETS[trackerKey].slice();
+  const tracker = sameStars(prevStars, stars)
+    ? { stars, position: Number((base.tracker || {}).position) || 0 }
+    : { stars, position: 0 };
+  const scene = Object.assign(base, {
+    name,
+    sceneType: document.getElementById('sceneType').value,
+    difficulty: document.getElementById('difficulty').value,
+    tracker,
+    locations: locations.filter(l => (l.name || '').trim()).map(l => {
+      const prev = ((loaded && loaded.locations) || []).find(x => x.id === l.id) || {};
+      return Object.assign({}, prev, { id: l.id, name: l.name.trim() });
+    }),
+    environment: document.getElementById('environment').value || null,
+    challenges: challenges.map(c => Object.assign({}, c, {
+      paths: (c.paths || []).map(p => Object.assign({}, p, { successesNeeded: Math.max(1, Number(p.successesNeeded) || 1) })),
+    })),
+    gmNotes: document.getElementById('gmNotes').value,
+  });
+  delete scene.environments;
+  const res = await fetch('/api/scenes/' + encodeURIComponent(slug), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(scene),
+  });
+  if (!res.ok){
+    let err = 'Could not save the scene.';
+    try { err = (await res.json()).error || err; } catch (e) {}
+    setMsg(err, false);
+    return;
+  }
+  loaded = scene;
+  document.getElementById('slug').readOnly = true;
+  if (issueSlug){
+    const ir = await fetch('/api/issues/' + encodeURIComponent(issueSlug));
+    if (ir.ok){
+      const issue = await ir.json();
+      issue.sceneSlugs = issue.sceneSlugs || [];
+      if (!issue.sceneSlugs.includes(slug)){
+        issue.sceneSlugs.push(slug);
+        await fetch('/api/issues/' + encodeURIComponent(issueSlug), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(issue),
+        });
+      }
+    }
+  }
+  const q = '?slug=' + encodeURIComponent(slug) + (issueSlug ? '&issue=' + encodeURIComponent(issueSlug) : '');
+  history.replaceState(null, '', '/scene-builder.html' + q);
+  setMsg('Saved ' + name + '.' + (issueSlug ? ' Attached to the issue if it was not already.' : ''), true);
+}
+
+init();
+</script>
+</body>
+</html>

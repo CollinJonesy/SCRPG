@@ -179,6 +179,14 @@ table.lib-table tr.lib-row-clickable td.no-row-nav { cursor: default; }
   overflow: hidden;
   padding-bottom: 12px;
 }
+#builderView.view {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+#builderView.hidden { display: none !important; }
+#builderFrame { flex: 1; min-height: 0; width: 100%; height: 100%; border: 0; background: #12121c; }
 #boardContent {
   flex: 1;
   min-height: 0;
@@ -1522,6 +1530,7 @@ table.rules-table td { border: 1px solid #C9C3AF; padding: 4px 8px; }
   body.gm-console .folder-status .btn { padding: 4px 8px; }
 
   body.gm-console .view { padding: 8px 10px 10px; }
+  body.gm-console #builderView.view { padding: 0; }
   body.gm-console #boardView.view { padding-bottom: 8px; }
 
   body.gm-console .board-scene-header {

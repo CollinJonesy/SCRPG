@@ -320,6 +320,19 @@ class TestHeroPointsApi(ServerTestCase):
         status, _ = self.request('PUT', '/api/scenes/dock', body=ok)
         self.assertEqual(status, 200)
 
+    def test_scene_rejects_custom_tracker(self):
+        bad = json.dumps({'name': 'Dock', 'tracker': {'stars': ['green', 'red'], 'position': 0}}).encode('utf-8')
+        status, data = self.request('PUT', '/api/scenes/dock', body=bad)
+        self.assertEqual(status, 400)
+        self.assertIn('Standard', json.loads(data)['error'])
+        stars = ['green', 'green', 'yellow', 'yellow', 'yellow', 'yellow', 'red', 'red']
+        ok = json.dumps({'name': 'Dock', 'tracker': {'stars': stars, 'position': 3}}).encode('utf-8')
+        status, _ = self.request('PUT', '/api/scenes/dock', body=ok)
+        self.assertEqual(status, 200)
+        saved = json.loads((self.campaign / 'scenes' / 'dock.json').read_text(encoding='utf-8'))
+        self.assertEqual(saved['tracker']['stars'], stars)
+        self.assertEqual(saved['tracker']['position'], 3)
+
 
 class TestSceneNotesApi(ServerTestCase):
     def _make_scene(self, slug, name):
@@ -569,6 +582,8 @@ class TestVillainBuilder(ServerTestCase):
         self.assertIn(b'/villain-builder.html', data)
         self.assertIn(b'/minion-builder.html', data)
         self.assertIn(b'/environment-builder.html', data)
+        self.assertIn(b'/scene-builder.html', data)
+        self.assertIn(b'Scene Builder', data)
 
     def test_villain_builder_html_served(self):
         status, data = self.request('GET', '/villain-builder.html')

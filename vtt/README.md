@@ -81,7 +81,7 @@ The Board no longer plays one fixed scene — it plays whichever **Scene** you'v
 
 ## Scene Tracker
 
-Built from the actual book page — Standard (2 green / 3 yellow / 3 red), Prolonged (3/4/4), Epic (1/4/4), counted directly off the printed chart, or fully custom (add/remove stars of any color). Click any star to jump the marker there; Advance/Retreat buttons on the Board move it one space at a time. A Doomsday Device's "Advance Device Turn" button also moves it, per its configured speed.
+Built from the printed chart — Standard (2 green / 4 yellow / 2 red), Prolonged (3 green / 5 yellow / 3 red), Epic (1 green / 3 yellow / 4 red). Those three are the only trackers. Click any star to jump the marker there; Advance/Retreat buttons on the Board move it one space at a time. A Doomsday Device's "Advance Device Turn" button also moves it, per its configured speed. New scenes are started in **Build → Scene Builder**.
 
 ## Locations
 

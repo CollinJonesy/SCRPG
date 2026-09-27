@@ -68,6 +68,7 @@
     <div class="actions">
       <select id="scAdd" style="flex:1"></select>
       <button class="ghost" type="button" onclick="addScene()">Add scene</button>
+      <a class="ghost" id="newSceneLink" href="/scene-builder.html" style="text-decoration:none;display:inline-block;padding:9px 14px">New scene</a>
     </div>
     <div class="actions">
       <button class="btn" type="button" onclick="saveIssue()">Save Issue</button>
@@ -232,6 +233,9 @@ function fillForm(){
   renderScenes();
 }
 function renderScenes(){
+  const issueSlug=(document.getElementById('slug').value||'').trim();
+  const link=document.getElementById('newSceneLink');
+  if(link) link.href='/scene-builder.html'+(issueSlug?('?issue='+encodeURIComponent(issueSlug)):'');
   document.getElementById('scList').innerHTML=sceneSlugs.map((s,i)=>{
     const n=(scenes.find(x=>x.slug===s)||{}).name||s;
     return `<div style="display:flex;gap:6px;align-items:center;margin:4px 0"><span style="flex:1">${i+1}. ${esc(n)}</span>
