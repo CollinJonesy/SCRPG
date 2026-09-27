@@ -238,6 +238,7 @@ STATIC_FILES = {
     '/builder-hub.html': ('builder-hub.html', 'text/html; charset=utf-8'),
     '/issue-builder.html': ('issue-builder.html', 'text/html; charset=utf-8'),
     '/scene-builder.html': ('scene-builder.html', 'text/html; charset=utf-8'),
+    '/pair.html': ('pair.html', 'text/html; charset=utf-8'),
     '/minion-builder.html': ('minion-builder.html', 'text/html; charset=utf-8'),
     '/environment-builder.html': ('environment-builder.html', 'text/html; charset=utf-8'),
     '/scene-layout-builder.html': ('scene-layout-builder.html', 'text/html; charset=utf-8'),
