@@ -186,6 +186,13 @@ table.lib-table tr.lib-row-clickable td.no-row-nav { cursor: default; }
   flex-direction: column;
   overflow: hidden;
 }
+#sheetsView.view {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+  overflow-y: auto;
+}
+
 .hidden { display: none !important; }
 
 /* ---------- Board toolbar ---------- */
@@ -1493,15 +1500,169 @@ table.rules-table td { border: 1px solid #C9C3AF; padding: 4px 8px; }
   .rules-sidebar { max-height: 240px; }
 }
 
-/* Chromebook GM console: keep the same controls, stop the page from being one long scroll. */
-@media (max-width: 1400px), (max-height: 820px) {
-  .app-header { position: sticky; top: 0; z-index: 30; }
-  .board-scene-header { position: sticky; top: 52px; z-index: 20; background: var(--ink); }
-  .board-toolbar { flex-wrap: wrap; }
-  .board-scene-meta { flex-wrap: wrap; }
-  #boardView .btn, #boardView .btn-small, #boardView select { min-height: 40px; }
-  .locations-row { max-height: calc(100vh - 230px); overflow: auto; }
-  .board-main-grid { align-items: start; }
+.board-environment:empty { display: none; }
+
+/* Chromebook GM console.
+   Typical viewport is about 1366×640 after the browser chrome. The TV display
+   does not use body.gm-console, so none of this reaches the 4K screen.
+   Controls stay; they stop stacking into a page-long scroll. */
+@media (max-width: 1440px), (max-height: 860px) {
+  body.gm-console .app-header {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 4px 10px;
+  }
+  body.gm-console .brand { gap: 6px; flex-shrink: 0; }
+  body.gm-console .brand-mark { font-size: 20px; letter-spacing: 1px; }
+  body.gm-console .app-header h1 { font-size: 16px; }
+  body.gm-console .view-tabs { margin-left: auto; flex-shrink: 0; gap: 2px; }
+  body.gm-console .tab-btn { font-size: 15px; padding: 3px 10px; }
+  body.gm-console .folder-label { display: none; }
+  body.gm-console .folder-status { gap: 6px; flex-shrink: 0; }
+  body.gm-console .folder-status .btn { padding: 4px 8px; }
+
+  body.gm-console .view { padding: 8px 10px 10px; }
+  body.gm-console #boardView.view { padding-bottom: 8px; }
+
+  body.gm-console .board-scene-header {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+  }
+  body.gm-console .board-scene-lead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  body.gm-console .board-scene-name {
+    font-size: 20px;
+    margin: 0;
+    max-width: 26vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body.gm-console .board-scene-meta {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    gap: 4px;
+    min-width: 0;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  body.gm-console .board-scene-meta > * { flex: 0 0 auto; }
+  body.gm-console .tracker-controls { flex: 0 0 auto; gap: 6px; }
+  body.gm-console .tracker-star { width: 22px; height: 22px; font-size: 13px; }
+  body.gm-console .tracker-stars { flex-wrap: nowrap; }
+
+  body.gm-console .board-environment {
+    margin-bottom: 6px;
+    padding: 4px 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  body.gm-console .board-toolbar {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  body.gm-console .spawn-group,
+  body.gm-console .scene-actions { flex: 0 0 auto; flex-wrap: nowrap; }
+  body.gm-console .scene-actions { display: flex; gap: 6px; align-items: center; }
+  body.gm-console .spawn-group select,
+  body.gm-console .scene-difficulty-select { padding: 4px 6px; font-size: 12px; }
+  body.gm-console #spawnHint { display: none; }
+
+  body.gm-console .board-main-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    gap: 8px;
+    align-items: stretch;
+  }
+  body.gm-console .locations-row {
+    max-height: none;
+    overflow-y: auto;
+  }
+  body.gm-console .board-sidebar-stack { gap: 8px; }
+  body.gm-console .challenges-sidebar { margin-bottom: 0; padding: 8px; }
+  body.gm-console .right-panel-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  body.gm-console .right-panel-tabs .rp-tab { flex: 0 0 auto; }
+
+  body.gm-console .mvc-side-label { font-size: 16px; letter-spacing: 1px; margin-bottom: 4px; }
+  body.gm-console .mvc-card { width: 220px; }
+  body.gm-console .mvc-card.minion,
+  body.gm-console .mvc-card.lieutenant,
+  body.gm-console .mvc-card.small { width: 168px; }
+  body.gm-console .mvc-stage { gap: 8px; }
+  body.gm-console .location-block { margin-bottom: 10px; }
+  body.gm-console .location-col,
+  body.gm-console .location-body { min-height: 0; }
+  body.gm-console .location-body { padding: 6px; }
+  body.gm-console .location-name-display,
+  body.gm-console .location-header.location-drop input,
+  body.gm-console .location-header.location-drop .location-name-input {
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+  body.gm-console .loc-art-full { max-height: 18vh; }
+  body.gm-console .location-header.location-drop { padding: 4px 8px; margin-bottom: 4px; }
+
+  body.gm-console .library-tabs,
+  body.gm-console .lib-panel-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  body.gm-console .lib-tab-btn { flex: 0 0 auto; font-size: 15px; padding: 3px 12px; }
+  body.gm-console #libraryView.view { padding: 8px 10px; }
+
+  body.gm-console #rulesView.view {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  body.gm-console .rules-layout {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    gap: 8px;
+  }
+
+  body.gm-console #sheetsView.view {
+    max-width: none;
+    margin: 0;
+    padding: 8px 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-content: start;
+  }
+  body.gm-console #sheetsView > .row {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+  body.gm-console #sheetsView > .lib-panel { margin-bottom: 0; min-width: 0; }
+  body.gm-console #sheetsView h2 { font-size: 20px; }
+  body.gm-console #sheetActivityPanel { max-height: 28vh; }
+}
+
+/* A phone-width window still stacks. Chromebook landscape stays two columns. */
+@media (max-width: 900px) {
+  body.gm-console .app-header,
+  body.gm-console .board-scene-header { flex-wrap: wrap; }
+  body.gm-console .board-scene-name { max-width: none; }
+  body.gm-console .board-main-grid { grid-template-columns: 1fr; }
+  body.gm-console #sheetsView.view { grid-template-columns: 1fr; }
 }
 
 
